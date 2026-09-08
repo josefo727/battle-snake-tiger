@@ -1,0 +1,8 @@
+/target/
+.DS_Store
+
+# The user's global gitignore excludes .claude/ entirely; this project
+# commits .claude/settings.json deliberately (spec-tdd-kit permission
+# boundary), so un-ignore the directory and only ignore local overrides.
+!.claude/
+.claude/settings.local.json
