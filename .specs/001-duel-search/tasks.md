@@ -16,8 +16,9 @@ Ordering: the kernel and its differential equivalence to the reused resolver (T0
 
 ```yaml
 id: T001
-status: open
-commits: { red: null, green: null, refactor: null }
+status: closed
+commits: { reconstructed: pending }
+source-commits: { red: 0664bcf, green: 783ce0c, refactor: skipped }
 spec-ref: spec.md §Acceptance criteria 6
 contract-ref: n/a
 constitution-ref: Articles I, II, XIII
@@ -34,7 +35,7 @@ constitution-ref: Articles I, II, XIII
 
 **G - Green:** Set the constant to `0.1.0` and record the passing locked run.
 
-**F - Refactor:** Skipped unless the manifest shows duplicated pins.
+**F - Refactor:** Skipped - no smell detected; the version has one definition and one observable contract assertion, and the manifest pins each dependency once.
 
 **Files**
 

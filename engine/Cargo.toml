@@ -1,0 +1,26 @@
+[package]
+name = "tiger-engine"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.98.1"
+publish = false
+
+[lib]
+name = "tiger_engine"
+path = "src/lib.rs"
+
+[dependencies]
+battle-snake-rust = { path = "../../battle-snake-rust" }
+axum = { version = "=0.8.9", default-features = false, features = ["http1", "json", "tokio"] }
+serde = { version = "=1.0.229", features = ["derive"] }
+serde_json = "=1.0.151"
+tokio = { version = "=1.53.1", default-features = false, features = ["macros", "net", "rt-multi-thread"] }
+tracing = { version = "=0.1.44", default-features = false, features = ["std"] }
+tracing-subscriber = { version = "=0.3.23", default-features = false, features = ["fmt", "json", "std"] }
+
+[dev-dependencies]
+proptest = "=1.11.0"
+tower = { version = "=0.5.3", default-features = false, features = ["util"] }
+
+[lints]
+workspace = true
