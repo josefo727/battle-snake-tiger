@@ -1,0 +1,1218 @@
+# Tasks - 001-duel-search
+
+## Legend
+
+- `T{NNN}` - task id, unique within the feature, zero-padded.
+- `[P]` - safe to execute in parallel with other `[P]` tasks (disjoint files, no shared mutable state).
+- `R` - Red beat: a compiling scaffold plus a test whose assertion fails for a semantic reason.
+- `G` - Green beat: the minimal implementation.
+- `F` - Refactor beat: or "skipped" with a reason.
+- `status` - `open | in_progress | closed | skipped`.
+
+Ordering: the kernel and its differential equivalence to the reused resolver (T003-T010) precede every valuation and search task; valuation (T011-T018) precedes search (T019-T022); the application and transport layers (T023-T027) consume search; quality gates and evidence (T028-T033) precede the sparring subsystem (T034-T038) because sparring measures a finished, gated engine; packaging (T039) is last.
+
+
+## T001 - Establish the workspace and engine version sentinel
+
+```yaml
+id: T001
+status: open
+commits: { red: null, green: null, refactor: null }
+spec-ref: spec.md §Acceptance criteria 6
+contract-ref: n/a
+constitution-ref: Articles I, II, XIII
+```
+
+**Definition of Done**
+
+- Cargo workspace with one member `engine` (package `tiger-engine`), Rust 1.98.1 edition 2024 pinned by `rust-toolchain.toml`.
+- Runtime and dev dependencies use the exact pins from `plan.md` §Stack decision; `rules-core` is a path dependency and `Cargo.lock` is committed.
+- `tiger_engine::ENGINE_VERSION` is exactly `0.1.0`.
+- `cargo test --locked` runs the sentinel test.
+
+**R - Red:** Add the manifests, toolchain file, lockfile, a compiling `ENGINE_VERSION` scaffold equal to the empty string, and a sentinel test expecting `0.1.0`; record the semantic mismatch.
+
+**G - Green:** Set the constant to `0.1.0` and record the passing locked run.
+
+**F - Refactor:** Skipped unless the manifest shows duplicated pins.
+
+**Files**
+
+- `Cargo.toml`
+- `rust-toolchain.toml`
+- `engine/Cargo.toml`
+- `engine/src/lib.rs`
+- `engine/tests/sentinel.rs`
+
+## T002 - Pin the rules-core dependency behind a facade
+
+```yaml
+id: T002
+status: open
+commits: { red: null, green: null, refactor: null }
+spec-ref: spec.md §Acceptance criteria 5
+contract-ref: contracts/rules-core-dependency.rs
+constitution-ref: Articles IV, X
+```
+
+**Definition of Done**
+
+- `engine/src/rules_core.rs` is the only module naming `rules_core` paths; every item in the contract compiles through it.
+- `supported_snake_count` returns the snake count for a supported scope and `None` for an unsupported one.
+- A real two-snake request with `ruleset.version` `v1.2.3` and one with `cli` both classify as supported with two snakes.
+- A wrong-version request classifies as unsupported.
+
+**R - Red:** Add the facade with `supported_snake_count` returning `None` for every input and a contract test expecting `Some(2)` for a duel request; record the wrong result.
+
+**G - Green:** Implement the helper over the reused `classify` and re-export the contract items.
+
+**F - Refactor:** Move the shared request builders into the test support module if a second test needs them.
+
+**Files**
+
+- `engine/src/rules_core.rs`
+- `engine/src/lib.rs`
+- `engine/tests/rules_core_contract.rs`
+- `engine/tests/support/mod.rs`
+
+## T003 - Represent cells and 121-bit cell sets
+
+```yaml
+id: T003
+status: open
+commits: { red: null, green: null, refactor: null }
+spec-ref: spec.md §Acceptance criteria 1
+contract-ref: n/a
+constitution-ref: Articles IX, X, XII
+```
+
+**Definition of Done**
+
+- `Cell` is valid only for indices 0..=120 and maps to and from (x, y) with index = y * 11 + x.
+- `CellSet` never holds bits above 120 after any operation (union, intersection, difference, complement, shifts).
+- Directional neighbour expansion respects the left and right edges (a corner has two neighbours, an interior cell four).
+- Iterating a set yields cells in ascending index order and `len` equals the number of yielded cells.
+
+**R - Red:** Add compiling `Cell` and `CellSet` scaffolds whose `expand` returns the set unchanged, plus an edge-wrap example test; record the wrong neighbour count.
+
+**G - Green:** Implement masked shifts and the operations; add property tests for the 121-bit invariant and neighbour symmetry.
+
+**F - Refactor:** Extract the edge masks into named constants.
+
+**Files**
+
+- `engine/src/arena/mod.rs`
+- `engine/src/arena/cellset.rs`
+- `engine/src/lib.rs`
+- `engine/tests/cellset.rs`
+
+## T004 - Model headings and bounded steps
+
+```yaml
+id: T004
+status: open
+commits: { red: null, green: null, refactor: null }
+spec-ref: spec.md §Acceptance criteria 1
+contract-ref: n/a
+constitution-ref: Articles IX, X
+```
+
+**Definition of Done**
+
+- `Heading` has four values in a fixed order (north, east, south, west) with a stable index.
+- `step(cell)` returns `None` when the step leaves the board and the neighbouring `Cell` otherwise.
+- Stepping in a heading and then in its opposite returns the original cell whenever both steps are on the board.
+
+**R - Red:** Add a `Heading` scaffold whose `step` always returns `None`; record the failing in-board step example.
+
+**G - Green:** Implement `step` over the cell arithmetic and add the round-trip property.
+
+**F - Refactor:** Skipped unless the delta table is duplicated.
+
+**Files**
+
+- `engine/src/arena/heading.rs`
+- `engine/src/arena/mod.rs`
+- `engine/tests/heading.rs`
+
+## T005 - Model serpents with ring-buffer bodies
+
+```yaml
+id: T005
+status: open
+commits: { red: null, green: null, refactor: null }
+spec-ref: spec.md §Acceptance criteria 1
+contract-ref: n/a
+constitution-ref: Articles X, XII
+```
+
+**Definition of Done**
+
+- A serpent's ring, length, and `cells` mirror agree after every operation (property).
+- `advance_head` adds a cell and `release_tail` removes the oldest without allocating.
+- A growth stack (tail repeated once) keeps the shared cell occupied until the second copy is released.
+- Length never exceeds 121.
+
+**R - Red:** Add a `Serpent` scaffold whose `release_tail` does nothing; record the occupancy mismatch after a move.
+
+**G - Green:** Implement the ring operations and the mirror invariant with property tests.
+
+**F - Refactor:** Name the ring mask constant and hide the raw slot arithmetic behind accessors.
+
+**Files**
+
+- `engine/src/arena/serpent.rs`
+- `engine/src/arena/mod.rs`
+- `engine/tests/serpent.rs`
+
+## T006 - Build duel boards and ingest turn states
+
+```yaml
+id: T006
+status: open
+commits: { red: null, green: null, refactor: null }
+spec-ref: spec.md §Acceptance criteria 1 and 5
+contract-ref: contracts/rules-core-dependency.rs
+constitution-ref: Articles IX, X
+```
+
+**Definition of Done**
+
+- `DuelBoard::try_new` rejects overlapping serpents, food under a serpent, and out-of-range vigor with typed errors.
+- `ingest` builds a `DuelBoard` from a reused `TurnState` with our snake first, preserving ordered bodies, health, and food.
+- `ingest` fails with `IngestError::NotADuel` for one, three, or four snakes.
+- Round trip: the board's serpent cells equal the `TurnState` occupancy.
+
+**R - Red:** Add `ingest` returning `NotADuel` for every input and a test expecting a two-snake state to convert; record the wrong error.
+
+**G - Green:** Implement construction, invariants, and the conversion.
+
+**F - Refactor:** Split the conversion helpers from the invariant checks.
+
+**Files**
+
+- `engine/src/arena/duel.rs`
+- `engine/src/arena/ingest.rs`
+- `engine/src/arena/mod.rs`
+- `engine/tests/ingest.rs`
+
+## T007 - Advance ordinary movement, health, and tail release
+
+```yaml
+id: T007
+status: open
+commits: { red: null, green: null, refactor: null }
+spec-ref: spec.md §Acceptance criteria 1
+contract-ref: contracts/rules-core-dependency.rs
+constitution-ref: Articles II, XII
+```
+
+**Definition of Done**
+
+- For non-eating, non-colliding joint moves, `advance` equals the reused `resolve_turn` on bodies, health, and survival (differential example suite).
+- Health drops by one per turn and the old tail is released before any collision test.
+- Both snakes move simultaneously from the same immutable starting board.
+
+**R - Red:** Add `advance` as a scaffold returning the unchanged board plus a differential example against `resolve_turn`; record the body mismatch.
+
+**G - Green:** Implement head movement, tail release, and health decrement.
+
+**F - Refactor:** Extract `move_serpent` so later phases reuse it.
+
+**Files**
+
+- `engine/src/arena/duel.rs`
+- `engine/tests/advance_differential.rs`
+- `engine/tests/support/mod.rs`
+
+## T008 - Advance food consumption and growth
+
+```yaml
+id: T008
+status: open
+commits: { red: null, green: null, refactor: null }
+spec-ref: spec.md §Acceptance criteria 1
+contract-ref: contracts/rules-core-dependency.rs
+constitution-ref: Articles II, XII
+```
+
+**Definition of Done**
+
+- Eating restores health to 100, removes the food, and duplicates the current post-move tail.
+- A later non-eating move releases one copy of a stacked tail while the other stays occupied.
+- Agreement with `resolve_turn` on the food and growth examples, including two serpents eating the same cell.
+
+**R - Red:** Add the growth examples to the differential suite with `advance` ignoring food; record the length mismatch.
+
+**G - Green:** Implement the food phase after ordinary movement.
+
+**F - Refactor:** Name the growth step so the phase order reads like the official rules.
+
+**Files**
+
+- `engine/src/arena/duel.rs`
+- `engine/tests/advance_differential.rs`
+
+## T009 - Advance eliminations
+
+```yaml
+id: T009
+status: open
+commits: { red: null, green: null, refactor: null }
+spec-ref: spec.md §Acceptance criteria 1
+contract-ref: contracts/rules-core-dependency.rs
+constitution-ref: Articles II, XII
+```
+
+**Definition of Done**
+
+- Starvation, leaving the board, and self or body collisions eliminate exactly as `resolve_turn` does.
+- Eliminations are decided on the post-move snapshot for both serpents simultaneously.
+- `Advance::Over` carries `WeOnly`, `TheyOnly`, or `BothDown` matching the reference survivors.
+
+**R - Red:** Add elimination examples with `advance` never eliminating; record the missing `Over` result.
+
+**G - Green:** Implement the elimination phase and the verdict mapping.
+
+**F - Refactor:** Extract `collides_with_any_body`.
+
+**Files**
+
+- `engine/src/arena/duel.rs`
+- `engine/tests/advance_differential.rs`
+
+## T010 - Advance head-to-head and prove kernel equivalence
+
+```yaml
+id: T010
+status: open
+commits: { red: null, green: null, refactor: null }
+spec-ref: spec.md §Acceptance criteria 1
+contract-ref: contracts/rules-core-dependency.rs
+constitution-ref: Articles II, XII
+```
+
+**Definition of Done**
+
+- Head-to-head: the longer serpent survives, equal lengths eliminate both, matching the reference.
+- A proptest generates legal duel states and all 16 joint moves and asserts full agreement with `resolve_turn` on survival, bodies, health, and consumed food.
+- The suite runs inside the normal `cargo test --locked`.
+
+**R - Red:** Add head-to-head examples with `advance` treating them as no collision; record the survivor mismatch.
+
+**G - Green:** Implement head-to-head resolution; enable the generated differential property.
+
+**F - Refactor:** Share the generators through the test support module.
+
+**Files**
+
+- `engine/src/arena/duel.rs`
+- `engine/tests/advance_differential.rs`
+- `engine/tests/support/mod.rs`
+
+## T011 - Assemble the valuation pipeline and weight sheet
+
+```yaml
+id: T011
+status: open
+commits: { red: null, green: null, refactor: null }
+spec-ref: spec.md §Acceptance criteria 1
+contract-ref: n/a
+constitution-ref: Articles VI, X, XII
+```
+
+**Definition of Done**
+
+- `Assessor` is one trait with one method; `ValuationPipeline` sums weighted contributions into an integer score and a `Ledger`.
+- `WeightSheet` holds every coefficient by name and `DEFAULT_PROFILE` is one constant.
+- With no assessors registered the score is 0 and the ledger is empty.
+
+**R - Red:** Add a pipeline scaffold returning 1 and a test expecting 0 for the empty pipeline; record the wrong score.
+
+**G - Green:** Implement the trait, ledger, weighted sum, and weight sheet.
+
+**F - Refactor:** Skipped unless the ledger duplicates the weight names.
+
+**Files**
+
+- `engine/src/valuation/mod.rs`
+- `engine/src/valuation/weights.rs`
+- `engine/src/lib.rs`
+- `engine/tests/valuation_pipeline.rs`
+
+## T012 - Score terminal positions
+
+```yaml
+id: T012
+status: open
+commits: { red: null, green: null, refactor: null }
+spec-ref: spec.md §Acceptance criteria 1
+contract-ref: n/a
+constitution-ref: Articles XI, XII
+```
+
+**Definition of Done**
+
+- `Finish` scores a forced win as a large positive value, a forced loss as its negation, and mutual elimination as a small draw score.
+- Faster wins score higher than slower wins and slower losses score higher than faster ones (ply-distance term).
+- Scores stay inside the documented bounds so search can use them as infinity sentinels.
+
+**R - Red:** Add `Finish` returning 0 for every verdict; record the win-score failure.
+
+**G - Green:** Implement terminal scoring with the ply-distance term.
+
+**F - Refactor:** Move the bounds into named constants in the weight sheet.
+
+**Files**
+
+- `engine/src/valuation/finish.rs`
+- `engine/src/valuation/mod.rs`
+- `engine/tests/valuation_finish.rs`
+
+## T013 - Compute static Voronoi territory
+
+```yaml
+id: T013
+status: open
+commits: { red: null, green: null, refactor: null }
+spec-ref: spec.md §Acceptance criteria 1
+contract-ref: n/a
+constitution-ref: Articles VIII, XII
+```
+
+**Definition of Done**
+
+- `Dominion` returns cells reached strictly first by each serpent using layered fills over `CellSet`.
+- Cells reached in the same layer go to the longer serpent and to nobody on equal length.
+- Swapping the two serpents negates the territory difference (property).
+- Obstacles are all serpent cells (no release yet).
+
+**R - Red:** Add `Dominion` counting zero cells for both sides; record the wrong territory on an open-board example.
+
+**G - Green:** Implement the layered fill and contested-cell rule.
+
+**F - Refactor:** Extract `expand_layer` for reuse by the time-aware variant.
+
+**Files**
+
+- `engine/src/valuation/dominion.rs`
+- `engine/src/valuation/mod.rs`
+- `engine/tests/valuation_dominion.rs`
+
+## T014 - Model tail release in territory
+
+```yaml
+id: T014
+status: open
+commits: { red: null, green: null, refactor: null }
+spec-ref: spec.md §Acceptance criteria 1
+contract-ref: n/a
+constitution-ref: Articles VIII, XII
+```
+
+**Definition of Done**
+
+- Layer `t` treats the tail segments released within `t` turns as passable (segment `i` from the tail is free after `i + 1` turns).
+- A serpent chasing its own tail owns more territory than the static model reports on the reference example.
+- Growth stacks delay release by one turn per stacked segment.
+- The fill terminates within `MAX_LAYERS` and never reads bits outside the board.
+
+**R - Red:** Add a tail-chase example expecting the enlarged territory while `Dominion` still uses static obstacles; record the count mismatch.
+
+**G - Green:** Compute the obstacle set per layer from segment release times.
+
+**F - Refactor:** Precompute release masks once per assessment.
+
+**Files**
+
+- `engine/src/valuation/dominion.rs`
+- `engine/tests/valuation_dominion.rs`
+
+## T015 - Assess sustenance
+
+```yaml
+id: T015
+status: open
+commits: { red: null, green: null, refactor: null }
+spec-ref: spec.md §Acceptance criteria 1
+contract-ref: n/a
+constitution-ref: Articles VIII, XII
+```
+
+**Definition of Done**
+
+- `Sustenance` compares health margin with the distance to the nearest food each serpent reaches first.
+- Urgency grows as the margin shrinks and is zero when health comfortably exceeds the distance.
+- Swapping the serpents negates the contribution.
+
+**R - Red:** Add `Sustenance` returning 0 and a low-health example expecting a negative contribution; record the mismatch.
+
+**G - Green:** Implement the margin and urgency computation from the dominion fill's food distances.
+
+**F - Refactor:** Share the food-distance helper with `Dominion`.
+
+**Files**
+
+- `engine/src/valuation/sustenance.rs`
+- `engine/src/valuation/mod.rs`
+- `engine/tests/valuation_sustenance.rs`
+
+## T016 - Assess leverage and head-to-head pressure
+
+```yaml
+id: T016
+status: open
+commits: { red: null, green: null, refactor: null }
+spec-ref: spec.md §Acceptance criteria 1
+contract-ref: n/a
+constitution-ref: Articles VIII, XII
+```
+
+**Definition of Done**
+
+- `Leverage` rewards a length advantage and head-to-head threat coverage while we are longer, and penalises the reverse.
+- Equal lengths produce no head-to-head term.
+- Swapping the serpents negates the contribution.
+
+**R - Red:** Add `Leverage` returning 0 and a longer-serpent example expecting a positive value; record the mismatch.
+
+**G - Green:** Implement the length and threat terms.
+
+**F - Refactor:** Name the threat-mask helper.
+
+**Files**
+
+- `engine/src/valuation/leverage.rs`
+- `engine/src/valuation/mod.rs`
+- `engine/tests/valuation_leverage.rs`
+
+## T017 - Estimate survival in separated regions
+
+```yaml
+id: T017
+status: open
+commits: { red: null, green: null, refactor: null }
+spec-ref: spec.md §Acceptance criteria 1
+contract-ref: n/a
+constitution-ref: Articles VIII, XII
+```
+
+**Definition of Done**
+
+- `Enclosure` activates only when the two serpents' reachable regions are disjoint.
+- Each side's estimate uses region size, parity-adjusted cell count, and tail release.
+- The contribution is our estimate minus theirs and is antisymmetric under side swap.
+- When regions overlap the contribution is exactly zero.
+
+**R - Red:** Add `Enclosure` returning 0 and a walled-off example expecting a positive contribution for the larger region; record the mismatch.
+
+**G - Green:** Implement region detection and the survival estimate.
+
+**F - Refactor:** Reuse the layered-fill helper for reachability.
+
+**Files**
+
+- `engine/src/valuation/enclosure.rs`
+- `engine/src/valuation/mod.rs`
+- `engine/tests/valuation_enclosure.rs`
+
+## T018 - Compose the default valuation profile
+
+```yaml
+id: T018
+status: open
+commits: { red: null, green: null, refactor: null }
+spec-ref: spec.md §Acceptance criteria 1
+contract-ref: n/a
+constitution-ref: Articles VIII, XII, XIV
+```
+
+**Definition of Done**
+
+- `ValuationPipeline::standard()` registers `Finish`, `Dominion`, `Sustenance`, `Leverage`, and `Enclosure` with `DEFAULT_PROFILE`.
+- Property: swapping the serpents negates the total score on generated positions.
+- Property: the score is deterministic and stays inside the finite-score bounds for non-terminal positions.
+- The ledger lists one entry per assessor.
+
+**R - Red:** Add `standard()` returning the empty pipeline and a symmetry test over an open-board example; record the zero score.
+
+**G - Green:** Register the assessors with the default weights.
+
+**F - Refactor:** Skipped unless registration order is duplicated in tests.
+
+**Files**
+
+- `engine/src/valuation/mod.rs`
+- `engine/src/valuation/weights.rs`
+- `engine/tests/valuation_pipeline.rs`
+
+## T019 - Bound search by a clock-backed allowance
+
+```yaml
+id: T019
+status: open
+commits: { red: null, green: null, refactor: null }
+spec-ref: spec.md §Acceptance criteria 2 and 4
+contract-ref: contracts/decision-diagnostic.schema.json
+constitution-ref: Articles VII, XI, XIV
+```
+
+**Definition of Done**
+
+- `SearchAllowance` derives its deadline from the reused `response_deadline` minus `SEARCH_TAIL_MARGIN`.
+- `should_stop` polls the injected `Clock` only every `POLL_INTERVAL_NODES` visited nodes and on demand.
+- `LookaheadReport` records completed depth, nodes explored, best heading, and principal score.
+
+**R - Red:** Add an allowance scaffold whose `should_stop` is always false and a fake-clock test expecting a stop at the deadline; record the missed stop.
+
+**G - Green:** Implement the polling and deadline arithmetic.
+
+**F - Refactor:** Skipped unless the polling counter is duplicated.
+
+**Files**
+
+- `engine/src/lookahead/mod.rs`
+- `engine/src/lookahead/allowance.rs`
+- `engine/src/lookahead/ledger.rs`
+- `engine/tests/lookahead_allowance.rs`
+
+## T020 - Search a fixed depth with alpha-beta
+
+```yaml
+id: T020
+status: open
+commits: { red: null, green: null, refactor: null }
+spec-ref: spec.md §Acceptance criteria 1
+contract-ref: n/a
+constitution-ref: Articles VIII, XI, XII
+```
+
+**Definition of Done**
+
+- `Maximizer` iterates our four headings and `Minimizer` the opponent's four, applying both moves through `advance`.
+- Property: the alpha-beta value equals an exhaustive minimax reference at depths 1 to 3 on generated positions.
+- The chosen heading is never a self-inflicted certain loss when a surviving heading exists.
+- Terminal outcomes use `Finish` and interior leaves use the standard pipeline.
+
+**R - Red:** Add `search_fixed` returning the first heading with score 0 and an exhaustive-minimax comparison example; record the value mismatch.
+
+**G - Green:** Implement fail-soft alpha-beta over the two layers.
+
+**F - Refactor:** Extract the shared window-update step between the layers.
+
+**Files**
+
+- `engine/src/lookahead/minimax.rs`
+- `engine/src/lookahead/mod.rs`
+- `engine/tests/lookahead_minimax.rs`
+
+## T021 - Order moves for early cutoffs
+
+```yaml
+id: T021
+status: open
+commits: { red: null, green: null, refactor: null }
+spec-ref: spec.md §Acceptance criteria 1
+contract-ref: n/a
+constitution-ref: Articles VIII, XI
+```
+
+**Definition of Done**
+
+- Ordering places the previous iteration's best heading first, then killer headings for the ply, then history-ranked headings.
+- Ties fall back to the fixed heading order so results are deterministic.
+- On a fixed position suite ordered search visits strictly fewer nodes than unordered search at the same depth and returns the same value.
+
+**R - Red:** Add an ordering scaffold returning the fixed order and a node-count comparison expecting fewer nodes; record equal counts.
+
+**G - Green:** Implement previous-best, killer, and history ordering.
+
+**F - Refactor:** Skipped unless the history table indexing is duplicated.
+
+**Files**
+
+- `engine/src/lookahead/ordering.rs`
+- `engine/src/lookahead/minimax.rs`
+- `engine/tests/lookahead_ordering.rs`
+
+## T022 - Deepen iteratively within the allowance
+
+```yaml
+id: T022
+status: open
+commits: { red: null, green: null, refactor: null }
+spec-ref: spec.md §Acceptance criteria 2, 3, and 4
+contract-ref: contracts/decision-diagnostic.schema.json
+constitution-ref: Articles XI, XIV
+```
+
+**Definition of Done**
+
+- The driver runs depths 1, 2, 3, ... and never starts a depth after `ITERATION_START_FRACTION` of the allowance has elapsed.
+- An interrupted iteration is discarded and the report carries the last completed depth's heading.
+- If no depth completes the report says so explicitly.
+- Determinism: identical input and fake clock yield identical reports.
+
+**R - Red:** Add a driver scaffold returning depth 0 always and a fake-clock test expecting depth 3 with a generous allowance; record the depth mismatch.
+
+**G - Green:** Implement the iteration loop, discard policy, and report assembly.
+
+**F - Refactor:** Separate the start-fraction predicate from the loop.
+
+**Files**
+
+- `engine/src/lookahead/deepening.rs`
+- `engine/src/lookahead/mod.rs`
+- `engine/tests/lookahead_deepening.rs`
+
+## T023 - Select the engine route
+
+```yaml
+id: T023
+status: open
+commits: { red: null, green: null, refactor: null }
+spec-ref: spec.md §Acceptance criteria 5
+contract-ref: contracts/rules-core-dependency.rs
+constitution-ref: Articles IX, X
+```
+
+**Definition of Done**
+
+- Exactly two snakes in a supported scope routes to `DuelSearch`.
+- Three or four snakes in a supported scope routes to `SafetyFallback`.
+- Any unsupported scope routes to `UnsupportedFallback`.
+- The selector is a pure function of the classified scope.
+
+**R - Red:** Add `RouteSelector` returning `UnsupportedFallback` always and a duel example expecting `DuelSearch`; record the wrong route.
+
+**G - Green:** Implement the selection over the facade.
+
+**F - Refactor:** Skipped unless the branch table duplicates the facade helper.
+
+**Files**
+
+- `engine/src/verdict/mod.rs`
+- `engine/src/verdict/route.rs`
+- `engine/src/lib.rs`
+- `engine/tests/verdict_route.rs`
+
+## T024 - Decide moves through the verdict service
+
+```yaml
+id: T024
+status: open
+commits: { red: null, green: null, refactor: null }
+spec-ref: spec.md §Acceptance criteria 1, 2, 3, and 5
+contract-ref: contracts/rules-core-dependency.rs
+constitution-ref: Articles VII, X, XI
+```
+
+**Definition of Done**
+
+- The duel path returns the search report's heading with `selection_reason` `search_completed_depth` or `search_terminal_win`.
+- When no depth completes the service returns the reused one-turn safety decision and `budget_exhausted_before_first_depth`.
+- Non-duel routes return exactly what the reused `decide_within_deadline` or `decide_unsupported` returns.
+- Every returned heading is one of the four platform-valid directions.
+
+**R - Red:** Add `VerdictService` always delegating to the safety fallback and a duel example expecting a search-derived heading and depth above zero; record the wrong reason.
+
+**G - Green:** Implement the pipeline over the route, the search driver, and the fallbacks.
+
+**F - Refactor:** Extract `VerdictReport` construction.
+
+**Files**
+
+- `engine/src/verdict/service.rs`
+- `engine/src/verdict/mod.rs`
+- `engine/tests/verdict_service.rs`
+- `engine/tests/support/mod.rs`
+
+## T025 - Emit schema-versioned decision diagnostics
+
+```yaml
+id: T025
+status: open
+commits: { red: null, green: null, refactor: null }
+spec-ref: spec.md §Acceptance criteria 4
+contract-ref: contracts/decision-diagnostic.schema.json
+constitution-ref: Articles VII, XIV
+```
+
+**Definition of Done**
+
+- `DecisionBeacon` is the only diagnostics port and the tracing adapter emits exactly one `move_decision` event per decision.
+- Serialized events validate against schema 2.0.0 for all three engine paths.
+- The event carries `game_id` and `turn` and never a board, body, name, or shout.
+- `search_depth` and `nodes_explored` equal the report's values.
+
+**R - Red:** Add an event serializer scaffold emitting `search_depth` 0 and a test expecting the report's depth; record the mismatch.
+
+**G - Green:** Implement the event mapping, the beacon port, and the tracing adapter.
+
+**F - Refactor:** Skipped unless reason mapping is duplicated.
+
+**Files**
+
+- `engine/src/gateway/mod.rs`
+- `engine/src/gateway/beacon.rs`
+- `engine/src/lib.rs`
+- `engine/tests/gateway_beacon.rs`
+- `engine/tests/support/mod.rs`
+
+## T026 - Serve the four Battlesnake routes
+
+```yaml
+id: T026
+status: open
+commits: { red: null, green: null, refactor: null }
+spec-ref: spec.md §Acceptance criteria 2, 6, and 7
+contract-ref: contracts/openapi.yaml
+constitution-ref: Articles IV, VII, IX
+```
+
+**Definition of Done**
+
+- `GET /` returns HTTP 200 JSON exactly `{"apiversion":"1","author":"josefo727","color":"#00D5FF","head":"tiger-king","tail":"tiger-tail","version":"0.1.0"}`.
+- `POST /start` and `POST /end` return HTTP 200 with `{}` for any syntactically valid request.
+- `POST /move` returns HTTP 200 with exactly one `move` member; malformed JSON is 400, wrong or missing content type 415, bodies over 64 KiB 413.
+- A duel, a three-snake game, and an unsupported game each produce a valid move through the real router and emit one diagnostic.
+
+**R - Red:** Add a router scaffold whose `/` returns `{}` and a contract test expecting the exact identity body; record the body mismatch.
+
+**G - Green:** Implement the routes, validation, and the composition root `build_service`.
+
+**F - Refactor:** Unify the acknowledgement handlers.
+
+**Files**
+
+- `engine/src/gateway/http.rs`
+- `engine/src/gateway/mod.rs`
+- `engine/src/lib.rs`
+- `engine/tests/gateway_http.rs`
+
+## T027 - Run the server process
+
+```yaml
+id: T027
+status: open
+commits: { red: null, green: null, refactor: null }
+spec-ref: spec.md §Acceptance criteria 2 and 6
+contract-ref: contracts/openapi.yaml
+constitution-ref: Articles VII, XI
+```
+
+**Definition of Done**
+
+- `Settings::from_lookup` reads `BIND_ADDR` (default `0.0.0.0`) and `PORT` (default `8080`) and rejects invalid values with actionable errors.
+- `main.rs` installs the production `SystemClock`, the tracing JSON subscriber, and serves the router.
+- A test starts the compiled binary on a free port and receives the exact identity body over loopback TCP.
+
+**R - Red:** Add `Settings` returning port 0 and a test expecting the default 8080; record the wrong default.
+
+**G - Green:** Implement settings and `main`; add the loopback smoke test.
+
+**F - Refactor:** Skipped unless config parsing duplicates the sibling helper's shape.
+
+**Files**
+
+- `engine/src/gateway/settings.rs`
+- `engine/src/main.rs`
+- `engine/tests/gateway_settings.rs`
+- `engine/tests/process_smoke.rs`
+
+## T028 - Enforce static quality gates
+
+```yaml
+id: T028
+status: open
+commits: { red: null, green: null, refactor: null }
+spec-ref: spec.md §Acceptance criteria 1 to 8
+contract-ref: n/a
+constitution-ref: Articles X, XIII
+```
+
+**Definition of Done**
+
+- `deny.toml` sets explicit advisories, bans, licenses, and sources policy for the workspace.
+- `scripts/verify` composes `cargo fmt --check`, locked tests, Clippy with warnings denied, the inward-dependency architecture check, and `cargo deny check`.
+- The architecture check fails when `arena`, `valuation`, `lookahead`, or `verdict` imports `axum`, `tokio`, `tracing`, `std::fs`, `std::process`, or `crate::gateway`.
+- A failing stage exits non-zero and names the stage.
+
+**R - Red:** Add a scaffold `scripts/verify` that always passes and an architecture-check self-test expecting failure on a planted forbidden import; record the false pass.
+
+**G - Green:** Implement the stages and the check; write `deny.toml`.
+
+**F - Refactor:** Keep the scripts small and free of CI-provider assumptions.
+
+**Files**
+
+- `deny.toml`
+- `scripts/verify`
+- `scripts/check-architecture`
+- `engine/tests/architecture_check.rs`
+
+## T029 - Gate branch coverage in a container
+
+```yaml
+id: T029
+status: open
+commits: { red: null, green: null, refactor: null }
+spec-ref: spec.md §Acceptance criteria 1 to 5
+contract-ref: n/a
+constitution-ref: Article XII
+```
+
+**Definition of Done**
+
+- A parser fails when any of `arena`, `valuation`, or `lookahead` is below 90% branch coverage and accepts at or above 90%.
+- Line and region coverage are reported as supplemental evidence only.
+- `scripts/check-branch-coverage` runs the pinned nightly and `cargo-llvm-cov` inside a disposable container built from the pinned Rust image, leaving the host toolchain untouched.
+- The real run's percentages are recorded in the evidence file.
+
+**R - Red:** Add a parser scaffold that accepts every report and a below-threshold fixture case; record the incorrect acceptance.
+
+**G - Green:** Implement the threshold check per module and the container script; run it for real.
+
+**F - Refactor:** Keep the script small and fail-fast.
+
+**Files**
+
+- `engine/tests/coverage_gate.rs`
+- `scripts/check-branch-coverage`
+- `.specs/001-duel-search/evidence/coverage.md`
+
+## T030 - Measure kernel throughput and position repeat rate
+
+```yaml
+id: T030
+status: open
+commits: { red: null, green: null, refactor: null }
+spec-ref: spec.md §Acceptance criteria 4
+contract-ref: n/a
+constitution-ref: Articles XI, XIV
+```
+
+**Definition of Done**
+
+- An ignored release-mode harness records kernel `advance` throughput and the reused `resolve_turn` throughput on the same states.
+- It searches a fixed suite of 200 generated midgame duels and records nodes/second, completed depth, and the fraction of visited positions that repeat within one search.
+- The evidence file records exact command, environment identity, and whether the 15% transposition gate passes.
+
+**R - Red:** Add a harness scaffold that reports zero repeats and an assertion that the suite size is 200; record the zero-sample mismatch before adding measurements.
+
+**G - Green:** Implement the measurements and evidence writer; run it for real.
+
+**F - Refactor:** Separate measurement from assertion.
+
+**Files**
+
+- `engine/tests/profile.rs`
+- `scripts/run-profile`
+- `.specs/001-duel-search/evidence/profile.md`
+
+## T031 - Memoize positions with a transposition table
+
+```yaml
+id: T031
+status: open
+commits: { red: null, green: null, refactor: null }
+spec-ref: spec.md §Acceptance criteria 1 and 4
+contract-ref: n/a
+constitution-ref: Articles VI, XI, XIV
+```
+
+**Definition of Done**
+
+- Executes only if T030 records at least 15% repeats; otherwise the task closes as skipped with the measured rate.
+- Zobrist keys come from a const splitmix64 sequence; the table stores depth, bound type, best heading, and a signature with depth-preferred replacement.
+- A stored heading is re-validated as legal before use; terminal scores are re-based by ply distance.
+- Property: search with the table returns the same value as without it at depths 1 to 3.
+- Nodes explored at equal depth are lower on the fixed suite.
+
+**R - Red:** Add table scaffolds that never store and a test expecting a hit on a transposed position; record the missed hit.
+
+**G - Green:** Implement keys, entries, replacement, and integration into the search.
+
+**F - Refactor:** Isolate probing and storing behind two functions.
+
+**Files**
+
+- `engine/src/lookahead/memo.rs`
+- `engine/src/lookahead/minimax.rs`
+- `engine/tests/lookahead_memo.rs`
+
+## T032 - Measure deadline, latency, and depth on loopback
+
+```yaml
+id: T032
+status: open
+commits: { red: null, green: null, refactor: null }
+spec-ref: spec.md §Acceptance criteria 2 and 4
+contract-ref: contracts/openapi.yaml
+constitution-ref: Articles VII, XI, XII, XIV
+```
+
+**Definition of Done**
+
+- The release-mode harness starts a fresh loopback server with the production router and bounded diagnostics.
+- It performs 1,000 warmups followed by 20,000 requests at concurrency 16 on worst-case duels and repeats a sequential comparison.
+- The report records p50, p95, p99, maximum latency, cutoff count, invalid-move count, completed-depth distribution, and nodes/second.
+- p99 completes no later than `timeout - 120 ms`, with zero invalid moves and completed depth of at least 2 on every duel decision.
+- Re-running produces a versioned evidence record with the exact command and environment identity.
+
+**R - Red:** Add a loopback-sampler scaffold and the workload-count acceptance test; record its zero-sample mismatch before adding percentile and evidence assertions.
+
+**G - Green:** Implement the sampler, percentile calculation, and report command; run it for real.
+
+**F - Refactor:** Separate measurement from assertion.
+
+**Files**
+
+- `engine/tests/latency.rs`
+- `scripts/run-latency`
+- `.specs/001-duel-search/evidence/latency.md`
+
+## T033 - Drive the engine with the official rules CLI
+
+```yaml
+id: T033
+status: open
+commits: { red: null, green: null, refactor: null }
+spec-ref: spec.md §Acceptance criteria 1 and 5
+contract-ref: n/a
+constitution-ref: Articles IV, V, IX
+```
+
+**Definition of Done**
+
+- `scripts/fetch-rules-oracle` downloads and digest-verifies the official v1.2.3 CLI without committing it.
+- An ignored suite plays seeded duel games of the compiled engine against the sibling one-turn baseline and completes without protocol errors.
+- At least 95% of the engine's recorded decisions in those games report `engine_path` `duel_search` (guards against a repeat of the sibling's local-CLI classification blind spot).
+- A three-snake CLI game completes using the safety fallback.
+
+**R - Red:** Add the suite scaffold with a recorder that counts zero duel decisions and an expectation of at least 95%; record the mismatch.
+
+**G - Green:** Implement fetching, process launching, and decision counting; run it for real.
+
+**F - Refactor:** Share process helpers with the latency harness.
+
+**Files**
+
+- `scripts/fetch-rules-oracle`
+- `engine/tests/cli_endtoend.rs`
+- `engine/tests/support/mod.rs`
+- `.gitignore`
+
+## T034 - Compute win rates with Wilson intervals
+
+```yaml
+id: T034
+status: open
+commits: { red: null, green: null, refactor: null }
+spec-ref: spec.md §Acceptance criteria 8
+contract-ref: contracts/sparring-report.schema.json
+constitution-ref: Articles XIV
+```
+
+**Definition of Done**
+
+- A new workspace member `sparring` (package `tiger-sparring`) compiles.
+- `win_rate` counts draws as neither wins nor losses in the numerator and reports them separately.
+- The 95% Wilson interval matches reference values for (0/30), (15/30), and (30/30) within 1e-9.
+- Empty samples are rejected with a typed error.
+
+**R - Red:** Add a statistics scaffold returning a zero interval and a reference-value test for 15/30; record the mismatch.
+
+**G - Green:** Implement win rate and the Wilson interval.
+
+**F - Refactor:** Skipped unless formulas are duplicated.
+
+**Files**
+
+- `Cargo.toml`
+- `sparring/Cargo.toml`
+- `sparring/src/lib.rs`
+- `sparring/src/statistics.rs`
+- `sparring/tests/statistics.rs`
+
+## T035 - Run and parse official-CLI games
+
+```yaml
+id: T035
+status: open
+commits: { red: null, green: null, refactor: null }
+spec-ref: spec.md §Acceptance criteria 8
+contract-ref: contracts/opponent-roster.yaml
+constitution-ref: Articles VII, XIV
+```
+
+**Definition of Done**
+
+- `SparringRunner` is a port with an official-CLI adapter that runs one seeded duel between two local URLs and returns winner, turns, and seed.
+- Result parsing handles a win, a loss, a draw, and an unparsable transcript (typed error).
+- The runner checks each opponent's liveness (`GET /`) before the first game and fails fast when one is unreachable.
+
+**R - Red:** Add a parser scaffold returning `Draw` for every transcript and a win-transcript example; record the wrong result.
+
+**G - Green:** Implement parsing, the adapter, and the liveness check.
+
+**F - Refactor:** Separate process spawning from parsing.
+
+**Files**
+
+- `sparring/src/runner.rs`
+- `sparring/src/transcript.rs`
+- `sparring/src/lib.rs`
+- `sparring/tests/runner.rs`
+
+## T036 - Persist versioned sparring reports
+
+```yaml
+id: T036
+status: open
+commits: { red: null, green: null, refactor: null }
+spec-ref: spec.md §Acceptance criteria 8
+contract-ref: contracts/sparring-report.schema.json
+constitution-ref: Articles VII, XIV
+```
+
+**Definition of Done**
+
+- `ReportSink` is a port with a JSON file adapter that writes a report validating against schema 1.0.0.
+- The report records engine commit, environment identity, opponents, seeds, wins, losses, draws, win rate, and Wilson interval.
+- Writing refuses to overwrite an existing report without an explicit flag.
+
+**R - Red:** Add a sink scaffold that writes an empty object and a schema-conformance test; record the missing required fields.
+
+**G - Green:** Implement the report assembly and file adapter.
+
+**F - Refactor:** Skipped unless assembly duplicates the statistics module.
+
+**Files**
+
+- `sparring/src/ledger.rs`
+- `sparring/src/lib.rs`
+- `sparring/tests/ledger.rs`
+
+## T037 - Provision opponents and run the first sparring benchmark
+
+```yaml
+id: T037
+status: open
+commits: { red: null, green: null, refactor: null }
+spec-ref: spec.md §Acceptance criteria 8
+contract-ref: contracts/opponent-roster.yaml
+constitution-ref: Articles VIII, XIV
+```
+
+**Definition of Done**
+
+- `scripts/provision-opponents` builds Shapeshifter from the existing local checkout with default features and clones and builds Flood inside this workspace's ignored reference directory, recording each opponent's launch command in the roster.
+- `spar` runs seeds 1 to 30 per opponent for the challenger and for the sibling baseline and writes a schema-valid report.
+- The first real report is committed as evidence with exact environment and engine commit.
+
+**R - Red:** Add a `spar` scaffold that reports zero games and an assertion that 30 games were played per matchup; record the zero-sample mismatch.
+
+**G - Green:** Implement orchestration and provisioning; run the benchmark for real.
+
+**F - Refactor:** Separate roster loading from orchestration.
+
+**Files**
+
+- `sparring/src/main.rs`
+- `sparring/src/roster.rs`
+- `scripts/provision-opponents`
+- `scripts/run-sparring`
+- `.specs/001-duel-search/evidence/sparring.md`
+
+## T038 - Satisfy the sparring acceptance bar by measured iteration
+
+```yaml
+id: T038
+status: open
+commits: { red: null, green: null, refactor: null }
+spec-ref: spec.md §Acceptance criteria 8
+contract-ref: contracts/sparring-report.schema.json
+constitution-ref: Articles VIII, XIV
+```
+
+**Definition of Done**
+
+- Each weight or ordering change is a separate commit with the before and after sparring numbers in its message and in the iteration log.
+- A change that measures worse is reverted and logged as a dead end.
+- The final report shows a win rate strictly greater than the sibling baseline's against both Shapeshifter and Flood over seeds 1 to 30.
+- Win rates against both opponents and the trend across iterations are recorded whether or not they approach parity.
+
+**R - Red:** Add the iteration-log acceptance check that fails while any matchup's challenger win rate does not exceed the baseline's; record the failing report.
+
+**G - Green:** Iterate the default profile and search parameters until the check passes.
+
+**F - Refactor:** Remove any experiment scaffolding not adopted.
+
+**Files**
+
+- `.specs/001-duel-search/evidence/sparring.md`
+- `engine/src/valuation/weights.rs`
+- `engine/tests/sparring_gate.rs`
+
+## T039 - Package the engine in a digest-pinned image
+
+```yaml
+id: T039
+status: open
+commits: { red: null, green: null, refactor: null }
+spec-ref: spec.md §Acceptance criteria 2 and 6
+contract-ref: n/a
+constitution-ref: Articles XIII
+```
+
+**Definition of Done**
+
+- A multi-stage Dockerfile pins the same builder and runtime image digests as the sibling and builds the release binary with `--locked`.
+- The image runs as a non-root user and works with a read-only root filesystem.
+- `scripts/container-smoke` builds the image, runs it, and checks all four routes including the exact identity body.
+- The image contains neither an opponent nor the rules CLI.
+
+**R - Red:** Add a smoke script scaffold that asserts an empty identity body and record its mismatch against the real routes.
+
+**G - Green:** Add the Dockerfile and smoke script; run them for real.
+
+**F - Refactor:** Skipped unless the smoke script duplicates a helper.
+
+**Files**
+
+- `Dockerfile`
+- `.dockerignore`
+- `scripts/container-smoke`
+
+## Coverage matrix
+
+| Acceptance criterion | Owning tasks |
+|---|---|
+| 1 Multi-turn evaluation for duels | T003-T022, T024 |
+| 2 Valid move within `timeout - 120 ms` | T019, T022, T024, T026, T027, T032, T039 |
+| 3 Best completed depth on cutoff | T022, T024 |
+| 4 Depth and nodes reported | T019, T022, T025, T030, T032 |
+| 5 Non-duel and unsupported fallback | T002, T023, T024, T026, T033 |
+| 6 Exact `GET /` identity | T001, T026, T027, T039 |
+| 7 `/start` and `/end` acknowledgements | T026 |
+| 8 Sparring benchmark vs. Shapeshifter and Flood | T034-T038 |
+
+| Constitution article | Enforced by |
+|---|---|
+| VII boundaries (Clock, diagnostics, SparringRunner, ReportSink) | T019, T025, T035, T036 |
+| VIII independent authorship and divergence | T013, T037, plan.md design-diff table, PROVENANCE.md |
+| X inward dependencies | T028 |
+| XI deadline safety | T019, T022, T032 |
+| XII 90% branch coverage and properties | T010, T018, T020, T029 |
+| XIII pinned dependencies | T001, T028, T039 |
+| XIV measurable strength | T030, T032, T037, T038 |
+
+## Ordering and parallelism audit
+
+All tasks execute sequentially: kernel tasks share `duel.rs` and its differential suite; valuation tasks share `valuation/mod.rs`; search tasks share `lookahead/minimax.rs`; the sparring tasks share the `sparring` crate. No `[P]` flag is used because no pair of tasks has disjoint files and independent contracts. T031 may close as `skipped` if T030's measured repeat rate is below 15%.
+
+## Amendments
+
+| Date | Change | Reason |
+|------|--------|--------|
