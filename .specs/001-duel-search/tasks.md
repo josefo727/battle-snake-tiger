@@ -17,7 +17,7 @@ Ordering: the kernel and its differential equivalence to the reused resolver (T0
 ```yaml
 id: T001
 status: closed
-commits: { reconstructed: pending }
+commits: { reconstructed: d6b39f30518001241089a09b5d6d1749c7824cff }
 source-commits: { red: 0664bcf, green: 783ce0c, refactor: skipped }
 spec-ref: spec.md §Acceptance criteria 6
 contract-ref: n/a
@@ -49,8 +49,9 @@ constitution-ref: Articles I, II, XIII
 
 ```yaml
 id: T002
-status: open
-commits: { red: null, green: null, refactor: null }
+status: closed
+commits: { reconstructed: pending }
+source-commits: { red: d1eaf40, green: a6a96c5, refactor: skipped }
 spec-ref: spec.md §Acceptance criteria 5
 contract-ref: contracts/rules-core-dependency.rs
 constitution-ref: Articles IV, X
@@ -67,7 +68,7 @@ constitution-ref: Articles IV, X
 
 **G - Green:** Implement the helper over the reused `classify` and re-export the contract items.
 
-**F - Refactor:** Move the shared request builders into the test support module if a second test needs them.
+**F - Refactor:** Skipped - no smell detected; the request builders already live in the shared test support module from the first commit, and the facade names each sibling path exactly once.
 
 **Files**
 
