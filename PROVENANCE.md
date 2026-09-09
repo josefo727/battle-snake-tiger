@@ -1,0 +1,42 @@
+# Provenance and Independent Authorship
+
+## Policy
+
+This project is independently authored. External projects may inform a capability inventory or act as black-box sparring opponents, but their source expression and architectural shape are not implementation inputs. Code, tests, fixtures, identifiers, module layouts, comments, constants, weights, configuration, and documentation wording are not copied, translated, or adapted. Per the constitution's Article VIII, where this project addresses the same sub-problem as a consulted reference engine, the resulting design must also differ observably in structure, not merely in naming.
+
+Every source that materially affects requirements, contracts, algorithms, architecture, or evaluation must be recorded here before the affected implementation is written.
+
+## Normative product sources
+
+- Battlesnake API Reference: https://docs.battlesnake.com/api
+- Battlesnake Webhooks: https://docs.battlesnake.com/api/webhooks
+- Battlesnake Game Rules: https://docs.battlesnake.com/rules
+- Battlesnake Board object: https://docs.battlesnake.com/api/objects/board
+- Battlesnake Standard map: https://docs.battlesnake.com/maps/standard
+
+These sources define observable platform behavior.
+
+## Development method
+
+- spec-tdd-kit.
+- Role: phase gates, artifact structure, and Red-Green-Refactor workflow.
+
+## Capability benchmark and sparring opponents only
+
+### Shapeshifter
+
+- https://github.com/JonathanArns/shapeshifter
+- Permitted role: high-level capability inventory and black-box sparring opponent (spec.md acceptance criterion 8), driven only through its public `GET /`, `POST /start`, `POST /end`, `POST /move` webhook routes via the official rules engine.
+- Prohibited role: source, test, fixture, naming, architecture, constant, weight, comment, or configuration donor.
+- License: none found in the repository; treated as all-rights-reserved and used only as a black-box opponent over HTTP.
+
+### `snork` (Flood agent)
+
+- https://github.com/wrenger/snork
+- License: MIT (confirmed 2026-09-08 from the repository's `LICENSE` file).
+- Permitted role: black-box sparring opponent (spec.md acceptance criterion 8) via Flood's own HTTP webhook routes, run through the official rules engine.
+- Prohibited role: source, test, fixture, naming, architecture, constant, weight, comment, or configuration donor for this project's own search or evaluation design, notwithstanding the MIT license permitting reuse — Article VIII's architectural-divergence requirement applies regardless of license terms, because divergence is a product goal here, not only a legal constraint.
+
+## Algorithm and implementation sources
+
+Recorded incrementally in `.specs/001-duel-search/research.md` as the plan phase researches each dependency and algorithmic approach.

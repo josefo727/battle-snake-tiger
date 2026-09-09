@@ -17,7 +17,7 @@ As a competitive Battlesnake operator, I want my snake to look several turns ahe
 5. A request outside the duel case (0, 1, 3, or 4 active snakes) or outside the certified ruleset/map/board scope receives the sibling project's existing one-turn safety or best-effort fallback response, unchanged from its own certified behavior.
 6. `GET /` returns HTTP 200 with `Content-Type: application/json` and exactly `{ "apiversion": "1", "author": "josefo727", "color": "#00D5FF", "head": "tiger-king", "tail": "tiger-tail", "version": "0.1.0" }`.
 7. Each valid `POST /start` and `POST /end` request returns HTTP 200 with `Content-Type: application/json` and an empty JSON object.
-8. A fixed, reproducible sparring benchmark against [NEEDS CLARIFICATION: which declared external opponent(s) — Shapeshifter only, or also `snork`'s Flood?] over [NEEDS CLARIFICATION: how many games / what seed protocol counts as "statistically meaningful" for this project?] reports this engine's win rate, and that win rate is strictly greater than the sibling one-turn-safety-only engine's win rate under the identical benchmark.
+8. A fixed, reproducible sparring benchmark of 30 games per opponent, using fixed seeds 1 through 30, against each of Shapeshifter and `snork`'s Flood, reports this engine's win rate against each, and each win rate is strictly greater than the sibling one-turn-safety-only engine's win rate under the identical 30-seed benchmark against that same opponent.
 
 ## Non-goals
 
@@ -44,8 +44,7 @@ As a competitive Battlesnake operator, I want my snake to look several turns ahe
 
 ## Open questions
 
-- [NEEDS CLARIFICATION: which declared external opponent(s) for the sparring benchmark — Shapeshifter only, or also `snork`'s Flood?]
-- [NEEDS CLARIFICATION: what game count / seed protocol counts as "statistically meaningful" sparring evidence for this project?]
+None.
 
 ## Glossary additions
 
