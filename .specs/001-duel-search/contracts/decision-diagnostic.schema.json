@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tiger-engine.local/contracts/decision-diagnostic.v2.schema.json",
+  "$comment": "contract: decision-diagnostic; version: 2.0.0; captured: 2026-09-18; source: research.md §Web and runtime crates and spec.md criterion 4",
+  "x-contract": "decision-diagnostic",
+  "x-version": "2.0.0",
+  "x-captured": "2026-09-18",
+  "title": "Move decision diagnostic event (duel search)",
+  "type": "object",
+  "required": [
+    "level",
+    "target",
+    "event",
+    "schema_version",
+    "game_id",
+    "turn",
+    "engine_path",
+    "elapsed_us",
+    "search_depth",
+    "nodes_explored",
+    "fallback_used",
+    "selected_move",
+    "selection_reason",
+    "diagnostic"
+  ],
+  "properties": {
+    "level": { "type": "string", "enum": ["INFO", "WARN"] },
+    "target": { "const": "move_decision" },
+    "event": { "const": "move_decision" },
+    "schema_version": { "const": "2.0.0" },
+    "game_id": { "type": "string", "minLength": 1 },
+    "turn": { "type": "integer", "minimum": 0 },
+    "engine_path": {
+      "type": "string",
+      "enum": ["duel_search", "safety_fallback", "unsupported_fallback"]
+    },
+    "elapsed_us": { "type": "integer", "minimum": 0 },
+    "search_depth": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Greatest fully completed iteration; 0 when no iteration completed or the path was not search."
+    },
+    "nodes_explored": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Positions visited across all iterations of this decision."
+    },
+    "principal_score": {
+      "type": ["integer", "null"],
+      "description": "Score of the best line at the completed depth; null outside duel_search."
+    },
+    "fallback_used": { "type": "boolean" },
+    "selected_move": {
+      "type": "string",
+      "enum": ["up", "right", "down", "left"]
+    },
+    "selection_reason": {
+      "type": "string",
+      "enum": [
+        "search_completed_depth",
+        "search_terminal_win",
+        "budget_exhausted_before_first_depth",
+        "one_turn_safety",
+        "unsupported_best_effort"
+      ]
+    },
+    "diagnostic": {
+      "type": "string",
+      "enum": ["none", "unsupported_scope", "deadline_cutoff"]
+    }
+  },
+  "additionalProperties": false
+}

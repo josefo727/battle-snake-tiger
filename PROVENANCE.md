@@ -39,4 +39,10 @@ These sources define observable platform behavior.
 
 ## Algorithm and implementation sources
 
-Recorded incrementally in `.specs/001-duel-search/research.md` as the plan phase researches each dependency and algorithmic approach.
+Recorded in `.specs/001-duel-search/research.md` (captured 2026-09-18). Every technique was taken from public textbook, wiki, or paper-level descriptions:
+
+- Alpha-beta pruning, iterative deepening, transposition tables, Zobrist hashing, move ordering, bitboards: Chess Programming Wiki (https://www.chessprogramming.org/).
+- Simultaneous-move alpha-beta: Saffidine, Finnsson, Buro, AAAI 2012 (https://ojs.aaai.org/index.php/AAAI/article/view/8148).
+- Voronoi territory and endgame handling for two-agent trail games: Google AI Challenge 2010 post-mortem (https://www.a1k0n.net/2010/03/04/google-ai-postmortem.html).
+- Battlesnake turn resolution order: https://docs.battlesnake.com/rules.
+- `snork` README methodology (documented approach only): https://github.com/wrenger/snork.

@@ -1,0 +1,50 @@
+# contract: opponent-roster
+# version: 1.0.0
+# captured: 2026-09-18
+# source: research.md §snork agents and PROVENANCE.md
+contract:
+  name: opponent-roster
+  version: 1.0.0
+  captured: 2026-09-18
+  ownership:
+    provider: each named third-party project (black-box HTTP process)
+    consumer: offline sparring runner (crate tiger-sparring)
+isolation:
+  allowed_phase: offline_sparring_only
+  linked_as_library: false
+  vendored_in_repository: false
+  included_in_runtime_image: false
+  source_inspection: forbidden_beyond_public_readme_and_webhook_routes
+protocol:
+  transport: loopback_http
+  routes: [GET /, POST /start, POST /move, POST /end]
+  game_runner: official BattlesnakeOfficial/rules CLI v1.2.3 `battlesnake play`
+  board: standard 11x11, two snakes, timeout 500 ms
+  seeds: 1..=30
+opponents:
+  - id: shapeshifter
+    project: https://github.com/JonathanArns/shapeshifter
+    license: none found (treated as all-rights-reserved)
+    provisioning: existing local checkout ../shapeshifter, default-feature release build
+    launch: "PORT=<free port> ./target/release/shapeshifter"
+    move_path: /move
+  - id: flood
+    project: https://github.com/wrenger/snork
+    license: MIT
+    provisioning: fresh clone inside this workspace's ignored reference directory
+    launch: to be recorded by the provisioning task after reading the README's run instructions
+    move_path: to be recorded by the provisioning task
+baselines:
+  - id: sibling-one-turn
+    project: ../rules-core
+    launch: "BIND_ADDR=127.0.0.1 PORT=<free port> ../rules-core/target/release/rules-core"
+    move_path: /move
+comparison:
+  rule: >-
+    For each opponent, the challenger's win rate over seeds 1..=30 must exceed
+    the baseline's win rate over the same seeds against that same opponent.
+  reported_fields: [wins, losses, draws, win_rate, win_rate_wilson95, mean_turns]
+failures:
+  opponent_unreachable: fail_before_first_game
+  cli_nonzero_exit: fail
+  unparsable_transcript: fail

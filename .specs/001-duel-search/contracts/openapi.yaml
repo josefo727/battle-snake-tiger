@@ -1,0 +1,321 @@
+# contract: battlesnake-webhooks
+# version: 1.0.0
+# captured: 2026-09-18
+# source: research.md §Battlesnake API and Standard rules@captured-2026-09-18
+openapi: 3.1.0
+info:
+  title: Tiger Engine 11x11 Battlesnake API
+  version: 1.0.0
+  description: >-
+    Webhook contract for API version 1. Unknown request members are accepted for
+    forward compatibility. Duel search scope (exactly two snakes) is defined in
+    plan.md; every syntactically valid request still returns HTTP 200 with the
+    same response shape, using the reused one-turn safety engine outside the duel.
+x-contract:
+  name: battlesnake-webhooks
+  version: 1.0.0
+  captured: 2026-09-18
+  source: research.md §Battlesnake API and Standard rules@captured-2026-09-18
+paths:
+  /:
+    get:
+      operationId: getBattlesnakeMetadata
+      summary: Return Battlesnake identity and customization metadata.
+      responses:
+        "200":
+          description: Exact registration metadata.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MetadataResponse"
+  /start:
+    post:
+      operationId: startGame
+      summary: Acknowledge the start of any syntactically valid game.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TurnRequest"
+      responses:
+        "200":
+          description: Empty acknowledgement object.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmptyResponse"
+        default:
+          description: Transport rejection for malformed, oversized, or non-JSON input.
+  /move:
+    post:
+      operationId: chooseMove
+      summary: Return one platform-valid direction.
+      description: >-
+        Supported duel requests use time-bounded multi-turn search. Other
+        syntactically valid requests use the reused one-turn safety engine or its
+        deterministic best-effort fallback and return the same response shape.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TurnRequest"
+      responses:
+        "200":
+          description: Exactly one selected move and no additional members.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MoveResponse"
+        default:
+          description: Transport rejection for malformed, oversized, or non-JSON input.
+  /end:
+    post:
+      operationId: endGame
+      summary: Acknowledge the end of any syntactically valid game.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TurnRequest"
+      responses:
+        "200":
+          description: Empty acknowledgement object.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmptyResponse"
+        default:
+          description: Transport rejection for malformed, oversized, or non-JSON input.
+components:
+  schemas:
+    MetadataResponse:
+      type: object
+      required:
+        - apiversion
+        - author
+        - color
+        - head
+        - tail
+        - version
+      properties:
+        apiversion:
+          const: "1"
+        author:
+          const: josefo727
+        color:
+          const: "#00D5FF"
+        head:
+          const: tiger-king
+        tail:
+          const: tiger-tail
+        version:
+          const: 0.1.0
+      additionalProperties: false
+    EmptyResponse:
+      type: object
+      maxProperties: 0
+      additionalProperties: false
+    MoveResponse:
+      type: object
+      required:
+        - move
+      properties:
+        move:
+          $ref: "#/components/schemas/Direction"
+      additionalProperties: false
+    Direction:
+      type: string
+      enum:
+        - up
+        - right
+        - down
+        - left
+    TurnRequest:
+      type: object
+      required:
+        - game
+        - turn
+        - board
+        - you
+      properties:
+        game:
+          $ref: "#/components/schemas/Game"
+        turn:
+          type: integer
+          minimum: 0
+        board:
+          $ref: "#/components/schemas/Board"
+        you:
+          $ref: "#/components/schemas/Battlesnake"
+      additionalProperties: true
+    Game:
+      type: object
+      required:
+        - id
+        - ruleset
+        - map
+        - timeout
+        - source
+      properties:
+        id:
+          type: string
+          minLength: 1
+        ruleset:
+          $ref: "#/components/schemas/Ruleset"
+        map:
+          type: string
+        timeout:
+          type: integer
+          minimum: 0
+        source:
+          type: string
+      additionalProperties: true
+    Ruleset:
+      type: object
+      required:
+        - name
+        - version
+        - settings
+      properties:
+        name:
+          type: string
+        version:
+          type: string
+          minLength: 1
+        settings:
+          $ref: "#/components/schemas/RulesetSettings"
+      additionalProperties: true
+    RulesetSettings:
+      type: object
+      required:
+        - foodSpawnChance
+        - minimumFood
+        - hazardDamagePerTurn
+      properties:
+        foodSpawnChance:
+          type: integer
+          minimum: 0
+          maximum: 100
+        minimumFood:
+          type: integer
+          minimum: 0
+        hazardDamagePerTurn:
+          type: integer
+          minimum: 0
+        royale:
+          type: object
+          properties:
+            shrinkEveryNTurns:
+              type: integer
+              minimum: 0
+          additionalProperties: true
+        squad:
+          type: object
+          properties:
+            allowBodyCollisions:
+              type: boolean
+            sharedElimination:
+              type: boolean
+            sharedHealth:
+              type: boolean
+            sharedLength:
+              type: boolean
+          additionalProperties: true
+      additionalProperties: true
+    Board:
+      type: object
+      required:
+        - height
+        - width
+        - food
+        - hazards
+        - snakes
+      properties:
+        height:
+          type: integer
+          minimum: 1
+        width:
+          type: integer
+          minimum: 1
+        food:
+          type: array
+          items:
+            $ref: "#/components/schemas/Coordinate"
+        hazards:
+          type: array
+          items:
+            $ref: "#/components/schemas/Coordinate"
+        snakes:
+          type: array
+          items:
+            $ref: "#/components/schemas/Battlesnake"
+      additionalProperties: true
+    Coordinate:
+      type: object
+      required:
+        - x
+        - y
+      properties:
+        x:
+          type: integer
+        y:
+          type: integer
+      additionalProperties: true
+    Battlesnake:
+      type: object
+      required:
+        - id
+        - name
+        - health
+        - body
+        - latency
+        - head
+        - length
+        - shout
+        - customizations
+      properties:
+        id:
+          type: string
+          minLength: 1
+        name:
+          type: string
+        health:
+          type: integer
+          minimum: 0
+          maximum: 100
+        body:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/Coordinate"
+        latency:
+          type: string
+        head:
+          $ref: "#/components/schemas/Coordinate"
+        length:
+          type: integer
+          minimum: 1
+        shout:
+          type: string
+        squad:
+          type: string
+        customizations:
+          $ref: "#/components/schemas/Customizations"
+      additionalProperties: true
+    Customizations:
+      type: object
+      required:
+        - color
+        - head
+        - tail
+      properties:
+        color:
+          type: string
+        head:
+          type: string
+        tail:
+          type: string
+      additionalProperties: true
