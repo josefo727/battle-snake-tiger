@@ -138,6 +138,11 @@ impl Serpent {
         released
     }
 
+    /// Loses one vigor (a turn's hunger), stopping at zero.
+    pub fn lose_vigor(&mut self) {
+        self.vigor = self.vigor.saturating_sub(1);
+    }
+
     /// Places an extra segment on top of the current tail (food growth).
     ///
     /// # Errors

@@ -175,7 +175,7 @@ constitution-ref: Articles X, XII
 ```yaml
 id: T006
 status: closed
-commits: { reconstructed: pending }
+commits: { reconstructed: 81413c9f3539c161f4c99fef61a100776c41c259 }
 source-commits: { red: 8134c7d, green: bdcdfaa, refactor: 43b67b1 }
 spec-ref: spec.md §Acceptance criteria 1 and 5
 contract-ref: contracts/rules-core-dependency.rs
@@ -209,8 +209,9 @@ Note: the reused TurnState only holds two to four snakes, so a one-snake input i
 
 ```yaml
 id: T007
-status: open
-commits: { red: null, green: null, refactor: null }
+status: closed
+commits: { reconstructed: pending }
+source-commits: { red: d7ee649, green: 71aa5dd, refactor: skipped }
 spec-ref: spec.md §Acceptance criteria 1
 contract-ref: contracts/rules-core-dependency.rs
 constitution-ref: Articles II, XII
@@ -226,13 +227,16 @@ constitution-ref: Articles II, XII
 
 **G - Green:** Implement head movement, tail release, and health decrement.
 
-**F - Refactor:** Extract `move_serpent` so later phases reuse it.
+**F - Refactor:** Skipped - move_serpent was extracted as the movement phase in the Green commit itself, so later phases can reuse it without a separate refactor.
 
 **Files**
 
 - `engine/src/arena/duel.rs`
 - `engine/tests/advance_differential.rs`
 - `engine/tests/support/mod.rs`
+
+Note: Green also touched engine/src/arena/serpent.rs (Serpent::lose_vigor), beyond the declared files.
+
 
 ## T008 - Advance food consumption and growth
 

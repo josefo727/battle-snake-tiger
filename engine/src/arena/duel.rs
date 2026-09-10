@@ -2,6 +2,7 @@
 //! counter. Plain `Copy` data so search can copy positions instead of undoing.
 
 use super::cellset::CellSet;
+use super::heading::Heading;
 use super::serpent::Serpent;
 
 /// Which serpent: the one we control, or the opponent.
@@ -34,6 +35,24 @@ pub enum BoardError {
     SerpentsOverlap,
     PelletUnderSerpent,
     VigorOutOfRange,
+}
+
+/// Who is left standing when a duel ends.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Verdict {
+    WeOnly,
+    TheyOnly,
+    BothDown,
+}
+
+/// The result of resolving one joint move.
+// Positions are copied by value on purpose (no allocation on the search hot
+// path), so the size gap between the variants is accepted.
+#[allow(clippy::large_enum_variant)]
+#[derive(Clone, Copy, Debug)]
+pub enum Advance {
+    Continues(DuelBoard),
+    Over(Verdict),
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -75,6 +94,16 @@ impl DuelBoard {
         })
     }
 
+    /// Resolves one simultaneous turn from this immutable position.
+    #[must_use]
+    pub fn advance(&self, us: Heading, them: Heading) -> Advance {
+        let mut next = *self;
+        next.ply += 1;
+        move_serpent(&mut next.serpents[Side::Us.index()], us);
+        move_serpent(&mut next.serpents[Side::Them.index()], them);
+        Advance::Continues(next)
+    }
+
     #[must_use]
     pub const fn serpent(&self, side: Side) -> &Serpent {
         &self.serpents[side.index()]
@@ -95,4 +124,15 @@ impl DuelBoard {
     pub const fn occupied(&self) -> CellSet {
         self.serpents[0].cells().union(self.serpents[1].cells())
     }
+}
+
+/// Movement phase for one serpent: new head, old tail released, one vigor
+/// lost. A step off the board leaves the serpent unmoved here; eliminating it
+/// belongs to the elimination phase.
+fn move_serpent(serpent: &mut Serpent, heading: Heading) {
+    if let Some(target) = heading.step(serpent.head()) {
+        serpent.advance_head(target);
+        serpent.release_tail();
+    }
+    serpent.lose_vigor();
 }
