@@ -99,15 +99,20 @@ impl DuelBoard {
     pub fn advance(&self, us: Heading, them: Heading) -> Advance {
         let mut next = *self;
         next.ply += 1;
-        next.movement_phase(us, them);
+        let reports = next.movement_phase(us, them);
         next.feeding_phase();
-        Advance::Continues(next)
+        match next.elimination_phase(&reports) {
+            Some(verdict) => Advance::Over(verdict),
+            None => Advance::Continues(next),
+        }
     }
 
     /// Phase 1 of a turn: both serpents move from the same starting board.
-    fn movement_phase(&mut self, us: Heading, them: Heading) {
-        move_serpent(&mut self.serpents[Side::Us.index()], us);
-        move_serpent(&mut self.serpents[Side::Them.index()], them);
+    fn movement_phase(&mut self, us: Heading, them: Heading) -> [MoveReport; 2] {
+        [
+            move_serpent(&mut self.serpents[Side::Us.index()], us),
+            move_serpent(&mut self.serpents[Side::Them.index()], them),
+        ]
     }
 
     /// Phase 2: any serpent on a pellet eats; every eaten pellet is removed
@@ -122,6 +127,28 @@ impl DuelBoard {
             }
         }
         self.pellets = self.pellets.difference(eaten);
+    }
+
+    /// Phase 3: eliminations are judged on the post-move snapshot of both
+    /// serpents at once, so a serpent that dies this turn still blocks.
+    fn elimination_phase(&self, reports: &[MoveReport; 2]) -> Option<Verdict> {
+        match [Side::Us, Side::Them].map(|side| self.is_eliminated(side, reports)) {
+            [false, false] => None,
+            [false, true] => Some(Verdict::WeOnly),
+            [true, false] => Some(Verdict::TheyOnly),
+            [true, true] => Some(Verdict::BothDown),
+        }
+    }
+
+    fn is_eliminated(&self, side: Side, reports: &[MoveReport; 2]) -> bool {
+        let serpent = &self.serpents[side.index()];
+        let own = &reports[side.index()];
+        let opposing_segments = reports[side.other().index()].segments;
+
+        serpent.vigor() == 0
+            || own.off_board
+            || own.self_hit
+            || opposing_segments.contains(serpent.head())
     }
 
     #[must_use]
@@ -146,13 +173,52 @@ impl DuelBoard {
     }
 }
 
-/// Movement phase for one serpent: new head, old tail released, one vigor
-/// lost. A step off the board leaves the serpent unmoved here; eliminating it
-/// belongs to the elimination phase.
-fn move_serpent(serpent: &mut Serpent, heading: Heading) {
-    if let Some(target) = heading.step(serpent.head()) {
-        serpent.advance_head(target);
-        serpent.release_tail();
-    }
+/// What one serpent's move leaves behind for the elimination phase.
+struct MoveReport {
+    /// The step left the board (the serpent is left unmoved and is eliminated).
+    off_board: bool,
+    /// The new head landed on a cell the serpent's own body still holds.
+    self_hit: bool,
+    /// Cells of every segment after the head, as the other serpent sees them.
+    segments: CellSet,
+}
+
+/// Movement phase for one serpent: new head, old tail released, one vigor lost.
+fn move_serpent(serpent: &mut Serpent, heading: Heading) -> MoveReport {
     serpent.lose_vigor();
+    let Some(target) = heading.step(serpent.head()) else {
+        return MoveReport {
+            off_board: true,
+            self_hit: false,
+            segments: segments_without_tail(serpent),
+        };
+    };
+
+    let occupied_before = serpent.cells().contains(target);
+    serpent.advance_head(target);
+    let released = serpent.release_tail();
+    // Entering the cell the tail just left is safe unless a stacked copy remains.
+    let self_hit = occupied_before && (target != released || serpent.tail() == released);
+    let segments = if self_hit {
+        serpent.cells()
+    } else {
+        serpent.cells().without(target)
+    };
+
+    MoveReport {
+        off_board: false,
+        self_hit,
+        segments,
+    }
+}
+
+/// A serpent that leaves the board keeps its old head as a body segment and
+/// still drops its tail, exactly as the reused resolver reports it.
+fn segments_without_tail(serpent: &Serpent) -> CellSet {
+    if serpent.length() == 1 {
+        return CellSet::EMPTY;
+    }
+    let mut ghost = *serpent;
+    ghost.release_tail();
+    ghost.cells()
 }

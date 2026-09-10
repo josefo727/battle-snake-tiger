@@ -1,7 +1,7 @@
 mod support;
 
 use tiger_engine::arena::cellset::{Cell, CellSet};
-use tiger_engine::arena::duel::{Advance, DuelBoard, Side};
+use tiger_engine::arena::duel::{Advance, DuelBoard, Side, Verdict};
 use tiger_engine::arena::heading::Heading;
 use tiger_engine::arena::ingest::ingest;
 use tiger_engine::rules_core::TurnState;
@@ -184,4 +184,118 @@ fn two_serpents_entering_the_same_pellet_cell_both_eat() {
     let state = turn_state_from_bodies(&[US_BODY, above], &[60, 40], 0, &[(5, 6)]);
 
     assert_agrees_with_reference(&state, Heading::North, Heading::South);
+}
+
+/// The verdict the reused resolver implies for a duel: `None` while both
+/// serpents survive.
+fn reference_verdict(state: &TurnState, us: Heading, them: Heading) -> Option<Verdict> {
+    let reference = reference_after(state, us, them);
+    let our_id = state.you().id().as_str();
+    let their_id = state.snakes()[1 - state.you_index()].id().as_str();
+    let we_live = reference.snake(our_id).expect("resolved").survived();
+    let they_live = reference.snake(their_id).expect("resolved").survived();
+    match (we_live, they_live) {
+        (true, true) => None,
+        (true, false) => Some(Verdict::WeOnly),
+        (false, true) => Some(Verdict::TheyOnly),
+        (false, false) => Some(Verdict::BothDown),
+    }
+}
+
+/// Asserts the kernel ends the duel exactly when and how the reference does.
+fn assert_verdict_matches(state: &TurnState, us: Heading, them: Heading) {
+    let board = ingest(state).expect("a duel converts");
+    let expected = reference_verdict(state, us, them);
+
+    match (board.advance(us, them), expected) {
+        (Advance::Continues(next), None) => {
+            let reference = reference_after(state, us, them);
+            assert_board_matches(&next, state, &reference, &format!("{us:?}/{them:?}"));
+        }
+        (Advance::Over(got), Some(want)) => {
+            assert_eq!(got, want, "{us:?}/{them:?}");
+        }
+        (got, want) => panic!("{us:?}/{them:?}: kernel gave {got:?}, reference implies {want:?}"),
+    }
+}
+
+const FAR: &[(i32, i32)] = &[(8, 8), (8, 9), (8, 10)];
+
+#[test]
+fn a_serpent_at_vigor_one_starves_unless_it_eats() {
+    let starving = turn_state_from_bodies(&[US_BODY, FAR], &[1, 90], 0, &[]);
+    let fed = turn_state_from_bodies(&[US_BODY, FAR], &[1, 90], 0, &[(5, 6)]);
+    let both = turn_state_from_bodies(&[US_BODY, FAR], &[1, 1], 0, &[]);
+
+    assert_eq!(
+        reference_verdict(&starving, Heading::North, Heading::East),
+        Some(Verdict::TheyOnly)
+    );
+    assert_verdict_matches(&starving, Heading::North, Heading::East);
+    assert_verdict_matches(&fed, Heading::North, Heading::East);
+    assert_verdict_matches(&both, Heading::North, Heading::East);
+}
+
+#[test]
+fn leaving_the_board_eliminates_and_two_exits_end_in_a_double_loss() {
+    let corner_us: &[(i32, i32)] = &[(0, 5), (1, 5), (2, 5)];
+    let corner_them: &[(i32, i32)] = &[(10, 5), (9, 5), (8, 5)];
+    let state = turn_state_from_bodies(&[corner_us, corner_them], &[90, 90], 0, &[]);
+
+    assert_verdict_matches(&state, Heading::West, Heading::North);
+    assert_verdict_matches(&state, Heading::North, Heading::East);
+    assert_verdict_matches(&state, Heading::West, Heading::East);
+    assert_verdict_matches(&state, Heading::South, Heading::North);
+}
+
+#[test]
+fn a_head_hitting_its_own_body_is_eliminated_but_its_vacating_tail_is_safe() {
+    let curled: &[(i32, i32)] = &[(5, 5), (5, 4), (6, 4), (6, 5), (6, 6)];
+    let looped: &[(i32, i32)] = &[(1, 1), (1, 0), (0, 0), (0, 1)];
+    let stacked: &[(i32, i32)] = &[(1, 1), (1, 0), (0, 0), (0, 1), (0, 1)];
+    let hits_body = turn_state_from_bodies(&[curled, FAR], &[90, 90], 0, &[]);
+    let hits_tail = turn_state_from_bodies(&[looped, FAR], &[90, 90], 0, &[]);
+    let hits_stack = turn_state_from_bodies(&[stacked, FAR], &[90, 90], 0, &[]);
+
+    assert_verdict_matches(&hits_body, Heading::East, Heading::East);
+    assert_verdict_matches(&hits_tail, Heading::West, Heading::East);
+    assert_verdict_matches(&hits_stack, Heading::West, Heading::East);
+}
+
+#[test]
+fn entering_the_other_serpents_body_eliminates_but_its_vacating_tail_does_not() {
+    let wall: &[(i32, i32)] = &[(6, 6), (6, 5), (6, 4)];
+    let stacked_wall: &[(i32, i32)] = &[(6, 6), (6, 5), (6, 4), (6, 4)];
+    let side: &[(i32, i32)] = &[(7, 4), (8, 4), (9, 4)];
+    let into_body = turn_state_from_bodies(&[US_BODY, wall], &[90, 90], 0, &[]);
+    let into_tail = turn_state_from_bodies(&[side, wall], &[90, 90], 0, &[]);
+    let into_stack = turn_state_from_bodies(&[side, stacked_wall], &[90, 90], 0, &[]);
+
+    assert_verdict_matches(&into_body, Heading::East, Heading::North);
+    assert_verdict_matches(&into_tail, Heading::West, Heading::North);
+    assert_verdict_matches(&into_stack, Heading::West, Heading::North);
+}
+
+#[test]
+fn a_serpent_leaving_the_board_still_blocks_with_its_moved_body() {
+    let leaver: &[(i32, i32)] = &[(0, 5), (1, 5), (2, 5)];
+    let hits_neck: &[(i32, i32)] = &[(1, 6), (1, 7), (1, 8)];
+    let enters_old_tail: &[(i32, i32)] = &[(2, 6), (2, 7), (2, 8)];
+    let neck = turn_state_from_bodies(&[hits_neck, leaver], &[90, 90], 0, &[]);
+    let tail = turn_state_from_bodies(&[enters_old_tail, leaver], &[90, 90], 0, &[]);
+
+    assert_eq!(
+        reference_verdict(&neck, Heading::South, Heading::West),
+        Some(Verdict::BothDown)
+    );
+    assert_verdict_matches(&neck, Heading::South, Heading::West);
+    assert_verdict_matches(&tail, Heading::South, Heading::West);
+}
+
+#[test]
+fn surviving_joint_moves_still_agree_with_the_reference_after_the_new_checks() {
+    let state = turn_state(2, 0, &[]);
+
+    assert_verdict_matches(&state, Heading::North, Heading::North);
+    assert_verdict_matches(&state, Heading::East, Heading::West);
 }

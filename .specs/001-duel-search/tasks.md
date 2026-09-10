@@ -243,7 +243,7 @@ Note: Green also touched engine/src/arena/serpent.rs (Serpent::lose_vigor), beyo
 ```yaml
 id: T008
 status: closed
-commits: { reconstructed: pending }
+commits: { reconstructed: 813dec255df29e0fa309ceb89ce8d9672bc73e39 }
 source-commits: { red: 6601f22, green: 0786f03, refactor: f3c1532 }
 spec-ref: spec.md §Acceptance criteria 1
 contract-ref: contracts/rules-core-dependency.rs
@@ -274,8 +274,9 @@ Note: Green also touched engine/src/arena/serpent.rs (Serpent::eat) and the test
 
 ```yaml
 id: T009
-status: open
-commits: { red: null, green: null, refactor: null }
+status: closed
+commits: { reconstructed: pending }
+source-commits: { red: 145b893, green: 0452471, refactor: 580be77 }
 spec-ref: spec.md §Acceptance criteria 1
 contract-ref: contracts/rules-core-dependency.rs
 constitution-ref: Articles II, XII
@@ -291,12 +292,15 @@ constitution-ref: Articles II, XII
 
 **G - Green:** Implement the elimination phase and the verdict mapping.
 
-**F - Refactor:** Extract `collides_with_any_body`.
+**F - Refactor:** Extracted is_eliminated so the phase reads as vigor, off-board, self-hit, or opposing segments, then a verdict mapping.
 
 **Files**
 
 - `engine/src/arena/duel.rs`
 - `engine/tests/advance_differential.rs`
+
+Note: the kernel keeps per-move reports (off_board, self_hit, segments) so an off-board serpent's body snapshot matches the reused resolver's (old head kept as a segment, tail released); no source file beyond the declared ones was touched.
+
 
 ## T010 - Advance head-to-head and prove kernel equivalence
 
