@@ -3,7 +3,7 @@
 #![allow(dead_code)]
 
 use serde_json::{Value, json};
-use tiger_engine::rules_core::TurnRequestDto;
+use tiger_engine::rules_core::{TurnRequestDto, TurnState, to_turn_state};
 
 const BODIES: [[(i32, i32); 3]; 4] = [
     [(5, 5), (5, 4), (5, 3)],
@@ -35,10 +35,17 @@ fn snake_json(index: usize) -> Value {
     })
 }
 
-/// A Standard, non-wrapped, hazard-free 11x11 request with `snakes` snakes
-/// (our snake is `snake-0`), the given ruleset version, and declared timeout.
-pub fn request_json(version: &str, snakes: usize, timeout: i64) -> String {
+/// A Standard, non-wrapped, hazard-free 11x11 request with `snakes` snakes,
+/// the given ruleset version, declared timeout, `you` index, and food cells.
+pub fn request_json_with(
+    version: &str,
+    snakes: usize,
+    timeout: i64,
+    you: usize,
+    food: &[(i32, i32)],
+) -> String {
     let all: Vec<Value> = (0..snakes).map(snake_json).collect();
+    let food: Vec<Value> = food.iter().map(|&(x, y)| coordinate(x, y)).collect();
     json!({
         "game": {
             "id": "test-game",
@@ -48,13 +55,34 @@ pub fn request_json(version: &str, snakes: usize, timeout: i64) -> String {
             "source": "test"
         },
         "turn": 0,
-        "board": { "height": 11, "width": 11, "food": [], "hazards": [], "snakes": all },
-        "you": snake_json(0)
+        "board": { "height": 11, "width": 11, "food": food, "hazards": [], "snakes": all },
+        "you": snake_json(you)
     })
     .to_string()
 }
 
-pub fn request(version: &str, snakes: usize, timeout: i64) -> TurnRequestDto {
-    serde_json::from_str(&request_json(version, snakes, timeout))
+/// Like [`request_json_with`] with our snake first and no food.
+pub fn request_json(version: &str, snakes: usize, timeout: i64) -> String {
+    request_json_with(version, snakes, timeout, 0, &[])
+}
+
+pub fn request_with(
+    version: &str,
+    snakes: usize,
+    timeout: i64,
+    you: usize,
+    food: &[(i32, i32)],
+) -> TurnRequestDto {
+    serde_json::from_str(&request_json_with(version, snakes, timeout, you, food))
         .expect("the test request must deserialize")
+}
+
+pub fn request(version: &str, snakes: usize, timeout: i64) -> TurnRequestDto {
+    request_with(version, snakes, timeout, 0, &[])
+}
+
+/// The reused `TurnState` for a test request (2 to 4 snakes).
+pub fn turn_state(snakes: usize, you: usize, food: &[(i32, i32)]) -> TurnState {
+    to_turn_state(&request_with("v1.2.3", snakes, 500, you, food))
+        .expect("the test state must be valid")
 }

@@ -177,3 +177,15 @@ proptest! {
         }
     }
 }
+
+#[test]
+fn debug_output_lists_the_body_instead_of_the_whole_ring() {
+    let s = serpent(&[(5, 5), (5, 4), (5, 3)]);
+
+    let text = format!("{s:?}");
+
+    assert_eq!(
+        text,
+        "Serpent { body: [(5, 5), (5, 4), (5, 3)], vigor: 100 }"
+    );
+}

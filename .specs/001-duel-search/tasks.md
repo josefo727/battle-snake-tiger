@@ -144,7 +144,7 @@ constitution-ref: Articles IX, X
 ```yaml
 id: T005
 status: closed
-commits: { reconstructed: pending }
+commits: { reconstructed: 0f3bd0257d2bb270f8f97a0050ac18e9baaae49d }
 source-commits: { red: 406bf75, green: ad31fd5, refactor: 53bd517 }
 spec-ref: spec.md §Acceptance criteria 1
 contract-ref: n/a
@@ -174,8 +174,9 @@ constitution-ref: Articles X, XII
 
 ```yaml
 id: T006
-status: open
-commits: { red: null, green: null, refactor: null }
+status: closed
+commits: { reconstructed: pending }
+source-commits: { red: 8134c7d, green: bdcdfaa, refactor: 43b67b1 }
 spec-ref: spec.md §Acceptance criteria 1 and 5
 contract-ref: contracts/rules-core-dependency.rs
 constitution-ref: Articles IX, X
@@ -192,7 +193,7 @@ constitution-ref: Articles IX, X
 
 **G - Green:** Implement construction, invariants, and the conversion.
 
-**F - Refactor:** Split the conversion helpers from the invariant checks.
+**F - Refactor:** Hand-written Debug for Serpent (body and vigor instead of the raw ring), prompted by unreadable Red failure output; conversion helpers were already separate from the invariant checks.
 
 **Files**
 
@@ -200,6 +201,9 @@ constitution-ref: Articles IX, X
 - `engine/src/arena/ingest.rs`
 - `engine/src/arena/mod.rs`
 - `engine/tests/ingest.rs`
+
+Note: the reused TurnState only holds two to four snakes, so a one-snake input is unrepresentable; NotADuel is exercised for three and four snakes.
+
 
 ## T007 - Advance ordinary movement, health, and tail release
 

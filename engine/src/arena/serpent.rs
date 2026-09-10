@@ -1,5 +1,7 @@
 //! A serpent's body as a fixed-size ring buffer plus an occupancy mirror.
 
+use core::fmt;
+
 use super::cellset::{CELL_COUNT, Cell, CellSet};
 
 /// The ring holds up to 128 slots so slot arithmetic is a mask, not a modulo.
@@ -19,7 +21,7 @@ pub enum SerpentError {
 
 /// Body cells ordered head first. Consecutive equal cells are a stack (growth
 /// or a fresh serpent's coiled start); `cells` is always the set of body cells.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy)]
 pub struct Serpent {
     ring: [Cell; RING_SIZE],
     head_slot: u8,
@@ -149,6 +151,17 @@ impl Serpent {
         self.ring[slot] = self.tail();
         self.length += 1;
         Ok(())
+    }
+}
+
+impl fmt::Debug for Serpent {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let body: Vec<(u8, u8)> = self.body().map(|cell| (cell.x(), cell.y())).collect();
+        formatter
+            .debug_struct("Serpent")
+            .field("body", &body)
+            .field("vigor", &self.vigor)
+            .finish()
     }
 }
 
