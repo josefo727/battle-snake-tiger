@@ -50,7 +50,7 @@ constitution-ref: Articles I, II, XIII
 ```yaml
 id: T002
 status: closed
-commits: { reconstructed: pending }
+commits: { reconstructed: 540bde5156ab9ec8563b21de62fc79c8673ccba6 }
 source-commits: { red: d1eaf40, green: a6a96c5, refactor: skipped }
 spec-ref: spec.md §Acceptance criteria 5
 contract-ref: contracts/rules-core-dependency.rs
@@ -81,8 +81,9 @@ constitution-ref: Articles IV, X
 
 ```yaml
 id: T003
-status: open
-commits: { red: null, green: null, refactor: null }
+status: closed
+commits: { reconstructed: pending }
+source-commits: { red: 37e0230, green: aa78b90, refactor: skipped }
 spec-ref: spec.md §Acceptance criteria 1
 contract-ref: n/a
 constitution-ref: Articles IX, X, XII
@@ -99,7 +100,7 @@ constitution-ref: Articles IX, X, XII
 
 **G - Green:** Implement masked shifts and the operations; add property tests for the 121-bit invariant and neighbour symmetry.
 
-**F - Refactor:** Extract the edge masks into named constants.
+**F - Refactor:** Skipped - no smell detected; the edge masks were already named constants built by one const fn, and each operation is a single expression over the same private word.
 
 **Files**
 

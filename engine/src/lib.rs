@@ -1,5 +1,6 @@
 #![forbid(unsafe_code)]
 
+pub mod arena;
 pub mod rules_core;
 
 /// Public engine version advertised by the Battlesnake metadata endpoint.
