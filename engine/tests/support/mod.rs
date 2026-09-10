@@ -165,3 +165,34 @@ pub fn resolved_body(resolution: &TurnResolution, snake_id: &str) -> Vec<Cell> {
         .map(|cell| Cell::from_index(cell.value()).expect("reference cells are on the board"))
         .collect()
 }
+
+/// The reused state that results from a resolved turn: post-move bodies
+/// (stacked tails included), post-turn health, and the food still on the board.
+pub fn state_after(state: &TurnState, resolution: &TurnResolution) -> TurnState {
+    use tiger_engine::arena::cellset::CellSet;
+
+    let coordinates = |cell: Cell| (i32::from(cell.x()), i32::from(cell.y()));
+    let bodies: Vec<Vec<(i32, i32)>> = resolution
+        .snakes()
+        .iter()
+        .map(|snake| {
+            snake
+                .body()
+                .iter()
+                .map(|c| coordinates(Cell::from_index(c.value()).expect("on the board")))
+                .collect()
+        })
+        .collect();
+    let health: Vec<i32> = resolution
+        .snakes()
+        .iter()
+        .map(|s| i32::from(s.health()))
+        .collect();
+    let food: Vec<(i32, i32)> = CellSet::from_bits(resolution.food().bits())
+        .iter()
+        .map(coordinates)
+        .collect();
+    let slices: Vec<&[(i32, i32)]> = bodies.iter().map(Vec::as_slice).collect();
+
+    turn_state_from_bodies(&slices, &health, state.you_index(), &food)
+}

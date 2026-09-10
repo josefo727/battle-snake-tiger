@@ -143,6 +143,15 @@ impl Serpent {
         self.vigor = self.vigor.saturating_sub(1);
     }
 
+    /// Restores vigor and grows by one: the extra segment sits on the current
+    /// (post-move) tail.
+    pub fn eat(&mut self, full_vigor: u8) {
+        self.vigor = full_vigor;
+        // A serpent filling the board cannot grow, and no pellet can exist
+        // there, so a refusal is unreachable and safely ignored.
+        self.stack_tail().ok();
+    }
+
     /// Places an extra segment on top of the current tail (food growth).
     ///
     /// # Errors

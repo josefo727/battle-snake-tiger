@@ -99,9 +99,29 @@ impl DuelBoard {
     pub fn advance(&self, us: Heading, them: Heading) -> Advance {
         let mut next = *self;
         next.ply += 1;
-        move_serpent(&mut next.serpents[Side::Us.index()], us);
-        move_serpent(&mut next.serpents[Side::Them.index()], them);
+        next.movement_phase(us, them);
+        next.feeding_phase();
         Advance::Continues(next)
+    }
+
+    /// Phase 1 of a turn: both serpents move from the same starting board.
+    fn movement_phase(&mut self, us: Heading, them: Heading) {
+        move_serpent(&mut self.serpents[Side::Us.index()], us);
+        move_serpent(&mut self.serpents[Side::Them.index()], them);
+    }
+
+    /// Phase 2: any serpent on a pellet eats; every eaten pellet is removed
+    /// afterwards so two serpents entering one cell both eat.
+    fn feeding_phase(&mut self) {
+        let mut eaten = CellSet::EMPTY;
+        for serpent in &mut self.serpents {
+            let head = serpent.head();
+            if self.pellets.contains(head) {
+                serpent.eat(Self::MAX_VIGOR);
+                eaten = eaten.with(head);
+            }
+        }
+        self.pellets = self.pellets.difference(eaten);
     }
 
     #[must_use]

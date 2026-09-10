@@ -210,7 +210,7 @@ Note: the reused TurnState only holds two to four snakes, so a one-snake input i
 ```yaml
 id: T007
 status: closed
-commits: { reconstructed: pending }
+commits: { reconstructed: 49c76bd93617d1d52f5bd4b190ab71f2f0be8221 }
 source-commits: { red: d7ee649, green: 71aa5dd, refactor: skipped }
 spec-ref: spec.md §Acceptance criteria 1
 contract-ref: contracts/rules-core-dependency.rs
@@ -242,8 +242,9 @@ Note: Green also touched engine/src/arena/serpent.rs (Serpent::lose_vigor), beyo
 
 ```yaml
 id: T008
-status: open
-commits: { red: null, green: null, refactor: null }
+status: closed
+commits: { reconstructed: pending }
+source-commits: { red: 6601f22, green: 0786f03, refactor: f3c1532 }
 spec-ref: spec.md §Acceptance criteria 1
 contract-ref: contracts/rules-core-dependency.rs
 constitution-ref: Articles II, XII
@@ -259,12 +260,15 @@ constitution-ref: Articles II, XII
 
 **G - Green:** Implement the food phase after ordinary movement.
 
-**F - Refactor:** Name the growth step so the phase order reads like the official rules.
+**F - Refactor:** Extracted movement_phase and feeding_phase so advance reads in the official resolution order.
 
 **Files**
 
 - `engine/src/arena/duel.rs`
 - `engine/tests/advance_differential.rs`
+
+Note: Green also touched engine/src/arena/serpent.rs (Serpent::eat) and the test support module (state_after and the lockstep runner) beyond the declared files.
+
 
 ## T009 - Advance eliminations
 
