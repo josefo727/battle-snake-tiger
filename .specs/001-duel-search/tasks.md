@@ -114,7 +114,7 @@ constitution-ref: Articles IX, X, XII
 ```yaml
 id: T004
 status: closed
-commits: { reconstructed: pending }
+commits: { reconstructed: de2e599350357f7945e09b77712593010810defe }
 source-commits: { red: 8107e6d, green: 764b8ed, refactor: skipped }
 spec-ref: spec.md §Acceptance criteria 1
 contract-ref: n/a
@@ -143,8 +143,9 @@ constitution-ref: Articles IX, X
 
 ```yaml
 id: T005
-status: open
-commits: { red: null, green: null, refactor: null }
+status: closed
+commits: { reconstructed: pending }
+source-commits: { red: 406bf75, green: ad31fd5, refactor: 53bd517 }
 spec-ref: spec.md §Acceptance criteria 1
 contract-ref: n/a
 constitution-ref: Articles X, XII
@@ -161,7 +162,7 @@ constitution-ref: Articles X, XII
 
 **G - Green:** Implement the ring operations and the mirror invariant with property tests.
 
-**F - Refactor:** Name the ring mask constant and hide the raw slot arithmetic behind accessors.
+**F - Refactor:** Extracted slot_behind_head so the ring's slot arithmetic has one definition, shared by segment lookup and tail stacking.
 
 **Files**
 
