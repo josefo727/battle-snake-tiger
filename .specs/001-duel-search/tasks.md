@@ -307,7 +307,7 @@ Note: the kernel keeps per-move reports (off_board, self_hit, segments) so an of
 ```yaml
 id: T010
 status: closed
-commits: { reconstructed: pending }
+commits: { reconstructed: a4a19c9ed5379228ab4dd3dade7007fea2017115 }
 source-commits: { red: 1e7ea89, green: fceffae, refactor: e04a2a8 }
 spec-ref: spec.md §Acceptance criteria 1
 contract-ref: contracts/rules-core-dependency.rs
@@ -339,8 +339,9 @@ Note: the generated property builds only reachable positions (length >= 3). The 
 
 ```yaml
 id: T011
-status: open
-commits: { red: null, green: null, refactor: null }
+status: closed
+commits: { reconstructed: pending }
+source-commits: { red: efdf57b, green: 24dc82d, refactor: skipped }
 spec-ref: spec.md §Acceptance criteria 1
 contract-ref: n/a
 constitution-ref: Articles VI, X, XII
@@ -356,7 +357,7 @@ constitution-ref: Articles VI, X, XII
 
 **G - Green:** Implement the trait, ledger, weighted sum, and weight sheet.
 
-**F - Refactor:** Skipped unless the ledger duplicates the weight names.
+**F - Refactor:** Skipped - no smell detected; each weight name appears once (WeightSheet) and the ledger only stores what a term reports.
 
 **Files**
 
@@ -364,6 +365,9 @@ constitution-ref: Articles VI, X, XII
 - `engine/src/valuation/weights.rs`
 - `engine/src/lib.rs`
 - `engine/tests/valuation_pipeline.rs`
+
+Note: the assessor list is a static, nested-tuple AssessorSet built by ValuationPipeline::with (no vtable on the scoring path); Green touched no file beyond the declared ones.
+
 
 ## T012 - Score terminal positions
 
