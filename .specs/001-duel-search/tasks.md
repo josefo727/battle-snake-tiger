@@ -82,7 +82,7 @@ constitution-ref: Articles IV, X
 ```yaml
 id: T003
 status: closed
-commits: { reconstructed: pending }
+commits: { reconstructed: c57eeeb3c1fdf9f549c87d1b1b1a7ea5287314e3 }
 source-commits: { red: 37e0230, green: aa78b90, refactor: skipped }
 spec-ref: spec.md §Acceptance criteria 1
 contract-ref: n/a
@@ -113,8 +113,9 @@ constitution-ref: Articles IX, X, XII
 
 ```yaml
 id: T004
-status: open
-commits: { red: null, green: null, refactor: null }
+status: closed
+commits: { reconstructed: pending }
+source-commits: { red: 8107e6d, green: 764b8ed, refactor: skipped }
 spec-ref: spec.md §Acceptance criteria 1
 contract-ref: n/a
 constitution-ref: Articles IX, X
@@ -130,7 +131,7 @@ constitution-ref: Articles IX, X
 
 **G - Green:** Implement `step` over the cell arithmetic and add the round-trip property.
 
-**F - Refactor:** Skipped unless the delta table is duplicated.
+**F - Refactor:** Skipped - no smell detected; the delta table has a single definition and step and the CellSet shifts are cross-checked by a property test.
 
 **Files**
 
