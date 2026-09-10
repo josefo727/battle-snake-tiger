@@ -149,6 +149,20 @@ impl DuelBoard {
             || own.off_board
             || own.self_hit
             || opposing_segments.contains(serpent.head())
+            || self.loses_head_to_head(side, reports)
+    }
+
+    /// Two heads in one cell: only a strictly longer serpent survives, so equal
+    /// lengths eliminate both. Lengths are post-move and post-feeding.
+    fn loses_head_to_head(&self, side: Side, reports: &[MoveReport; 2]) -> bool {
+        let rival_side = side.other();
+        let own = &self.serpents[side.index()];
+        let rival = &self.serpents[rival_side.index()];
+
+        !reports[side.index()].off_board
+            && !reports[rival_side.index()].off_board
+            && own.head() == rival.head()
+            && own.length() <= rival.length()
     }
 
     #[must_use]

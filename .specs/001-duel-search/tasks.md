@@ -275,7 +275,7 @@ Note: Green also touched engine/src/arena/serpent.rs (Serpent::eat) and the test
 ```yaml
 id: T009
 status: closed
-commits: { reconstructed: pending }
+commits: { reconstructed: c80302d96bf78ffb55ef339b21e6fbe91aae4688 }
 source-commits: { red: 145b893, green: 0452471, refactor: 580be77 }
 spec-ref: spec.md §Acceptance criteria 1
 contract-ref: contracts/rules-core-dependency.rs
@@ -306,8 +306,9 @@ Note: the kernel keeps per-move reports (off_board, self_hit, segments) so an of
 
 ```yaml
 id: T010
-status: open
-commits: { red: null, green: null, refactor: null }
+status: closed
+commits: { reconstructed: pending }
+source-commits: { red: 1e7ea89, green: fceffae, refactor: e04a2a8 }
 spec-ref: spec.md §Acceptance criteria 1
 contract-ref: contracts/rules-core-dependency.rs
 constitution-ref: Articles II, XII
@@ -323,13 +324,16 @@ constitution-ref: Articles II, XII
 
 **G - Green:** Implement head-to-head resolution; enable the generated differential property.
 
-**F - Refactor:** Share the generators through the test support module.
+**F - Refactor:** Moved the duel generators (state_spec, realize) into the shared test support module for reuse by the valuation and search property suites.
 
 **Files**
 
 - `engine/src/arena/duel.rs`
 - `engine/tests/advance_differential.rs`
 - `engine/tests/support/mod.rs`
+
+Note: the generated property builds only reachable positions (length >= 3). The reused resolver treats a length-1 snake eating as a self collision, a state Standard games never produce, so the kernel is intentionally not required to match it there. The T008 same-pellet example was updated (it assumed the duel continues) and a two-pellet case added. Green also touched no file beyond the declared ones; soak: 60 independent property runs, 0 failures.
+
 
 ## T011 - Assemble the valuation pipeline and weight sheet
 

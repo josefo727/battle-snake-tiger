@@ -1,12 +1,16 @@
 mod support;
 
+use proptest::prelude::*;
 use tiger_engine::arena::cellset::{Cell, CellSet};
 use tiger_engine::arena::duel::{Advance, DuelBoard, Side, Verdict};
 use tiger_engine::arena::heading::Heading;
 use tiger_engine::arena::ingest::ingest;
 use tiger_engine::rules_core::TurnState;
 
-use support::{reference_after, resolved_body, state_after, turn_state, turn_state_from_bodies};
+use support::{
+    realize, reference_after, resolved_body, state_after, state_spec, turn_state,
+    turn_state_from_bodies,
+};
 
 fn cell(x: u8, y: u8) -> Cell {
     Cell::from_xy(x, y).expect("test coordinate is on the board")
@@ -179,11 +183,10 @@ fn a_stacked_tail_releases_one_copy_per_move_over_three_turns() {
 }
 
 #[test]
-fn two_serpents_entering_the_same_pellet_cell_both_eat() {
-    let above: &[(i32, i32)] = &[(5, 7), (5, 8), (5, 9)];
-    let state = turn_state_from_bodies(&[US_BODY, above], &[60, 40], 0, &[(5, 6)]);
+fn two_serpents_each_eating_their_own_pellet_both_grow() {
+    let state = turn_state_from_bodies(&[US_BODY, THEM_BODY], &[60, 40], 0, &[(5, 6), (1, 2)]);
 
-    assert_agrees_with_reference(&state, Heading::North, Heading::South);
+    assert_agrees_with_reference(&state, Heading::North, Heading::West);
 }
 
 /// The verdict the reused resolver implies for a duel: `None` while both
@@ -298,4 +301,104 @@ fn surviving_joint_moves_still_agree_with_the_reference_after_the_new_checks() {
 
     assert_verdict_matches(&state, Heading::North, Heading::North);
     assert_verdict_matches(&state, Heading::East, Heading::West);
+}
+
+#[test]
+fn head_to_head_is_won_only_by_the_strictly_longer_serpent() {
+    let long: &[(i32, i32)] = &[(5, 5), (5, 4), (5, 3), (5, 2)];
+    let short: &[(i32, i32)] = &[(5, 7), (5, 8), (5, 9)];
+    let equal: &[(i32, i32)] = &[(5, 7), (5, 8), (5, 9), (5, 10)];
+    let we_win = turn_state_from_bodies(&[long, short], &[90, 90], 0, &[]);
+    let they_win = turn_state_from_bodies(&[short_mirror(), long_mirror()], &[90, 90], 0, &[]);
+    let tie = turn_state_from_bodies(&[long, equal], &[90, 90], 0, &[]);
+
+    assert_eq!(
+        reference_verdict(&we_win, Heading::North, Heading::South),
+        Some(Verdict::WeOnly)
+    );
+    assert_verdict_matches(&we_win, Heading::North, Heading::South);
+    assert_eq!(
+        reference_verdict(&they_win, Heading::North, Heading::South),
+        Some(Verdict::TheyOnly)
+    );
+    assert_verdict_matches(&they_win, Heading::North, Heading::South);
+    assert_eq!(
+        reference_verdict(&tie, Heading::North, Heading::South),
+        Some(Verdict::BothDown)
+    );
+    assert_verdict_matches(&tie, Heading::North, Heading::South);
+}
+
+fn short_mirror() -> &'static [(i32, i32)] {
+    &[(5, 5), (5, 4), (5, 3)]
+}
+
+fn long_mirror() -> &'static [(i32, i32)] {
+    &[(5, 7), (5, 8), (5, 9), (5, 10)]
+}
+
+#[test]
+fn head_to_head_on_a_pellet_compares_lengths_after_both_have_grown() {
+    let long: &[(i32, i32)] = &[(5, 5), (5, 4), (5, 3), (5, 2)];
+    let short: &[(i32, i32)] = &[(5, 7), (5, 8), (5, 9)];
+    let same: &[(i32, i32)] = &[(5, 7), (5, 8), (5, 9), (5, 10)];
+    let longer_eats = turn_state_from_bodies(&[long, short], &[90, 90], 0, &[(5, 6)]);
+    let equal_eats = turn_state_from_bodies(&[long, same], &[90, 90], 0, &[(5, 6)]);
+
+    assert_verdict_matches(&longer_eats, Heading::North, Heading::South);
+    assert_verdict_matches(&equal_eats, Heading::North, Heading::South);
+}
+
+#[test]
+fn a_head_to_head_winner_that_starves_still_ends_in_a_double_loss() {
+    let long: &[(i32, i32)] = &[(5, 5), (5, 4), (5, 3), (5, 2)];
+    let short: &[(i32, i32)] = &[(5, 7), (5, 8), (5, 9)];
+    let state = turn_state_from_bodies(&[long, short], &[1, 90], 0, &[]);
+
+    assert_eq!(
+        reference_verdict(&state, Heading::North, Heading::South),
+        Some(Verdict::BothDown)
+    );
+    assert_verdict_matches(&state, Heading::North, Heading::South);
+}
+
+#[test]
+fn heads_swapping_places_collide_with_each_others_old_head() {
+    let west: &[(i32, i32)] = &[(5, 5), (4, 5), (3, 5)];
+    let east: &[(i32, i32)] = &[(6, 5), (7, 5), (8, 5)];
+    let state = turn_state_from_bodies(&[west, east], &[90, 90], 0, &[]);
+
+    assert_eq!(
+        reference_verdict(&state, Heading::East, Heading::West),
+        Some(Verdict::BothDown)
+    );
+    assert_verdict_matches(&state, Heading::East, Heading::West);
+}
+
+proptest! {
+    #![proptest_config(ProptestConfig::with_cases(400))]
+
+    #[test]
+    fn the_kernel_agrees_with_the_reference_on_every_joint_move_of_generated_duels(
+        spec in state_spec(),
+    ) {
+        let state = realize(&spec);
+        for us in Heading::ALL {
+            for them in Heading::ALL {
+                assert_verdict_matches(&state, us, them);
+            }
+        }
+    }
+}
+
+#[test]
+fn two_serpents_entering_the_same_pellet_cell_are_settled_by_length() {
+    let above: &[(i32, i32)] = &[(5, 7), (5, 8), (5, 9)];
+    let state = turn_state_from_bodies(&[US_BODY, above], &[60, 40], 0, &[(5, 6)]);
+
+    assert_eq!(
+        reference_verdict(&state, Heading::North, Heading::South),
+        Some(Verdict::BothDown)
+    );
+    assert_verdict_matches(&state, Heading::North, Heading::South);
 }

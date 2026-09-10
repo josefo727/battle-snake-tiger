@@ -2,8 +2,9 @@
 // a subset, so an unused helper here is not unused in the suite overall.
 #![allow(dead_code)]
 
+use proptest::prelude::*;
 use serde_json::{Value, json};
-use tiger_engine::arena::cellset::Cell;
+use tiger_engine::arena::cellset::{Cell, CellSet};
 use tiger_engine::arena::heading::Heading;
 use tiger_engine::rules_core::{
     Direction, JointMoves, TurnRequestDto, TurnResolution, TurnState, resolve_turn, to_turn_state,
@@ -169,8 +170,6 @@ pub fn resolved_body(resolution: &TurnResolution, snake_id: &str) -> Vec<Cell> {
 /// The reused state that results from a resolved turn: post-move bodies
 /// (stacked tails included), post-turn health, and the food still on the board.
 pub fn state_after(state: &TurnState, resolution: &TurnResolution) -> TurnState {
-    use tiger_engine::arena::cellset::CellSet;
-
     let coordinates = |cell: Cell| (i32::from(cell.x()), i32::from(cell.y()));
     let bodies: Vec<Vec<(i32, i32)>> = resolution
         .snakes()
@@ -195,4 +194,107 @@ pub fn state_after(state: &TurnState, resolution: &TurnResolution) -> TurnState 
     let slices: Vec<&[(i32, i32)]> = bodies.iter().map(Vec::as_slice).collect();
 
     turn_state_from_bodies(&slices, &health, state.you_index(), &food)
+}
+
+// --- Generated legal duels, shared by every property suite that needs a position. ---
+
+#[derive(Clone, Debug)]
+pub struct SnakeSpec {
+    pub start: u8,
+    pub turns: Vec<u8>,
+    pub tail_stack: u8,
+    pub health: u8,
+}
+
+#[derive(Clone, Debug)]
+pub struct StateSpec {
+    pub ours: SnakeSpec,
+    pub theirs: SnakeSpec,
+    pub food: Vec<u8>,
+    pub you_second: bool,
+}
+
+pub fn snake_spec() -> impl Strategy<Value = SnakeSpec> {
+    (
+        0u8..121,
+        proptest::collection::vec(0u8..4, 0..24),
+        0u8..3,
+        1u8..=100,
+    )
+        .prop_map(|(start, turns, tail_stack, health)| SnakeSpec {
+            start,
+            turns,
+            tail_stack,
+            health,
+        })
+}
+
+pub fn state_spec() -> impl Strategy<Value = StateSpec> {
+    (
+        snake_spec(),
+        snake_spec(),
+        proptest::collection::vec(0u8..121, 0..6),
+        any::<bool>(),
+    )
+        .prop_map(|(ours, theirs, food, you_second)| StateSpec {
+            ours,
+            theirs,
+            food,
+            you_second,
+        })
+}
+
+/// Grows a self-avoiding walk from `spec.start` (skipping to the next free cell
+/// when the start is taken), turning to the next open heading when blocked, and
+/// returns the head-first body with the requested stacked tail copies.
+fn realize_snake(spec: &SnakeSpec, taken: &mut CellSet) -> Vec<(i32, i32)> {
+    let start = (0..121u8)
+        .map(|i| (spec.start + i) % 121)
+        .map(|index| Cell::from_index(index).expect("index is on the board"))
+        .find(|candidate| !taken.contains(*candidate))
+        .expect("a free start cell exists");
+    let mut path = vec![start];
+    *taken = taken.with(start);
+    for &turn in &spec.turns {
+        let head = *path.last().expect("path is never empty");
+        let next = (0..4usize)
+            .map(|offset| Heading::ALL[(usize::from(turn) + offset) % 4])
+            .filter_map(|heading| heading.step(head))
+            .find(|candidate| !taken.contains(*candidate));
+        let Some(next) = next else { break };
+        *taken = taken.with(next);
+        path.push(next);
+    }
+
+    // Standard snakes start at length 3 (coiled on one cell) and never shrink, so
+    // shorter bodies are unreachable; the reused resolver even treats a length-1
+    // snake eating as a self collision.
+    let stack = usize::from(spec.tail_stack).max(3usize.saturating_sub(path.len()));
+    let tail = path[0];
+    let mut body: Vec<Cell> = path.into_iter().rev().collect();
+    body.extend(std::iter::repeat_n(tail, stack));
+    body.into_iter()
+        .map(|c| (i32::from(c.x()), i32::from(c.y())))
+        .collect()
+}
+
+pub fn realize(spec: &StateSpec) -> TurnState {
+    let mut taken = CellSet::EMPTY;
+    let first = realize_snake(&spec.ours, &mut taken);
+    let second = realize_snake(&spec.theirs, &mut taken);
+    let mut food: Vec<(i32, i32)> = Vec::new();
+    for &index in &spec.food {
+        let cell = Cell::from_index(index).expect("index is on the board");
+        let point = (i32::from(cell.x()), i32::from(cell.y()));
+        if !taken.contains(cell) && !food.contains(&point) {
+            food.push(point);
+        }
+    }
+
+    let health = [i32::from(spec.ours.health), i32::from(spec.theirs.health)];
+    if spec.you_second {
+        turn_state_from_bodies(&[&second, &first], &[health[1], health[0]], 1, &food)
+    } else {
+        turn_state_from_bodies(&[&first, &second], &health, 0, &food)
+    }
 }
