@@ -12,6 +12,7 @@ pub struct LengthAdvantage;
 
 impl Assessor for LengthAdvantage {
     const NAME: &'static str = "length_advantage";
+    const MAX_RAW: i32 = 120;
 
     fn assess(&self, board: &DuelBoard) -> i32 {
         i32::from(board.serpent(Side::Us).length()) - i32::from(board.serpent(Side::Them).length())
@@ -26,6 +27,7 @@ pub struct HeadPressure;
 
 impl Assessor for HeadPressure {
     const NAME: &'static str = "head_pressure";
+    const MAX_RAW: i32 = 4;
 
     fn assess(&self, board: &DuelBoard) -> i32 {
         let us = board.serpent(Side::Us);

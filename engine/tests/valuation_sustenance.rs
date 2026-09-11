@@ -5,7 +5,9 @@ use tiger_engine::arena::cellset::CellSet;
 use tiger_engine::arena::duel::{DuelBoard, Side};
 use tiger_engine::arena::ingest::ingest;
 use tiger_engine::valuation::dominion::Dominion;
-use tiger_engine::valuation::sustenance::{COMFORT_MARGIN, NO_FOOD_DISTANCE, Sustenance};
+use tiger_engine::valuation::sustenance::{
+    COMFORT_MARGIN, MAX_PRESSURE, NO_FOOD_DISTANCE, Sustenance,
+};
 use tiger_engine::valuation::{Assessor, ValuationPipeline};
 
 use support::{realize, state_spec, turn_state_from_bodies};
@@ -53,6 +55,18 @@ fn comfortable_health_produces_no_pressure_for_either_serpent() {
     let b = board(US, FAR_CORNER, [100, 100], &[(5, 10)]);
 
     assert_eq!(Sustenance.assess(&b), 0);
+}
+
+#[test]
+fn pressure_is_capped_so_starvation_cannot_swamp_the_rest_of_the_score() {
+    // Health 1 with no pellet of our own: margin 1 - 40 = -39, an uncapped
+    // pressure of 64; the cap holds it at MAX_PRESSURE.
+    let starving = board(US, FAR_CORNER, [1, 100], &[]);
+    let both_starving = board(US, FAR_CORNER, [1, 1], &[]);
+
+    assert_eq!(MAX_PRESSURE, 60);
+    assert_eq!(Sustenance.assess(&starving), -MAX_PRESSURE);
+    assert_eq!(Sustenance.assess(&both_starving), 0);
 }
 
 #[test]

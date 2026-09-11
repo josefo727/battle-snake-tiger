@@ -112,6 +112,7 @@ fn settle(fresh_ours: CellSet, fresh_theirs: CellSet, tie_winner: Ordering) -> (
 
 impl Assessor for Dominion {
     const NAME: &'static str = "dominion";
+    const MAX_RAW: i32 = 121;
 
     fn assess(&self, board: &DuelBoard) -> i32 {
         let partition = self.partition(board);

@@ -14,8 +14,6 @@ pub struct WeightSheet {
     pub ply_penalty: i32,
     /// Value of one cell of territory reached first.
     pub territory_cell: i32,
-    /// Value of a pellet we reach first.
-    pub contested_pellet: i32,
     /// Strength of the pull toward food as the health margin shrinks.
     pub hunger_urgency: i32,
     /// Value of each segment of length advantage.
@@ -32,7 +30,6 @@ pub const DEFAULT_PROFILE: WeightSheet = WeightSheet {
     draw_score: -1_000,
     ply_penalty: 100,
     territory_cell: 100,
-    contested_pellet: 300,
     hunger_urgency: 200,
     length_advantage: 250,
     head_pressure: 150,

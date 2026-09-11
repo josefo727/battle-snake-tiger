@@ -10,6 +10,11 @@ pub mod leverage;
 pub mod sustenance;
 pub mod weights;
 
+use self::dominion::Dominion;
+use self::enclosure::Enclosure;
+use self::leverage::{HeadPressure, LengthAdvantage};
+use self::sustenance::Sustenance;
+use self::weights::{DEFAULT_PROFILE, WeightSheet};
 use crate::arena::duel::DuelBoard;
 
 /// Most terms one ledger can describe.
@@ -19,6 +24,10 @@ pub const LEDGER_CAPACITY: usize = 8;
 pub trait Assessor {
     /// Name reported in the ledger.
     const NAME: &'static str;
+
+    /// A safe upper bound on the magnitude of [`Assessor::assess`], so a
+    /// pipeline can prove its scores stay inside the terminal-score limits.
+    const MAX_RAW: i32;
 
     /// The raw, unweighted answer from our point of view: positive favours us.
     fn assess(&self, board: &DuelBoard) -> i32;
@@ -113,10 +122,18 @@ pub struct Weighted<A> {
 /// A statically known list of weighted assessors.
 pub trait AssessorSet {
     fn total<L: LedgerSink>(&self, board: &DuelBoard, ledger: &mut L) -> i32;
+
+    /// The largest magnitude the total could ever have: the sum of each term's
+    /// weight times its `MAX_RAW`.
+    fn worst_case(&self) -> i32;
 }
 
 impl AssessorSet for () {
     fn total<L: LedgerSink>(&self, _board: &DuelBoard, _ledger: &mut L) -> i32 {
+        0
+    }
+
+    fn worst_case(&self) -> i32 {
         0
     }
 }
@@ -128,14 +145,29 @@ impl<A: Assessor> AssessorSet for Weighted<A> {
             raw: self.assessor.assess(board),
             weight: self.weight,
         };
+        debug_assert!(
+            entry.raw.abs() <= A::MAX_RAW,
+            "{} produced {} beyond its declared bound {}",
+            A::NAME,
+            entry.raw,
+            A::MAX_RAW
+        );
         ledger.record(entry);
         entry.contribution()
+    }
+
+    fn worst_case(&self) -> i32 {
+        self.weight.abs() * A::MAX_RAW
     }
 }
 
 impl<Rest: AssessorSet, Last: AssessorSet> AssessorSet for (Rest, Last) {
     fn total<L: LedgerSink>(&self, board: &DuelBoard, ledger: &mut L) -> i32 {
         self.0.total(board, ledger) + self.1.total(board, ledger)
+    }
+
+    fn worst_case(&self) -> i32 {
+        self.0.worst_case() + self.1.worst_case()
     }
 }
 
@@ -171,6 +203,12 @@ impl<S: AssessorSet> ValuationPipeline<S> {
         }
     }
 
+    /// The largest magnitude any score from this pipeline could have.
+    #[must_use]
+    pub fn worst_case_magnitude(&self) -> i32 {
+        self.terms.worst_case()
+    }
+
     /// The score alone, without building a ledger.
     #[must_use]
     pub fn score(&self, board: &DuelBoard) -> i32 {
@@ -183,5 +221,38 @@ impl<S: AssessorSet> ValuationPipeline<S> {
         let mut ledger = Ledger::new();
         let score = self.terms.total(board, &mut ledger);
         Valuation { score, ledger }
+    }
+}
+
+/// The five positional terms of the standard valuation, in ledger order.
+pub type StandardTerms = (
+    (
+        (
+            (((), Weighted<Dominion>), Weighted<Sustenance>),
+            Weighted<LengthAdvantage>,
+        ),
+        Weighted<HeadPressure>,
+    ),
+    Weighted<Enclosure>,
+);
+
+pub type StandardPipeline = ValuationPipeline<StandardTerms>;
+
+impl StandardPipeline {
+    /// The valuation search uses, with [`DEFAULT_PROFILE`].
+    #[must_use]
+    pub fn standard() -> Self {
+        Self::with_profile(&DEFAULT_PROFILE)
+    }
+
+    /// The same five terms with the coefficients of `weights`, for experiments.
+    #[must_use]
+    pub fn with_profile(weights: &WeightSheet) -> Self {
+        ValuationPipeline::empty()
+            .with(Dominion, weights.territory_cell)
+            .with(Sustenance, weights.hunger_urgency)
+            .with(LengthAdvantage, weights.length_advantage)
+            .with(HeadPressure, weights.head_pressure)
+            .with(Enclosure, weights.enclosure_turn)
     }
 }

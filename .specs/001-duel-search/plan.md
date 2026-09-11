@@ -121,7 +121,7 @@ Search (ADR 0003):
 - Determinism: no randomness; identical input and allowance produce identical output (fake-clock testable).
 
 Valuation (ADR 0004), integer arithmetic only:
-- `Dominion`: multi-source layered fill on `CellSet`s. Layer `t` obstacles are all serpent cells except those released by turn `t` (segment `i` counted from the tail is free after `i + 1` turns, no growth assumed). Cells reached in the same layer by both are awarded to the longer serpent, and to nobody on equal length. Output: cells owned by us minus cells owned by them; a separate count of contested pellets we reach first.
+- `Dominion`: multi-source layered fill on `CellSet`s. Layer `t` obstacles are all serpent cells except those released by turn `t` (segment `i` counted from the tail is free after `i + 1` turns, no growth assumed). Cells reached in the same layer by both are awarded to the longer serpent, and to nobody on equal length. Output: cells owned by us minus cells owned by them; the survey also reports each serpent's turns to its nearest owned pellet, which `Sustenance` consumes (a separate pellet-control weight was dropped as unused).
 - `Sustenance`: health margin against the distance to the nearest pellet we reach first, with urgency rising as the margin shrinks.
 - `Enclosure`: active only when neither serpent's reachable region intersects the other's; estimates survival turns per region from its size, parity-adjusted cell counts, and tail release; output is our estimate minus theirs.
 - `Leverage`, as two assessors (ADR 0004 amendment): `LengthAdvantage` (length difference) and `HeadPressure` (cells both heads can enter next turn, signed by who would win the head-to-head).

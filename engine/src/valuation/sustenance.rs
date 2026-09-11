@@ -11,6 +11,10 @@ pub const COMFORT_MARGIN: i32 = 25;
 /// The distance assumed when a serpent owns no pellet at all.
 pub const NO_FOOD_DISTANCE: i32 = 40;
 
+/// Pressure stops growing here: past this much hunger a serpent is already in
+/// trouble and a larger number would only crowd out the rest of the score.
+pub const MAX_PRESSURE: i32 = 60;
+
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Sustenance;
 
@@ -20,11 +24,12 @@ pub struct Sustenance;
 fn pressure(vigor: u8, distance_to_food: Option<u16>) -> i32 {
     let distance = distance_to_food.map_or(NO_FOOD_DISTANCE, i32::from);
     let margin = i32::from(vigor) - distance;
-    (COMFORT_MARGIN - margin).max(0)
+    (COMFORT_MARGIN - margin).clamp(0, MAX_PRESSURE)
 }
 
 impl Assessor for Sustenance {
     const NAME: &'static str = "sustenance";
+    const MAX_RAW: i32 = MAX_PRESSURE;
 
     /// Their pressure minus ours: positive when they are the hungrier serpent.
     fn assess(&self, board: &DuelBoard) -> i32 {

@@ -92,6 +92,7 @@ fn static_region(board: &DuelBoard, head: Cell) -> CellSet {
 
 impl Assessor for Enclosure {
     const NAME: &'static str = "enclosure";
+    const MAX_RAW: i32 = 121;
 
     /// Our survival estimate minus theirs, but only when the serpents are walled
     /// apart; while either can reach the other's ground the term is zero.

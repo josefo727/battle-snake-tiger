@@ -540,7 +540,7 @@ Note: Leverage was built as two single-question assessors, LengthAdvantage and H
 ```yaml
 id: T017
 status: closed
-commits: { reconstructed: pending }
+commits: { reconstructed: dce4ad994e9d4f5d13e1f9d4d9e6eae8f5c59f7c }
 source-commits: { red: fabc9eb, green: a88049a, refactor: ec14f41 }
 spec-ref: spec.md §Acceptance criteria 1
 contract-ref: n/a
@@ -573,8 +573,9 @@ Note: Enclosure treats walls as static for the activation test (cells reachable 
 
 ```yaml
 id: T018
-status: open
-commits: { red: null, green: null, refactor: null }
+status: closed
+commits: { reconstructed: pending }
+source-commits: { red: ab1c340, green: 7e15ee3, refactor: 7e1cec4 }
 spec-ref: spec.md §Acceptance criteria 1
 contract-ref: n/a
 constitution-ref: Articles VIII, XII, XIV
@@ -591,13 +592,16 @@ constitution-ref: Articles VIII, XII, XIV
 
 **G - Green:** Register the assessors with the default weights.
 
-**F - Refactor:** Skipped unless registration order is duplicated in tests.
+**F - Refactor:** Removed the unused contested_pellet coefficient from the WeightSheet (no assessor consumed it); registration order is written once in StandardPipeline::with_profile.
 
 **Files**
 
 - `engine/src/valuation/mod.rs`
 - `engine/src/valuation/weights.rs`
 - `engine/tests/valuation_pipeline.rs`
+
+Note: beyond the declared files, Green changed the assessor modules (each declares MAX_RAW; Sustenance clamps pressure at MAX_PRESSURE = 60) and tests/valuation_sustenance.rs. The clamp and the declared bounds were added because the default weights could otherwise exceed the finite limit (worst case is now 69,220 against 75,000), so the 'stays inside the finite bounds' criterion is arithmetic, not only tested.
+
 
 ## T019 - Bound search by a clock-backed allowance
 
