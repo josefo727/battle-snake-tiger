@@ -3,8 +3,9 @@
 use core::cmp::Ordering;
 
 use super::Assessor;
-use crate::arena::cellset::CellSet;
+use crate::arena::cellset::{Cell, CellSet};
 use crate::arena::duel::{DuelBoard, Side};
+use crate::arena::serpent::Serpent;
 
 /// The cells each serpent owns. A cell reached at the same distance by both
 /// belongs to the longer serpent, and to nobody when lengths are equal.
@@ -17,38 +18,40 @@ pub struct Partition {
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Dominion;
 
+/// Fill steps to run before giving up. A cell frees by turn 121 at the latest
+/// and a path crosses at most 120 cells afterwards, so 250 always suffices.
+pub const MAX_LAYERS: u16 = 250;
+
 impl Dominion {
-    /// Splits the free cells between the serpents using static obstacles (every
-    /// serpent cell blocks for the whole search).
+    /// Splits the cells between the serpents, modelling that bodies move away.
     ///
-    /// Each serpent's fill advances one layer per step through free cells; a
-    /// cell belongs to whoever reaches it in an earlier layer, and a cell both
-    /// reach in the same layer goes to the longer serpent.
+    /// Each serpent's fill advances one layer per turn. A body cell is passable
+    /// from the turn its last segment leaves it (the segment `i` places from the
+    /// tail frees after `i + 1` turns; a stacked copy delays it one turn each).
+    /// A cell belongs to whoever arrives first, the longer serpent on a same-turn
+    /// arrival, and nobody at equal length. Both start cells are never territory.
     #[must_use]
     pub fn partition(&self, board: &DuelBoard) -> Partition {
-        let free = board.occupied().complement();
         let us = board.serpent(Side::Us);
         let them = board.serpent(Side::Them);
         let tie_winner = us.length().cmp(&them.length());
+        let last_release = u16::from(us.length().max(them.length()));
 
-        let mut our_front = CellSet::single(us.head());
-        let mut their_front = CellSet::single(them.head());
-        let mut our_seen = our_front;
-        let mut their_seen = their_front;
-        let mut decided = CellSet::EMPTY;
+        let mut free = board.occupied().complement();
+        let mut our_fill = Fill::from(us.head());
+        let mut their_fill = Fill::from(them.head());
+        let mut decided = our_fill.seen.union(their_fill.seen);
         let mut partition = Partition {
             ours: CellSet::EMPTY,
             theirs: CellSet::EMPTY,
         };
 
-        while !our_front.is_empty() || !their_front.is_empty() {
-            our_front = expand_layer(our_front, free, our_seen);
-            their_front = expand_layer(their_front, free, their_seen);
-            our_seen = our_seen.union(our_front);
-            their_seen = their_seen.union(their_front);
+        for layer in 1..=MAX_LAYERS {
+            let released = released_at(us, layer).union(released_at(them, layer));
+            free = free.union(released);
+            let fresh_ours = our_fill.advance(free, released).difference(decided);
+            let fresh_theirs = their_fill.advance(free, released).difference(decided);
 
-            let fresh_ours = our_front.difference(decided);
-            let fresh_theirs = their_front.difference(decided);
             let tied = fresh_ours.intersection(fresh_theirs);
             partition.ours = partition.ours.union(fresh_ours.difference(tied));
             partition.theirs = partition.theirs.union(fresh_theirs.difference(tied));
@@ -58,15 +61,67 @@ impl Dominion {
                 Ordering::Equal => {}
             }
             decided = decided.union(fresh_ours).union(fresh_theirs);
+
+            if layer >= last_release && our_fill.is_exhausted() && their_fill.is_exhausted() {
+                break;
+            }
         }
 
         partition
     }
 }
 
-/// One fill step: the free, not-yet-seen neighbours of the frontier.
-fn expand_layer(front: CellSet, free: CellSet, seen: CellSet) -> CellSet {
-    front.neighbours().intersection(free).difference(seen)
+/// One serpent's fill: the cells reached on the latest turn and every cell
+/// reached so far.
+#[derive(Clone, Copy)]
+struct Fill {
+    front: CellSet,
+    seen: CellSet,
+}
+
+impl Fill {
+    fn from(head: Cell) -> Self {
+        let start = CellSet::single(head);
+        Self {
+            front: start,
+            seen: start,
+        }
+    }
+
+    /// One turn: step into free unseen neighbours, and enter cells that freed
+    /// this turn beside ground already reached (the serpent can dawdle there
+    /// until they free). Returns the cells newly reached.
+    fn advance(&mut self, free: CellSet, released: CellSet) -> CellSet {
+        let by_walking = self.front.neighbours();
+        let by_waiting = released.intersection(self.seen.neighbours());
+        self.front = by_walking
+            .union(by_waiting)
+            .intersection(free)
+            .difference(self.seen);
+        self.seen = self.seen.union(self.front);
+        self.front
+    }
+
+    const fn is_exhausted(&self) -> bool {
+        self.front.is_empty()
+    }
+}
+
+/// The cell a serpent's body vacates entirely on turn `layer`, if any.
+fn released_at(serpent: &Serpent, layer: u16) -> CellSet {
+    let index = layer - 1;
+    if index >= u16::from(serpent.length()) {
+        return CellSet::EMPTY;
+    }
+    let index = index as u8;
+    let cell = serpent.cell_from_tail(index);
+    let held_by_a_later_copy =
+        index + 1 < serpent.length() && serpent.cell_from_tail(index + 1) == cell;
+    if held_by_a_later_copy {
+        CellSet::EMPTY
+    } else {
+        CellSet::single(cell)
+    }
 }
 
 impl Assessor for Dominion {

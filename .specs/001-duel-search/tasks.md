@@ -407,7 +407,7 @@ Note: Finish scores terminal outcomes for search; it is not registered in the po
 ```yaml
 id: T013
 status: closed
-commits: { reconstructed: pending }
+commits: { reconstructed: 258587c4d7aa382d4fedb4d88256a48b4ecaec67 }
 source-commits: { red: 64d3cd7, green: 808471d, refactor: skipped }
 spec-ref: spec.md §Acceptance criteria 1
 contract-ref: n/a
@@ -440,8 +440,9 @@ Note: a first draft of the sealed-pocket test was wrong (the wall serpent's head
 
 ```yaml
 id: T014
-status: open
-commits: { red: null, green: null, refactor: null }
+status: closed
+commits: { reconstructed: pending }
+source-commits: { red: 62155cb, green: d1b89be, refactor: 37fd9b6 }
 spec-ref: spec.md §Acceptance criteria 1
 contract-ref: n/a
 constitution-ref: Articles VIII, XII
@@ -458,12 +459,15 @@ constitution-ref: Articles VIII, XII
 
 **G - Green:** Compute the obstacle set per layer from segment release times.
 
-**F - Refactor:** Precompute release masks once per assessment.
+**F - Refactor:** Folded the paired frontier/seen state of each serpent into a Fill type (advance and is_exhausted); release masks are looked up in O(1) per turn, so no precomputation was needed.
 
 **Files**
 
 - `engine/src/valuation/dominion.rs`
 - `engine/tests/valuation_dominion.rs`
+
+Note: Green added Serpent::cell_from_tail (engine/src/arena/serpent.rs) beyond the declared files, and the Red beat replaced the two T013 tests that encoded the static rule (serpent cells belong to nobody; a cell sealed in by body segments) because segments now free in time.
+
 
 ## T015 - Assess sustenance
 

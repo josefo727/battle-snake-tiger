@@ -1,6 +1,7 @@
 mod support;
 
-use std::collections::VecDeque;
+use std::cmp::{Ordering, Reverse};
+use std::collections::BinaryHeap;
 
 use proptest::prelude::*;
 use tiger_engine::arena::cellset::{CELL_COUNT, Cell, CellSet};
@@ -20,52 +21,75 @@ fn board(us: &[(i32, i32)], them: &[(i32, i32)]) -> DuelBoard {
     ingest(&turn_state_from_bodies(&[us, them], &[90, 90], 0, &[])).expect("a duel converts")
 }
 
-/// Shortest step counts from `head` through cells that are not occupied.
-fn oracle_distances(board: &DuelBoard, head: Cell) -> Vec<Option<u32>> {
-    let mut distance = vec![None; usize::from(CELL_COUNT)];
-    let mut queue = VecDeque::from([head]);
-    distance[usize::from(head.index())] = Some(0);
-    while let Some(current) = queue.pop_front() {
-        let here = distance[usize::from(current.index())].expect("queued cells have a distance");
-        for heading in Heading::ALL {
-            let Some(next) = heading.step(current) else {
-                continue;
-            };
-            if board.occupied().contains(next) || distance[usize::from(next.index())].is_some() {
-                continue;
-            }
-            distance[usize::from(next.index())] = Some(here + 1);
-            queue.push_back(next);
+/// The turn at which each cell first becomes enterable: 0 for a free cell, and
+/// for a body cell one more than the highest from-the-tail index of any segment
+/// holding it (a stacked tail therefore frees one turn later per copy).
+fn release_times(board: &DuelBoard) -> Vec<u32> {
+    let mut at = vec![0u32; usize::from(CELL_COUNT)];
+    for side in [Side::Us, Side::Them] {
+        let serpent = board.serpent(side);
+        let length = u32::from(serpent.length());
+        for (position, c) in serpent.body().enumerate() {
+            let from_tail = length - 1 - u32::try_from(position).expect("small index");
+            let slot = &mut at[usize::from(c.index())];
+            *slot = (*slot).max(from_tail + 1);
         }
     }
-    distance
+    at
 }
 
-/// An independent statement of the ownership rule using plain BFS distances.
+/// Earliest arrival at every cell, allowing a serpent to dawdle until a cell
+/// frees: `arrival(n) = max(arrival(neighbour) + 1, release(n))`. Independent of
+/// the kernel: a plain Dijkstra over a binary heap.
+fn oracle_arrivals(source: Cell, release: &[u32]) -> Vec<Option<u32>> {
+    let mut best: Vec<Option<u32>> = vec![None; usize::from(CELL_COUNT)];
+    let mut heap = BinaryHeap::new();
+    best[usize::from(source.index())] = Some(0);
+    heap.push(Reverse((0u32, source.index())));
+    while let Some(Reverse((arrival, index))) = heap.pop() {
+        if best[usize::from(index)] != Some(arrival) {
+            continue;
+        }
+        let here = Cell::from_index(index).expect("index is on the board");
+        for heading in Heading::ALL {
+            let Some(next) = heading.step(here) else {
+                continue;
+            };
+            let candidate = (arrival + 1).max(release[usize::from(next.index())]);
+            let slot = &mut best[usize::from(next.index())];
+            if slot.is_none_or(|current| candidate < current) {
+                *slot = Some(candidate);
+                heap.push(Reverse((candidate, next.index())));
+            }
+        }
+    }
+    best
+}
+
+/// An independent statement of the ownership rule: earlier arrival wins, equal
+/// arrivals go to the longer serpent (nobody at equal length), and the two start
+/// cells are never territory.
 fn oracle_partition(board: &DuelBoard) -> Partition {
-    let ours = oracle_distances(board, board.serpent(Side::Us).head());
-    let theirs = oracle_distances(board, board.serpent(Side::Them).head());
-    let (our_len, their_len) = (
-        board.serpent(Side::Us).length(),
-        board.serpent(Side::Them).length(),
-    );
+    let release = release_times(board);
+    let (us, them) = (board.serpent(Side::Us), board.serpent(Side::Them));
+    let ours = oracle_arrivals(us.head(), &release);
+    let theirs = oracle_arrivals(them.head(), &release);
     let mut partition = Partition {
         ours: CellSet::EMPTY,
         theirs: CellSet::EMPTY,
     };
     for index in 0..CELL_COUNT {
         let c = Cell::from_index(index).expect("index is on the board");
-        if board.occupied().contains(c) {
+        if c == us.head() || c == them.head() {
             continue;
         }
-        let (a, b) = (ours[usize::from(index)], theirs[usize::from(index)]);
-        let owner = match (a, b) {
+        let owner = match (ours[usize::from(index)], theirs[usize::from(index)]) {
             (Some(a), Some(b)) if a < b => Some(Side::Us),
             (Some(a), Some(b)) if b < a => Some(Side::Them),
-            (Some(_), Some(_)) => match our_len.cmp(&their_len) {
-                std::cmp::Ordering::Greater => Some(Side::Us),
-                std::cmp::Ordering::Less => Some(Side::Them),
-                std::cmp::Ordering::Equal => None,
+            (Some(_), Some(_)) => match us.length().cmp(&them.length()) {
+                Ordering::Greater => Some(Side::Us),
+                Ordering::Less => Some(Side::Them),
+                Ordering::Equal => None,
             },
             (Some(_), None) => Some(Side::Us),
             (None, Some(_)) => Some(Side::Them),
@@ -101,13 +125,15 @@ fn the_standard_start_partitions_like_the_independent_oracle() {
 }
 
 #[test]
-fn serpent_cells_belong_to_nobody() {
+fn the_start_cells_of_both_heads_are_never_territory() {
     let b = board(MIRROR_US, MIRROR_THEM);
 
     let partition = Dominion.partition(&b);
 
-    assert_eq!(partition.ours.intersection(b.occupied()), CellSet::EMPTY);
-    assert_eq!(partition.theirs.intersection(b.occupied()), CellSet::EMPTY);
+    for head in [b.serpent(Side::Us).head(), b.serpent(Side::Them).head()] {
+        assert!(!partition.ours.contains(head));
+        assert!(!partition.theirs.contains(head));
+    }
 }
 
 #[test]
@@ -132,18 +158,57 @@ fn the_longer_serpent_wins_the_equidistant_cell() {
 }
 
 #[test]
-fn a_cell_sealed_in_by_body_segments_belongs_to_nobody() {
-    // The corner cell (10, 10) has both neighbours, (9, 10) and (10, 9), occupied
-    // by body segments (not heads), so neither head can ever enter it.
-    let coil: &[(i32, i32)] = &[(7, 10), (8, 10), (9, 10), (9, 9), (10, 9)];
-    let them: &[(i32, i32)] = &[(2, 2), (2, 1), (2, 0)];
-    let b = board(coil, them);
+fn a_serpent_chasing_its_own_tail_owns_the_cells_its_body_vacates() {
+    // A 2x2 coil: the tail (4, 5) is beside the head and frees after one turn,
+    // then (4, 4) after two and (5, 4) after three, all reachable in that order.
+    let coil: &[(i32, i32)] = &[(5, 5), (5, 4), (4, 4), (4, 5)];
+    let far: &[(i32, i32)] = &[(9, 9), (9, 10), (10, 10)];
+    let b = board(coil, far);
 
     let partition = Dominion.partition(&b);
 
-    assert!(!partition.ours.contains(cell(10, 10)));
-    assert!(!partition.theirs.contains(cell(10, 10)));
+    for owned in [cell(4, 5), cell(4, 4), cell(5, 4)] {
+        assert!(
+            partition.ours.contains(owned),
+            "cell ({}, {})",
+            owned.x(),
+            owned.y()
+        );
+    }
     assert_eq!(partition, oracle_partition(&b));
+}
+
+#[test]
+fn a_vacating_tail_beside_the_other_head_goes_to_the_other_serpent() {
+    let ours: &[(i32, i32)] = &[(5, 5), (5, 4), (5, 3)];
+    let theirs: &[(i32, i32)] = &[(4, 3), (3, 3), (2, 3)];
+    let b = board(ours, theirs);
+
+    let partition = Dominion.partition(&b);
+
+    assert!(partition.theirs.contains(cell(5, 3)));
+    assert_eq!(partition, oracle_partition(&b));
+}
+
+#[test]
+fn a_stacked_tail_frees_its_cell_one_turn_later_per_copy() {
+    let stacked: &[(i32, i32)] = &[(5, 5), (5, 4), (5, 3), (5, 3), (5, 3)];
+    let theirs: &[(i32, i32)] = &[(4, 3), (3, 3), (2, 3)];
+    let unstacked: &[(i32, i32)] = &[(5, 5), (5, 4), (5, 3)];
+
+    let with_stack = board(stacked, theirs);
+    let without = board(unstacked, theirs);
+
+    assert_eq!(
+        Dominion.partition(&with_stack),
+        oracle_partition(&with_stack)
+    );
+    assert_eq!(Dominion.partition(&without), oracle_partition(&without));
+    assert_ne!(
+        Dominion.partition(&with_stack),
+        Dominion.partition(&without),
+        "the stack must change who owns what"
+    );
 }
 
 #[test]

@@ -117,6 +117,12 @@ impl Serpent {
         self.ring[self.slot_behind_head(from_head as usize)]
     }
 
+    /// The segment `index` places from the tail (0 is the tail itself).
+    #[must_use]
+    pub const fn cell_from_tail(&self, index: u8) -> Cell {
+        self.segment(self.length - 1 - index)
+    }
+
     /// Adds a new head; the old tail is still present until `release_tail`.
     pub fn advance_head(&mut self, cell: Cell) {
         self.head_slot = ((usize::from(self.head_slot) + 1) & RING_MASK) as u8;
