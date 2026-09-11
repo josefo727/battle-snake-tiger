@@ -70,3 +70,11 @@ None.
 by search; it is not registered in the positional pipeline. The pipeline holds
 `Dominion`, `Sustenance`, `Enclosure`, and `Leverage`. No other part of this
 decision changes.
+
+## Amendment (2026-09-16)
+
+`Leverage` is realised as two single-question assessors, `LengthAdvantage` (our
+length minus theirs) and `HeadPressure` (cells both heads can enter next turn,
+signed by who wins the head-to-head), each with its own weight. The positional
+pipeline therefore registers five terms: `Dominion`, `Sustenance`,
+`LengthAdvantage`, `HeadPressure`, and `Enclosure`.

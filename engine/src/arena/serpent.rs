@@ -123,6 +123,22 @@ impl Serpent {
         self.segment(self.length - 1 - index)
     }
 
+    /// The cell this serpent's body vacates entirely on `turn` (counting from 1),
+    /// if any: the segment `turn - 1` places from the tail, unless a stacked copy
+    /// nearer the head keeps the cell until its own turn.
+    #[must_use]
+    pub fn cell_released_on_turn(&self, turn: u16) -> Option<Cell> {
+        let index = turn.checked_sub(1)?;
+        if index >= u16::from(self.length) {
+            return None;
+        }
+        let index = index as u8;
+        let cell = self.cell_from_tail(index);
+        let held_by_a_later_copy =
+            index + 1 < self.length && self.cell_from_tail(index + 1) == cell;
+        (!held_by_a_later_copy).then_some(cell)
+    }
+
     /// Adds a new head; the old tail is still present until `release_tail`.
     pub fn advance_head(&mut self, cell: Cell) {
         self.head_slot = ((usize::from(self.head_slot) + 1) & RING_MASK) as u8;

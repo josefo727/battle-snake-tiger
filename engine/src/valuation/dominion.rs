@@ -69,7 +69,7 @@ impl Dominion {
         let mut their_food = None;
 
         for layer in 1..=MAX_LAYERS {
-            let released = released_at(us, layer).union(released_at(them, layer));
+            let released = released_on_turn(us, layer).union(released_on_turn(them, layer));
             free = free.union(released);
             let fresh_ours = our_fill.advance(free, released).difference(decided);
             let fresh_theirs = their_fill.advance(free, released).difference(decided);
@@ -149,23 +149,6 @@ impl Fill {
     }
 }
 
-/// The cell a serpent's body vacates entirely on turn `layer`, if any.
-fn released_at(serpent: &Serpent, layer: u16) -> CellSet {
-    let index = layer - 1;
-    if index >= u16::from(serpent.length()) {
-        return CellSet::EMPTY;
-    }
-    let index = index as u8;
-    let cell = serpent.cell_from_tail(index);
-    let held_by_a_later_copy =
-        index + 1 < serpent.length() && serpent.cell_from_tail(index + 1) == cell;
-    if held_by_a_later_copy {
-        CellSet::EMPTY
-    } else {
-        CellSet::single(cell)
-    }
-}
-
 impl Assessor for Dominion {
     const NAME: &'static str = "dominion";
 
@@ -173,4 +156,11 @@ impl Assessor for Dominion {
         let partition = self.partition(board);
         partition.ours.len().cast_signed() - partition.theirs.len().cast_signed()
     }
+}
+
+/// The cells `serpent`'s body vacates entirely on turn `layer`, as a set.
+fn released_on_turn(serpent: &Serpent, layer: u16) -> CellSet {
+    serpent
+        .cell_released_on_turn(layer)
+        .map_or(CellSet::EMPTY, CellSet::single)
 }

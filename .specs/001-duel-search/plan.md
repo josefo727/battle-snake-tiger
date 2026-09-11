@@ -124,7 +124,7 @@ Valuation (ADR 0004), integer arithmetic only:
 - `Dominion`: multi-source layered fill on `CellSet`s. Layer `t` obstacles are all serpent cells except those released by turn `t` (segment `i` counted from the tail is free after `i + 1` turns, no growth assumed). Cells reached in the same layer by both are awarded to the longer serpent, and to nobody on equal length. Output: cells owned by us minus cells owned by them; a separate count of contested pellets we reach first.
 - `Sustenance`: health margin against the distance to the nearest pellet we reach first, with urgency rising as the margin shrinks.
 - `Enclosure`: active only when neither serpent's reachable region intersects the other's; estimates survival turns per region from its size, parity-adjusted cell counts, and tail release; output is our estimate minus theirs.
-- `Leverage`: length difference and head-to-head pressure (our head adjacent to cells their head can enter while we are longer, and the reverse).
+- `Leverage`, as two assessors (ADR 0004 amendment): `LengthAdvantage` (length difference) and `HeadPressure` (cells both heads can enter next turn, signed by who would win the head-to-head).
 - `Finish`: forced-win / forced-loss / mutual-elimination scores with a ply-distance term, applied by search to terminal outcomes rather than registered in the positional pipeline (ADR 0004 amendment).
 - `WeightSheet`: a named profile of integer coefficients (`DEFAULT_PROFILE`); changing weights never touches assessor code.
 

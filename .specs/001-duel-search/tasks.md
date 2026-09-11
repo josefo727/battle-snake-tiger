@@ -474,7 +474,7 @@ Note: Green added Serpent::cell_from_tail (engine/src/arena/serpent.rs) beyond t
 ```yaml
 id: T015
 status: closed
-commits: { reconstructed: pending }
+commits: { reconstructed: d7cd26c8e354ed79627c80cc82a9a267513a3f64 }
 source-commits: { red: 2b78c5a, green: 1c115c6, refactor: bc942bc }
 spec-ref: spec.md §Acceptance criteria 1
 contract-ref: n/a
@@ -506,8 +506,9 @@ Note: the task's declared files did not include engine/src/valuation/dominion.rs
 
 ```yaml
 id: T016
-status: open
-commits: { red: null, green: null, refactor: null }
+status: closed
+commits: { reconstructed: pending }
+source-commits: { red: fb1cfba, green: c163ba3, refactor: 06b7d7e }
 spec-ref: spec.md §Acceptance criteria 1
 contract-ref: n/a
 constitution-ref: Articles VIII, XII
@@ -523,13 +524,16 @@ constitution-ref: Articles VIII, XII
 
 **G - Green:** Implement the length and threat terms.
 
-**F - Refactor:** Name the threat-mask helper.
+**F - Refactor:** Moved the 'cell vacated on turn n unless a stacked copy holds it' rule into Serpent::cell_released_on_turn and pointed Dominion at it, removing the duplicate.
 
 **Files**
 
 - `engine/src/valuation/leverage.rs`
 - `engine/src/valuation/mod.rs`
 - `engine/tests/valuation_leverage.rs`
+
+Note: Leverage was built as two single-question assessors, LengthAdvantage and HeadPressure (module valuation::leverage), so each keeps its own WeightSheet coefficient and ledger line; the standard pipeline in T018 registers five terms (see the amendment). Green also touched engine/src/arena/serpent.rs beyond the declared files.
+
 
 ## T017 - Estimate survival in separated regions
 
@@ -574,10 +578,10 @@ constitution-ref: Articles VIII, XII, XIV
 
 **Definition of Done**
 
-- `ValuationPipeline::standard()` registers `Dominion`, `Sustenance`, `Leverage`, and `Enclosure` with `DEFAULT_PROFILE` (`Finish` scores terminal outcomes for search and is not a positional assessor).
+- `ValuationPipeline::standard()` registers `Dominion`, `Sustenance`, `LengthAdvantage`, `HeadPressure`, and `Enclosure` with `DEFAULT_PROFILE` (`Finish` scores terminal outcomes for search and is not a positional assessor).
 - Property: swapping the serpents negates the total score on generated positions.
 - Property: the score is deterministic and stays inside the finite-score bounds for non-terminal positions.
-- The ledger lists one entry per registered assessor.
+- The ledger lists one entry per registered assessor (five).
 
 **R - Red:** Add `standard()` returning the empty pipeline and a symmetry test over an open-board example; record the zero score.
 
@@ -1262,3 +1266,4 @@ All tasks execute sequentially: kernel tasks share `duel.rs` and its differentia
 | Date | Change | Reason |
 |------|--------|--------|
 | 2026-09-15 | T018 registers four positional assessors, not five; `Finish` is applied by search to terminal outcomes. | Terminal verdicts come from `advance` as `Over(Verdict)`, not from a position, so `Finish::score(verdict, ply)` cannot implement the position-taking `Assessor` trait (found in T012). |
+| 2026-09-16 | T016's `Leverage` is two assessors, `LengthAdvantage` and `HeadPressure`; T018 registers five terms. | Each of the two questions has its own `WeightSheet` coefficient (`length_advantage`, `head_pressure`), and the pipeline multiplies one raw value by one weight, so separate assessors keep the weights independent and the ledger informative (found while designing T016). |
