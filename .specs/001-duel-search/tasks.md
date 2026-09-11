@@ -507,7 +507,7 @@ Note: the task's declared files did not include engine/src/valuation/dominion.rs
 ```yaml
 id: T016
 status: closed
-commits: { reconstructed: pending }
+commits: { reconstructed: ed7c78ae1b0ff27dc446cf7892076db2e9e88329 }
 source-commits: { red: fb1cfba, green: c163ba3, refactor: 06b7d7e }
 spec-ref: spec.md §Acceptance criteria 1
 contract-ref: n/a
@@ -539,8 +539,9 @@ Note: Leverage was built as two single-question assessors, LengthAdvantage and H
 
 ```yaml
 id: T017
-status: open
-commits: { red: null, green: null, refactor: null }
+status: closed
+commits: { reconstructed: pending }
+source-commits: { red: fabc9eb, green: a88049a, refactor: ec14f41 }
 spec-ref: spec.md §Acceptance criteria 1
 contract-ref: n/a
 constitution-ref: Articles VIII, XII
@@ -557,13 +558,16 @@ constitution-ref: Articles VIII, XII
 
 **G - Green:** Implement region detection and the survival estimate.
 
-**F - Refactor:** Reuse the layered-fill helper for reachability.
+**F - Refactor:** Moved Fill and MAX_LAYERS into valuation/fill.rs so territory and enclosure share the layered fill from a neutral module instead of one reaching into the other.
 
 **Files**
 
 - `engine/src/valuation/enclosure.rs`
 - `engine/src/valuation/mod.rs`
 - `engine/tests/valuation_enclosure.rs`
+
+Note: Enclosure treats walls as static for the activation test (cells reachable through unoccupied cells) but lets a serpent's own body cells free on schedule for its survival estimate, and caps the estimate at health plus 100 per pellet in its room; a probe showed 7307 of 20000 generated duels activate the term. Bodies do release in real play, so 'separated' is a short-horizon judgement; sparring will show whether the term helps. Green also touched engine/src/valuation/dominion.rs beyond the declared files.
+
 
 ## T018 - Compose the default valuation profile
 

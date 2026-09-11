@@ -3,7 +3,8 @@
 use core::cmp::Ordering;
 
 use super::Assessor;
-use crate::arena::cellset::{Cell, CellSet};
+use super::fill::{Fill, MAX_LAYERS};
+use crate::arena::cellset::CellSet;
 use crate::arena::duel::{DuelBoard, Side};
 use crate::arena::serpent::Serpent;
 
@@ -26,10 +27,6 @@ pub struct Survey {
 
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Dominion;
-
-/// Fill steps to run before giving up. A cell frees by turn 121 at the latest
-/// and a path crosses at most 120 cells afterwards, so 250 always suffices.
-pub const MAX_LAYERS: u16 = 250;
 
 impl Dominion {
     /// The partition together with each serpent's distance to its nearest
@@ -60,7 +57,7 @@ impl Dominion {
         let mut free = board.occupied().complement();
         let mut our_fill = Fill::from(us.head());
         let mut their_fill = Fill::from(them.head());
-        let mut decided = our_fill.seen.union(their_fill.seen);
+        let mut decided = our_fill.seen().union(their_fill.seen());
         let mut partition = Partition {
             ours: CellSet::EMPTY,
             theirs: CellSet::EMPTY,
@@ -110,42 +107,6 @@ fn settle(fresh_ours: CellSet, fresh_theirs: CellSet, tie_winner: Ordering) -> (
         Ordering::Greater => (ours.union(tied), theirs),
         Ordering::Less => (ours, theirs.union(tied)),
         Ordering::Equal => (ours, theirs),
-    }
-}
-
-/// One serpent's fill: the cells reached on the latest turn and every cell
-/// reached so far.
-#[derive(Clone, Copy)]
-struct Fill {
-    front: CellSet,
-    seen: CellSet,
-}
-
-impl Fill {
-    fn from(head: Cell) -> Self {
-        let start = CellSet::single(head);
-        Self {
-            front: start,
-            seen: start,
-        }
-    }
-
-    /// One turn: step into free unseen neighbours, and enter cells that freed
-    /// this turn beside ground already reached (the serpent can dawdle there
-    /// until they free). Returns the cells newly reached.
-    fn advance(&mut self, free: CellSet, released: CellSet) -> CellSet {
-        let by_walking = self.front.neighbours();
-        let by_waiting = released.intersection(self.seen.neighbours());
-        self.front = by_walking
-            .union(by_waiting)
-            .intersection(free)
-            .difference(self.seen);
-        self.seen = self.seen.union(self.front);
-        self.front
-    }
-
-    const fn is_exhausted(&self) -> bool {
-        self.front.is_empty()
     }
 }
 

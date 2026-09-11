@@ -3,6 +3,8 @@
 //! dispatched, so scoring a leaf never allocates or goes through a vtable.
 
 pub mod dominion;
+pub mod enclosure;
+pub mod fill;
 pub mod finish;
 pub mod leverage;
 pub mod sustenance;
