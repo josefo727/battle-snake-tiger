@@ -2,6 +2,7 @@
 //! explicit weight sheet. Everything here is integer arithmetic and statically
 //! dispatched, so scoring a leaf never allocates or goes through a vtable.
 
+pub mod dominion;
 pub mod finish;
 pub mod weights;
 

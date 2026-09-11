@@ -374,7 +374,7 @@ Note: the assessor list is a static, nested-tuple AssessorSet built by Valuation
 ```yaml
 id: T012
 status: closed
-commits: { reconstructed: pending }
+commits: { reconstructed: eeee787d6f4b08c7725d3450a840a883fd1206ff }
 source-commits: { red: c67ff12, green: a452497, refactor: skipped }
 spec-ref: spec.md §Acceptance criteria 1
 contract-ref: n/a
@@ -406,8 +406,9 @@ Note: Finish scores terminal outcomes for search; it is not registered in the po
 
 ```yaml
 id: T013
-status: open
-commits: { red: null, green: null, refactor: null }
+status: closed
+commits: { reconstructed: pending }
+source-commits: { red: 64d3cd7, green: 808471d, refactor: skipped }
 spec-ref: spec.md §Acceptance criteria 1
 contract-ref: n/a
 constitution-ref: Articles VIII, XII
@@ -424,13 +425,16 @@ constitution-ref: Articles VIII, XII
 
 **G - Green:** Implement the layered fill and contested-cell rule.
 
-**F - Refactor:** Extract `expand_layer` for reuse by the time-aware variant.
+**F - Refactor:** Skipped - expand_layer was extracted as its own function in the Green commit, ready for the time-aware variant in T014.
 
 **Files**
 
 - `engine/src/valuation/dominion.rs`
 - `engine/src/valuation/mod.rs`
 - `engine/tests/valuation_dominion.rs`
+
+Note: a first draft of the sealed-pocket test was wrong (the wall serpent's head sat next to the pocket); it was replaced before the Red commit by a corner cell sealed with body segments.
+
 
 ## T014 - Model tail release in territory
 
