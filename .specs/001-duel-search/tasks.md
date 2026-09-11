@@ -340,7 +340,7 @@ Note: the generated property builds only reachable positions (length >= 3). The 
 ```yaml
 id: T011
 status: closed
-commits: { reconstructed: pending }
+commits: { reconstructed: a256f509044b728cb379a7ed4adf4d13dbb438cc }
 source-commits: { red: efdf57b, green: 24dc82d, refactor: skipped }
 spec-ref: spec.md §Acceptance criteria 1
 contract-ref: n/a
@@ -373,8 +373,9 @@ Note: the assessor list is a static, nested-tuple AssessorSet built by Valuation
 
 ```yaml
 id: T012
-status: open
-commits: { red: null, green: null, refactor: null }
+status: closed
+commits: { reconstructed: pending }
+source-commits: { red: c67ff12, green: a452497, refactor: skipped }
 spec-ref: spec.md §Acceptance criteria 1
 contract-ref: n/a
 constitution-ref: Articles XI, XII
@@ -390,13 +391,16 @@ constitution-ref: Articles XI, XII
 
 **G - Green:** Implement terminal scoring with the ply-distance term.
 
-**F - Refactor:** Move the bounds into named constants in the weight sheet.
+**F - Refactor:** Skipped - no smell detected; MAX_PLY is a named constant beside its only use and every coefficient already lives in the WeightSheet.
 
 **Files**
 
 - `engine/src/valuation/finish.rs`
 - `engine/src/valuation/mod.rs`
 - `engine/tests/valuation_finish.rs`
+
+Note: Finish scores terminal outcomes for search; it is not registered in the positional pipeline (see the T018 amendment).
+
 
 ## T013 - Compute static Voronoi territory
 
@@ -558,10 +562,10 @@ constitution-ref: Articles VIII, XII, XIV
 
 **Definition of Done**
 
-- `ValuationPipeline::standard()` registers `Finish`, `Dominion`, `Sustenance`, `Leverage`, and `Enclosure` with `DEFAULT_PROFILE`.
+- `ValuationPipeline::standard()` registers `Dominion`, `Sustenance`, `Leverage`, and `Enclosure` with `DEFAULT_PROFILE` (`Finish` scores terminal outcomes for search and is not a positional assessor).
 - Property: swapping the serpents negates the total score on generated positions.
 - Property: the score is deterministic and stays inside the finite-score bounds for non-terminal positions.
-- The ledger lists one entry per assessor.
+- The ledger lists one entry per registered assessor.
 
 **R - Red:** Add `standard()` returning the empty pipeline and a symmetry test over an open-board example; record the zero score.
 
@@ -1245,3 +1249,4 @@ All tasks execute sequentially: kernel tasks share `duel.rs` and its differentia
 
 | Date | Change | Reason |
 |------|--------|--------|
+| 2026-09-15 | T018 registers four positional assessors, not five; `Finish` is applied by search to terminal outcomes. | Terminal verdicts come from `advance` as `Over(Verdict)`, not from a position, so `Finish::score(verdict, ply)` cannot implement the position-taking `Assessor` trait (found in T012). |

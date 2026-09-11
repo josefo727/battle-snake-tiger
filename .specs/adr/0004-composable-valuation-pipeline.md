@@ -63,3 +63,10 @@ None.
 ## References
 
 - Research entries: `../001-duel-search/research.md` §Voronoi territory, §Bitboard set operations
+
+## Amendment (2026-09-15)
+
+`Finish` scores terminal outcomes (a `Verdict` and a ply distance) and is applied
+by search; it is not registered in the positional pipeline. The pipeline holds
+`Dominion`, `Sustenance`, `Enclosure`, and `Leverage`. No other part of this
+decision changes.

@@ -125,7 +125,7 @@ Valuation (ADR 0004), integer arithmetic only:
 - `Sustenance`: health margin against the distance to the nearest pellet we reach first, with urgency rising as the margin shrinks.
 - `Enclosure`: active only when neither serpent's reachable region intersects the other's; estimates survival turns per region from its size, parity-adjusted cell counts, and tail release; output is our estimate minus theirs.
 - `Leverage`: length difference and head-to-head pressure (our head adjacent to cells their head can enter while we are longer, and the reverse).
-- `Finish`: forced-win / forced-loss / mutual-elimination scores with a ply-distance term.
+- `Finish`: forced-win / forced-loss / mutual-elimination scores with a ply-distance term, applied by search to terminal outcomes rather than registered in the positional pipeline (ADR 0004 amendment).
 - `WeightSheet`: a named profile of integer coefficients (`DEFAULT_PROFILE`); changing weights never touches assessor code.
 
 Design-diff notes (Article VIII, publicly documented reference shape only; reference internals were not consulted):
