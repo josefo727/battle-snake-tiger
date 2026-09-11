@@ -441,7 +441,7 @@ Note: a first draft of the sealed-pocket test was wrong (the wall serpent's head
 ```yaml
 id: T014
 status: closed
-commits: { reconstructed: pending }
+commits: { reconstructed: cd5dd577319055dfdad8b10f9d198bede5d7c7ab }
 source-commits: { red: 62155cb, green: d1b89be, refactor: 37fd9b6 }
 spec-ref: spec.md §Acceptance criteria 1
 contract-ref: n/a
@@ -473,8 +473,9 @@ Note: Green added Serpent::cell_from_tail (engine/src/arena/serpent.rs) beyond t
 
 ```yaml
 id: T015
-status: open
-commits: { red: null, green: null, refactor: null }
+status: closed
+commits: { reconstructed: pending }
+source-commits: { red: 2b78c5a, green: 1c115c6, refactor: bc942bc }
 spec-ref: spec.md §Acceptance criteria 1
 contract-ref: n/a
 constitution-ref: Articles VIII, XII
@@ -490,13 +491,16 @@ constitution-ref: Articles VIII, XII
 
 **G - Green:** Implement the margin and urgency computation from the dominion fill's food distances.
 
-**F - Refactor:** Share the food-distance helper with `Dominion`.
+**F - Refactor:** Extracted settle() so ownership of newly reached cells (including the tie rule) is computed once and shared by the partition update and the pellet-distance tracking; the food-distance helper is shared with Dominion through Survey.
 
 **Files**
 
 - `engine/src/valuation/sustenance.rs`
 - `engine/src/valuation/mod.rs`
 - `engine/tests/valuation_sustenance.rs`
+
+Note: the task's declared files did not include engine/src/valuation/dominion.rs, which Green and Refactor changed (Survey and the food-distance tracking). Follow-up for T018/T030: each assessor that calls Dominion::survey recomputes the fill, so the standard pipeline pays for it twice per leaf; measure first, then share one Survey per position if it matters.
+
 
 ## T016 - Assess leverage and head-to-head pressure
 
