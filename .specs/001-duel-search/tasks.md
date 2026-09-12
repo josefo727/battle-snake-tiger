@@ -642,7 +642,7 @@ Note: the task's declared files did not include the test support additions engin
 ```yaml
 id: T020
 status: closed
-commits: { reconstructed: pending }
+commits: { reconstructed: 0114dec725da889aca7a44ee89aebc3873f1b718 }
 source-commits: { red: 5f68e15, green: 5feccbd, refactor: 2cad65d }
 spec-ref: spec.md §Acceptance criteria 1
 contract-ref: n/a
@@ -675,8 +675,9 @@ Note: the Green commit's first implementation had two maximizer copies; the shar
 
 ```yaml
 id: T021
-status: open
-commits: { red: null, green: null, refactor: null }
+status: closed
+commits: { reconstructed: pending }
+source-commits: { red: 7bcf16c, green: 7d9353b, refactor: skipped }
 spec-ref: spec.md §Acceptance criteria 1
 contract-ref: n/a
 constitution-ref: Articles VIII, XI
@@ -692,13 +693,16 @@ constitution-ref: Articles VIII, XI
 
 **G - Green:** Implement previous-best, killer, and history ordering.
 
-**F - Refactor:** Skipped unless the history table indexing is duplicated.
+**F - Refactor:** Skipped - no smell detected; the history table is indexed in one place (note_cutoff writes it, arrange reads it) and Lineup is the only place that deduplicates.
 
 **Files**
 
 - `engine/src/lookahead/ordering.rs`
 - `engine/src/lookahead/minimax.rs`
 - `engine/tests/lookahead_ordering.rs`
+
+Note: beyond the declared files, the seam is a `HeadingOrder` trait with `NaturalOrder` and `LearnedOrder`, and `Searcher` gained a second type parameter (default `LearnedOrder`) plus `with_order`; T022 reuses one `Searcher` across depths so the previous best and history carry over. The root now searches an earlier heading one point wider than the best so ties resolve by `Heading::ALL` regardless of order; without it, ordering would change the chosen heading among equals. Measured node savings (release, six-position suite): 4x at depth 4, 3.9x at depth 5, 6.3x at depth 6.
+
 
 ## T022 - Deepen iteratively within the allowance
 

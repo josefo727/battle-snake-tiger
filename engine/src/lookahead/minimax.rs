@@ -7,30 +7,45 @@
 //! The search is fail-soft: a cut-off layer returns the bound it proved.
 
 use super::ledger::LookaheadReport;
-use crate::arena::duel::{Advance, DuelBoard};
+use super::ordering::{HeadingOrder, LearnedOrder};
+use crate::arena::duel::{Advance, DuelBoard, Side};
 use crate::arena::heading::Heading;
 use crate::valuation::finish::Finish;
 use crate::valuation::{AssessorSet, ValuationPipeline};
 
-pub struct Searcher<'pipeline, S> {
+pub struct Searcher<'pipeline, S, O = LearnedOrder> {
     pipeline: &'pipeline ValuationPipeline<S>,
     finish: Finish,
+    order: O,
     nodes: u64,
 }
 
 impl<'pipeline, S: AssessorSet> Searcher<'pipeline, S> {
+    /// A searcher that learns its move order as it goes.
     #[must_use]
-    pub const fn new(pipeline: &'pipeline ValuationPipeline<S>, finish: Finish) -> Self {
+    pub fn new(pipeline: &'pipeline ValuationPipeline<S>, finish: Finish) -> Self {
+        Self::with_order(pipeline, finish, LearnedOrder::new())
+    }
+}
+
+impl<'pipeline, S: AssessorSet, O: HeadingOrder> Searcher<'pipeline, S, O> {
+    #[must_use]
+    pub const fn with_order(
+        pipeline: &'pipeline ValuationPipeline<S>,
+        finish: Finish,
+        order: O,
+    ) -> Self {
         Self {
             pipeline,
             finish,
+            order,
             nodes: 0,
         }
     }
 
     /// Searches exactly `depth` plies (each a full joint move) and reports the
     /// best heading and its exact minimax value. Ties go to the earliest heading
-    /// in [`Heading::ALL`].
+    /// in [`Heading::ALL`], whatever order the layers are tried in.
     ///
     /// # Panics
     ///
@@ -40,6 +55,7 @@ impl<'pipeline, S: AssessorSet> Searcher<'pipeline, S> {
         let start_nodes = self.nodes;
         let sentinel = self.finish.sentinel();
         let (best, score) = self.best_heading(board, depth, 0, -sentinel, sentinel);
+        self.order.note_root_best(best);
         LookaheadReport::completed(depth, self.nodes - start_nodes, best, score)
     }
 
@@ -54,13 +70,20 @@ impl<'pipeline, S: AssessorSet> Searcher<'pipeline, S> {
         beta: i32,
     ) -> (Heading, i32) {
         let mut best = (Heading::ALL[0], -self.finish.sentinel());
-        for ours in Heading::ALL {
-            let score = self.minimizer(board, ours, depth, ply, alpha, beta);
-            if score > best.1 {
+        let root = ply == 0;
+        for ours in self.order.arrange(Side::Us, ply) {
+            // At the root an earlier heading must win an exact tie whatever the
+            // trial order, so it is searched one point wider to tell a tie from
+            // a bound.
+            let wins_ties = root && ours.index() < best.0.index();
+            let floor = if wins_ties { alpha - 1 } else { alpha };
+            let score = self.minimizer(board, ours, depth, ply, floor, beta);
+            if score > best.1 || (wins_ties && score == best.1) {
                 best = (ours, score);
                 alpha = alpha.max(score);
             }
             if alpha >= beta {
+                self.order.note_cutoff(Side::Us, ply, ours, depth);
                 break;
             }
         }
@@ -79,7 +102,7 @@ impl<'pipeline, S: AssessorSet> Searcher<'pipeline, S> {
         mut beta: i32,
     ) -> i32 {
         let mut best = self.finish.sentinel();
-        for theirs in Heading::ALL {
+        for theirs in self.order.arrange(Side::Them, ply) {
             self.nodes += 1;
             let score = match board.advance(ours, theirs) {
                 Advance::Over(verdict) => self.finish.score(verdict, ply + 1),
@@ -91,6 +114,7 @@ impl<'pipeline, S: AssessorSet> Searcher<'pipeline, S> {
             best = best.min(score);
             beta = beta.min(best);
             if best <= alpha {
+                self.order.note_cutoff(Side::Them, ply, theirs, depth);
                 break;
             }
         }
