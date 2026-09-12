@@ -2,10 +2,10 @@ mod support;
 
 use tiger_engine::rules_core::{
     BoardMask, CellIndex, Clock, Coordinate, DecisionReport, Direction, FallbackContext,
-    JointMoves, MonotonicInstant, MoveResponseDto, RESPONSE_RESERVE, RequestTiming, Scope,
-    SnakeState, TurnRequestDto, TurnResolution, TurnState, classify, decide_unsupported,
-    decide_within_deadline, declared_timeout, direction_to_wire, resolve_turn, response_deadline,
-    supported_snake_count, to_turn_state,
+    JointMoves, MonotonicInstant, MoveResponseDto, RESPONSE_RESERVE, RequestTiming,
+    SafetyDiagnostic, Scope, SnakeState, TurnRequestDto, TurnResolution, TurnState, classify,
+    decide_unsupported, decide_within_deadline, declared_timeout, direction_to_wire, resolve_turn,
+    response_deadline, supported_snake_count, to_turn_state,
 };
 
 use support::request;
@@ -36,6 +36,7 @@ fn every_contract_item_is_reachable_through_the_facade() {
     assert_type::<MonotonicInstant>();
     assert_type::<MoveResponseDto>();
     assert_type::<RequestTiming>();
+    assert_type::<SafetyDiagnostic>();
     assert_type::<SnakeState>();
     assert_type::<TurnResolution>();
 }

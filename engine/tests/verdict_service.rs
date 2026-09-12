@@ -1,0 +1,305 @@
+mod support;
+
+use std::sync::Arc;
+
+use proptest::prelude::*;
+use tiger_engine::arena::ingest::{direction_of, ingest};
+use tiger_engine::lookahead::minimax::Searcher;
+use tiger_engine::lookahead::ordering::NaturalOrder;
+use tiger_engine::rules_core::{
+    Direction, MonotonicInstant, RequestTiming, Scope, TurnRequestDto, classify,
+    decide_unsupported, decide_within_deadline, declared_timeout, direction_to_wire,
+    response_deadline, to_turn_state,
+};
+use tiger_engine::valuation::StandardPipeline;
+use tiger_engine::valuation::finish::Finish;
+use tiger_engine::valuation::weights::DEFAULT_PROFILE;
+use tiger_engine::verdict::report::{Diagnostic, EnginePath, SelectionReason, VerdictReport};
+use tiger_engine::verdict::service::VerdictService;
+
+use support::clock::ManualClock;
+use support::{request_from_bodies, request_with};
+
+const ARRIVAL: u64 = 1_000_000;
+
+fn arrival() -> MonotonicInstant {
+    MonotonicInstant {
+        microseconds: ARRIVAL,
+    }
+}
+
+fn service(clock: &Arc<ManualClock>, depth_limit: u16) -> VerdictService {
+    VerdictService::new(clock.clone()).with_depth_limit(depth_limit)
+}
+
+fn facing() -> TurnRequestDto {
+    request_from_bodies(
+        &[&[(4, 5), (3, 5), (2, 5)], &[(7, 5), (8, 5), (9, 5)]],
+        &[90, 90],
+        0,
+        &[(5, 8), (6, 2)],
+    )
+}
+
+/// They have one health left, so they starve this turn whatever they do.
+fn forced_win() -> TurnRequestDto {
+    request_from_bodies(
+        &[&[(5, 5), (5, 4), (5, 3)], &[(2, 2), (2, 1), (2, 0)]],
+        &[90, 1],
+        0,
+        &[],
+    )
+}
+
+/// Cornered: North is the only free cell and a longer snake can meet us there.
+fn cornered() -> TurnRequestDto {
+    request_from_bodies(
+        &[&[(0, 0), (1, 0), (2, 0)], &[(1, 1), (1, 2), (1, 3), (1, 4)]],
+        &[90, 90],
+        0,
+        &[],
+    )
+}
+
+/// What a plain fixed-depth search says about the request's duel.
+fn searched(request: &TurnRequestDto, depth: u16) -> (Direction, i32) {
+    let state = to_turn_state(request).expect("a supported request");
+    let board = ingest(&state).expect("a duel");
+    let pipeline = StandardPipeline::standard();
+    let report = Searcher::with_order(&pipeline, Finish::new(&DEFAULT_PROFILE), NaturalOrder)
+        .search_fixed(&board, depth);
+    (
+        direction_of(report.best.expect("a completed depth")),
+        report.principal_score.expect("a completed depth"),
+    )
+}
+
+// ---- the duel path ------------------------------------------------------------
+
+#[test]
+fn a_duel_answers_with_the_search_heading_at_the_completed_depth() {
+    let clock = Arc::new(ManualClock::at_micros(ARRIVAL));
+    let request = facing();
+
+    let report = service(&clock, 3).decide(&request, arrival());
+
+    let (expected_move, expected_score) = searched(&request, 3);
+    assert_eq!(report.engine_path, EnginePath::DuelSearch);
+    assert_eq!(
+        report.selection_reason,
+        SelectionReason::SearchCompletedDepth
+    );
+    assert_eq!(report.search_depth, 3);
+    assert!(report.nodes_explored > 0);
+    assert_eq!(report.selected_move, expected_move);
+    assert_eq!(report.principal_score, Some(expected_score));
+    assert!(!report.fallback_used);
+    assert_eq!(report.diagnostic, Diagnostic::None);
+    assert_eq!(report.elapsed_us, 0, "the manual clock never moved");
+}
+
+#[test]
+fn a_proven_win_is_reported_as_a_terminal_win_at_the_depth_that_proves_it() {
+    let clock = Arc::new(ManualClock::at_micros(ARRIVAL));
+
+    let report = service(&clock, 6).decide(&forced_win(), arrival());
+
+    assert_eq!(report.engine_path, EnginePath::DuelSearch);
+    assert_eq!(report.selection_reason, SelectionReason::SearchTerminalWin);
+    assert_eq!(report.search_depth, 1);
+    assert_eq!(
+        report.principal_score,
+        Some(DEFAULT_PROFILE.win_score - DEFAULT_PROFILE.ply_penalty)
+    );
+}
+
+#[test]
+fn a_proven_loss_is_still_a_completed_search_not_a_win() {
+    let clock = Arc::new(ManualClock::at_micros(ARRIVAL));
+
+    let report = service(&clock, 6).decide(&cornered(), arrival());
+
+    assert_eq!(report.engine_path, EnginePath::DuelSearch);
+    assert_eq!(
+        report.selection_reason,
+        SelectionReason::SearchCompletedDepth
+    );
+    assert_eq!(report.search_depth, 1);
+    assert_eq!(
+        report.principal_score,
+        Some(-(DEFAULT_PROFILE.win_score - DEFAULT_PROFILE.ply_penalty))
+    );
+    assert!(!report.fallback_used);
+}
+
+// ---- when the search cannot answer ---------------------------------------------
+
+#[test]
+fn when_no_depth_completes_the_reused_safety_decision_answers_and_says_why() {
+    // The search allowance ends 370 ms after arrival and the response deadline
+    // 380 ms after: 375 ms leaves the safety engine time, 400 ms does not.
+    for (label, clock_at) in [
+        ("between the two deadlines", 375_000),
+        ("past both", 400_000),
+    ] {
+        let clock = Arc::new(ManualClock::at_micros(ARRIVAL + clock_at));
+        let request = facing();
+
+        let report = service(&clock, 6).decide(&request, arrival());
+
+        let Scope::Supported(state) = classify(&request) else {
+            panic!("the request is supported");
+        };
+        let deadline = response_deadline(
+            RequestTiming {
+                arrived_at: arrival(),
+            },
+            declared_timeout(&request),
+        )
+        .expect("above the reserve");
+        let reused = decide_within_deadline(&state, clock.as_ref(), arrival(), deadline)
+            .expect("a validated state resolves");
+        assert_eq!(report.engine_path, EnginePath::SafetyFallback, "{label}");
+        assert_eq!(
+            report.selection_reason,
+            SelectionReason::BudgetExhaustedBeforeFirstDepth,
+            "{label}"
+        );
+        assert_eq!(report.selected_move, reused.selected_move, "{label}");
+        assert_eq!(report.search_depth, 0, "{label}");
+        assert_eq!(report.principal_score, None, "{label}");
+        assert!(report.fallback_used, "{label}");
+        assert_eq!(report.diagnostic, Diagnostic::DeadlineCutoff, "{label}");
+        assert_eq!(
+            report.nodes_explored,
+            u64::try_from(reused.nodes_explored).unwrap(),
+            "{label}: the search visited nothing"
+        );
+        assert_eq!(report.elapsed_us, clock_at, "{label}");
+    }
+}
+
+// ---- the other routes ----------------------------------------------------------
+
+#[test]
+fn three_snakes_get_exactly_what_the_reused_safety_engine_returns() {
+    let clock = Arc::new(ManualClock::at_micros(ARRIVAL));
+    let request = request_with("v1.2.3", 3, 500, 0, &[]);
+
+    let report = service(&clock, 6).decide(&request, arrival());
+
+    let Scope::Supported(state) = classify(&request) else {
+        panic!("the request is supported");
+    };
+    let deadline = response_deadline(
+        RequestTiming {
+            arrived_at: arrival(),
+        },
+        declared_timeout(&request),
+    )
+    .expect("above the reserve");
+    let reused = decide_within_deadline(&state, clock.as_ref(), arrival(), deadline).unwrap();
+    assert_eq!(report.engine_path, EnginePath::SafetyFallback);
+    assert_eq!(report.selection_reason, SelectionReason::OneTurnSafety);
+    assert_eq!(report.selected_move, reused.selected_move);
+    assert_eq!(report.fallback_used, reused.fallback_used);
+    assert_eq!(report.elapsed_us, reused.elapsed_us);
+    assert_eq!(report.search_depth, 0);
+    assert_eq!(report.principal_score, None);
+    assert_eq!(report.diagnostic, Diagnostic::None);
+}
+
+#[test]
+fn an_unsupported_request_gets_exactly_what_the_reused_best_effort_returns() {
+    let clock = Arc::new(ManualClock::at_micros(ARRIVAL));
+    let request = request_with("v9.9.9", 2, 500, 0, &[]);
+
+    let report = service(&clock, 6).decide(&request, arrival());
+
+    let Scope::Unsupported(context) = classify(&request) else {
+        panic!("the request is unsupported");
+    };
+    let reused = decide_unsupported(&context, clock.as_ref(), arrival());
+    assert_eq!(report.engine_path, EnginePath::UnsupportedFallback);
+    assert_eq!(
+        report.selection_reason,
+        SelectionReason::UnsupportedBestEffort
+    );
+    assert_eq!(report.selected_move, reused.selected_move);
+    assert!(report.fallback_used);
+    assert_eq!(report.diagnostic, Diagnostic::UnsupportedScope);
+    assert_eq!(report.search_depth, 0);
+    assert_eq!(report.nodes_explored, 0);
+}
+
+#[test]
+fn the_same_request_and_clock_give_the_same_report() {
+    let run = || {
+        let clock = Arc::new(ManualClock::at_micros(ARRIVAL));
+        service(&clock, 3).decide(&facing(), arrival())
+    };
+
+    assert_eq!(run(), run());
+}
+
+#[test]
+fn a_timeout_barely_above_the_reserve_leaves_no_search_time_and_uses_the_safety_engine() {
+    // 125 ms declared: response deadline 5 ms after arrival, search deadline
+    // (10 ms earlier) already in the past.
+    let clock = Arc::new(ManualClock::at_micros(ARRIVAL));
+    let request = request_with("v1.2.3", 2, 125, 0, &[]);
+
+    let report = service(&clock, 6).decide(&request, arrival());
+
+    assert_eq!(report.engine_path, EnginePath::SafetyFallback);
+    assert_eq!(
+        report.selection_reason,
+        SelectionReason::BudgetExhaustedBeforeFirstDepth
+    );
+    assert!(report.fallback_used);
+    assert_eq!(report.diagnostic, Diagnostic::DeadlineCutoff);
+}
+
+fn assert_wire_direction(report: &VerdictReport) {
+    assert!(["up", "right", "down", "left"].contains(&direction_to_wire(report.selected_move)));
+}
+
+proptest! {
+    #![proptest_config(ProptestConfig::with_cases(60))]
+
+    #[test]
+    fn every_request_shape_gets_a_platform_move_from_the_routed_engine(
+        version in prop_oneof![Just("v1.2.3"), Just("cli"), Just("v9.9.9")],
+        snakes in 0usize..=4,
+        timeout in 100i64..=600,
+        you in 0usize..=1,
+    ) {
+        let you = you.min(snakes.saturating_sub(1));
+        let clock = Arc::new(ManualClock::at_micros(ARRIVAL));
+        let request = request_with(version, snakes, timeout, you, &[]);
+
+        let report = service(&clock, 2).decide(&request, arrival());
+
+        assert_wire_direction(&report);
+        let certified = version != "v9.9.9" && timeout > 120 && snakes >= 2;
+        // The search stops 10 ms before the response deadline (120 ms before the
+        // declared timeout), so a duel needs more than 130 ms to search at all.
+        let searchable = timeout > 130;
+        let expected_path = if !certified {
+            EnginePath::UnsupportedFallback
+        } else if snakes == 2 && searchable {
+            EnginePath::DuelSearch
+        } else {
+            EnginePath::SafetyFallback
+        };
+        prop_assert_eq!(report.engine_path, expected_path);
+        if report.engine_path == EnginePath::DuelSearch {
+            prop_assert!((1..=2).contains(&report.search_depth));
+            prop_assert!(!report.fallback_used);
+            prop_assert!(report.principal_score.is_some());
+        } else {
+            prop_assert_eq!(report.search_depth, 0);
+            prop_assert_eq!(report.principal_score, None);
+        }
+    }
+}

@@ -8,7 +8,8 @@ pub use battle_snake_rust::application::clock::{
     Clock, MonotonicInstant, RESPONSE_RESERVE, RequestTiming, response_deadline,
 };
 pub use battle_snake_rust::application::decision::{
-    DecisionReport, FallbackContext, Scope, decide_unsupported, decide_within_deadline,
+    DecisionReport, Diagnostic as SafetyDiagnostic, FallbackContext, Scope, decide_unsupported,
+    decide_within_deadline,
 };
 pub use battle_snake_rust::domain::board::{BoardMask, CellIndex, Coordinate};
 pub use battle_snake_rust::domain::simulation::{

@@ -743,7 +743,7 @@ Note: the plan's ITERATION_START_FRACTION (40%) is named `ITERATION_START_PERCEN
 ```yaml
 id: T023
 status: closed
-commits: { reconstructed: pending }
+commits: { reconstructed: fccbbb525b264dbff32b48fc48aee04f11df8aee }
 source-commits: { red: 9c3edba, green: 197aac1, refactor: skipped }
 spec-ref: spec.md §Acceptance criteria 5
 contract-ref: contracts/rules-core-dependency.rs
@@ -777,8 +777,9 @@ Note: `Route::DuelSearch` carries a `Box<DuelBoard>` built by the selector, so t
 
 ```yaml
 id: T024
-status: open
-commits: { red: null, green: null, refactor: null }
+status: closed
+commits: { reconstructed: pending }
+source-commits: { red: 71d4a46, green: 61d3ce1, refactor: 1221d6b }
 spec-ref: spec.md §Acceptance criteria 1, 2, 3, and 5
 contract-ref: contracts/rules-core-dependency.rs
 constitution-ref: Articles VII, X, XI
@@ -795,7 +796,7 @@ constitution-ref: Articles VII, X, XI
 
 **G - Green:** Implement the pipeline over the route, the search driver, and the fallbacks.
 
-**F - Refactor:** Extract `VerdictReport` construction.
+**F - Refactor:** Extracted `VerdictReport::searched`, `::budget_exhausted` and `::reused` plus `From<SafetyDiagnostic> for Diagnostic` into verdict/report.rs; the service now reads route, act, report.
 
 **Files**
 
@@ -803,6 +804,9 @@ constitution-ref: Articles VII, X, XI
 - `engine/src/verdict/mod.rs`
 - `engine/tests/verdict_service.rs`
 - `engine/tests/support/mod.rs`
+
+Note: beyond the declared files, verdict/report.rs holds the schema-v2 vocabulary (`EnginePath`, `SelectionReason`, `Diagnostic`, `VerdictReport`); `arena::ingest::direction_of` is the kernel-to-wire bridge; the facade re-exports the reused `Diagnostic` as `SafetyDiagnostic` (contract rules-core-dependency 1.1.0); T023's `Route` was changed to borrow scope data first (commit a47a8a1, see Amendments). Spec tension found (resolved 2026-09-18 by amending the spec, see Amendments): the search allowance ends 10 ms before the response deadline, so declared timeouts of 121-130 ms leave the duel search no time and take the safety fallback (`budget_exhausted_before_first_depth`), although acceptance criterion 1 says any timeout above 120 ms. The service depth is capped by `with_depth_limit` (default `DEPTH_CEILING`) so tests and sparring stay repeatable.
+
 
 ## T025 - Emit schema-versioned decision diagnostics
 

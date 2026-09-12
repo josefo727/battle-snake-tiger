@@ -1,5 +1,5 @@
 // contract: rules-core-dependency
-// version: 1.0.0
+// version: 1.1.0
 // captured: 2026-09-18
 // source: research.md §rules-core rules core@efed780
 //
@@ -39,7 +39,9 @@
 //
 // --- One-turn safety fallback (spec.md criterion 5) ---------------------
 //   rules_core::application::decision::{decide_within_deadline,
-//       decide_unsupported, DecisionReport}
+//       decide_unsupported, DecisionReport, Diagnostic}
+//   (`Diagnostic` is re-exported as `SafetyDiagnostic` so it cannot be confused
+//   with the engine's own diagnostic enum; added in 1.1.0 for the verdict service.)
 //
 // Change policy: any sibling commit that alters one of these items requires
 // re-running `engine/tests/rules_core_contract.rs` and updating this file's

@@ -2,8 +2,9 @@
 
 use super::cellset::{Cell, CellSet};
 use super::duel::{BoardError, DuelBoard};
+use super::heading::Heading;
 use super::serpent::{Serpent, SerpentError};
-use crate::rules_core::{SnakeState, TurnState};
+use crate::rules_core::{Direction, SnakeState, TurnState};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum IngestError {
@@ -30,6 +31,18 @@ pub fn ingest(state: &TurnState) -> Result<DuelBoard, IngestError> {
     let pellets = CellSet::from_bits(state.food().bits());
 
     DuelBoard::try_new(us, them, pellets).map_err(IngestError::Board)
+}
+
+/// The wire direction for a kernel heading: the one bridge out of the kernel,
+/// mirroring [`ingest`] on the way in.
+#[must_use]
+pub const fn direction_of(heading: Heading) -> Direction {
+    match heading {
+        Heading::North => Direction::Up,
+        Heading::East => Direction::Right,
+        Heading::South => Direction::Down,
+        Heading::West => Direction::Left,
+    }
 }
 
 fn to_serpent(snake: &SnakeState) -> Result<Serpent, IngestError> {

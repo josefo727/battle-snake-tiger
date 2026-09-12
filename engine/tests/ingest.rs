@@ -121,3 +121,15 @@ fn ingest_rejects_three_and_four_snake_states() {
         );
     }
 }
+
+#[test]
+fn every_heading_leaves_the_kernel_as_the_matching_wire_direction() {
+    use tiger_engine::arena::heading::Heading;
+    use tiger_engine::arena::ingest::direction_of;
+    use tiger_engine::rules_core::Direction;
+
+    assert_eq!(direction_of(Heading::North), Direction::Up);
+    assert_eq!(direction_of(Heading::East), Direction::Right);
+    assert_eq!(direction_of(Heading::South), Direction::Down);
+    assert_eq!(direction_of(Heading::West), Direction::Left);
+}

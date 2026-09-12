@@ -109,13 +109,14 @@ fn snake_from_body(id: usize, body: &[(i32, i32)], health: i32) -> Value {
     })
 }
 
-/// The reused `TurnState` for explicit head-first bodies and health values.
-pub fn turn_state_from_bodies(
+/// A request for explicit head-first bodies and health values (Standard v1.2.3,
+/// 500 ms timeout, turn 0).
+pub fn request_from_bodies(
     bodies: &[&[(i32, i32)]],
     health: &[i32],
     you: usize,
     food: &[(i32, i32)],
-) -> TurnState {
+) -> TurnRequestDto {
     let snakes: Vec<Value> = bodies
         .iter()
         .enumerate()
@@ -134,9 +135,18 @@ pub fn turn_state_from_bodies(
         "board": { "height": 11, "width": 11, "food": food, "hazards": [], "snakes": snakes },
         "you": snake_from_body(you, bodies[you], health[you])
     });
-    let request: TurnRequestDto =
-        serde_json::from_value(request).expect("the test request must deserialize");
-    to_turn_state(&request).expect("the test state must be valid")
+    serde_json::from_value(request).expect("the test request must deserialize")
+}
+
+/// The reused `TurnState` for explicit head-first bodies and health values.
+pub fn turn_state_from_bodies(
+    bodies: &[&[(i32, i32)]],
+    health: &[i32],
+    you: usize,
+    food: &[(i32, i32)],
+) -> TurnState {
+    to_turn_state(&request_from_bodies(bodies, health, you, food))
+        .expect("the test state must be valid")
 }
 
 pub fn to_direction(heading: Heading) -> Direction {
