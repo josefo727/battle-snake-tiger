@@ -778,7 +778,7 @@ Note: `Route::DuelSearch` carries a `Box<DuelBoard>` built by the selector, so t
 ```yaml
 id: T024
 status: closed
-commits: { reconstructed: pending }
+commits: { reconstructed: 2e586271b9c7804c703315e9b89f0be0b772297f }
 source-commits: { red: 71d4a46, green: 61d3ce1, refactor: 1221d6b }
 spec-ref: spec.md §Acceptance criteria 1, 2, 3, and 5
 contract-ref: contracts/rules-core-dependency.rs
@@ -812,8 +812,9 @@ Note: beyond the declared files, verdict/report.rs holds the schema-v2 vocabular
 
 ```yaml
 id: T025
-status: open
-commits: { red: null, green: null, refactor: null }
+status: closed
+commits: { reconstructed: pending }
+source-commits: { red: 807436a, green: 5fc1f63, refactor: skipped }
 spec-ref: spec.md §Acceptance criteria 4
 contract-ref: contracts/decision-diagnostic.schema.json
 constitution-ref: Articles VII, XIV
@@ -830,7 +831,7 @@ constitution-ref: Articles VII, XIV
 
 **G - Green:** Implement the event mapping, the beacon port, and the tracing adapter.
 
-**F - Refactor:** Skipped unless reason mapping is duplicated.
+**F - Refactor:** Skipped - each wire name is produced in exactly one function (`engine_path_name`, `reason_name`, `diagnostic_name`); the direction string comes from the reused `direction_to_wire`, so nothing is duplicated.
 
 **Files**
 
@@ -839,6 +840,9 @@ constitution-ref: Articles VII, XIV
 - `engine/src/lib.rs`
 - `engine/tests/gateway_beacon.rs`
 - `engine/tests/support/mod.rs`
+
+Note: beyond the declared files, `engine/tests/support/schema.rs` validates events against the real contract file with a small JSON Schema subset (unknown keywords are errors, so a contract that grows cannot silently stop being checked); T034 will extend it for the sparring report. `turn` is `u64` in the event: a negative request turn becomes 0 and an empty game id becomes `unknown` so every event satisfies the schema. The reused `ruleset_version` and `supported_scope` members of the sibling's v1 event are not in schema 2.0.0 and are not emitted.
+
 
 ## T026 - Serve the four Battlesnake routes
 

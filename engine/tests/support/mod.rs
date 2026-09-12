@@ -3,6 +3,7 @@
 #![allow(dead_code)]
 
 pub mod clock;
+pub mod schema;
 
 use proptest::prelude::*;
 use serde_json::{Value, json};
