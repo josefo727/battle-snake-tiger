@@ -574,7 +574,7 @@ Note: Enclosure treats walls as static for the activation test (cells reachable 
 ```yaml
 id: T018
 status: closed
-commits: { reconstructed: pending }
+commits: { reconstructed: 78291ad87a2f9d600d29a314e86a4f50555c8b1c }
 source-commits: { red: ab1c340, green: 7e15ee3, refactor: 7e1cec4 }
 spec-ref: spec.md §Acceptance criteria 1
 contract-ref: n/a
@@ -607,8 +607,9 @@ Note: beyond the declared files, Green changed the assessor modules (each declar
 
 ```yaml
 id: T019
-status: open
-commits: { red: null, green: null, refactor: null }
+status: closed
+commits: { reconstructed: pending }
+source-commits: { red: 06ae23b, green: cc4b441, refactor: skipped }
 spec-ref: spec.md §Acceptance criteria 2 and 4
 contract-ref: contracts/decision-diagnostic.schema.json
 constitution-ref: Articles VII, XI, XIV
@@ -624,7 +625,7 @@ constitution-ref: Articles VII, XI, XIV
 
 **G - Green:** Implement the polling and deadline arithmetic.
 
-**F - Refactor:** Skipped unless the polling counter is duplicated.
+**F - Refactor:** Skipped - no smell detected; the polling counter lives in one place (should_stop delegates to poll_now at the interval), and the expiry flag is the only state shared between them.
 
 **Files**
 
@@ -632,6 +633,9 @@ constitution-ref: Articles VII, XI, XIV
 - `engine/src/lookahead/allowance.rs`
 - `engine/src/lookahead/ledger.rs`
 - `engine/tests/lookahead_allowance.rs`
+
+Note: the task's declared files did not include the test support additions engine/tests/support/clock.rs (ManualClock, which counts clock reads) and engine/tests/support/mod.rs; T022 reuses ManualClock. Iteration-start policy (the elapsed fraction) is intentionally not here: it belongs to T022.
+
 
 ## T020 - Search a fixed depth with alpha-beta
 

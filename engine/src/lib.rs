@@ -1,6 +1,7 @@
 #![forbid(unsafe_code)]
 
 pub mod arena;
+pub mod lookahead;
 pub mod rules_core;
 pub mod valuation;
 

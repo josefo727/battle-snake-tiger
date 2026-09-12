@@ -2,6 +2,8 @@
 // a subset, so an unused helper here is not unused in the suite overall.
 #![allow(dead_code)]
 
+pub mod clock;
+
 use proptest::prelude::*;
 use serde_json::{Value, json};
 use tiger_engine::arena::cellset::{Cell, CellSet};
