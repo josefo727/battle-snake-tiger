@@ -2,3 +2,4 @@
 
 pub mod allowance;
 pub mod ledger;
+pub mod minimax;

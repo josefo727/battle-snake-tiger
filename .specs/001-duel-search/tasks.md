@@ -608,7 +608,7 @@ Note: beyond the declared files, Green changed the assessor modules (each declar
 ```yaml
 id: T019
 status: closed
-commits: { reconstructed: pending }
+commits: { reconstructed: 68151f28906c4a2f43ed7ca04c14925033579dca }
 source-commits: { red: 06ae23b, green: cc4b441, refactor: skipped }
 spec-ref: spec.md §Acceptance criteria 2 and 4
 contract-ref: contracts/decision-diagnostic.schema.json
@@ -641,8 +641,9 @@ Note: the task's declared files did not include the test support additions engin
 
 ```yaml
 id: T020
-status: open
-commits: { red: null, green: null, refactor: null }
+status: closed
+commits: { reconstructed: pending }
+source-commits: { red: 5f68e15, green: 5feccbd, refactor: 2cad65d }
 spec-ref: spec.md §Acceptance criteria 1
 contract-ref: n/a
 constitution-ref: Articles VIII, XI, XII
@@ -659,13 +660,16 @@ constitution-ref: Articles VIII, XI, XII
 
 **G - Green:** Implement fail-soft alpha-beta over the two layers.
 
-**F - Refactor:** Extract the shared window-update step between the layers.
+**F - Refactor:** Extracted: the root loop and the interior maximizer shared one window update, so `best_heading` now serves both (root keeps the heading, interior plies take the value); a separate minimizer layer stays because its bound update is the mirror image and merging would need a sign flag.
 
 **Files**
 
 - `engine/src/lookahead/minimax.rs`
 - `engine/src/lookahead/mod.rs`
 - `engine/tests/lookahead_minimax.rs`
+
+Note: the Green commit's first implementation had two maximizer copies; the shared step was extracted in the Refactor. Only the node count is exposed, one per `advance`; ordering (T021) and the clock (T022) are not part of this task. The 8 tests include a forced-win example, a pruning-count check and three properties (soaked with 60 extra random-seed runs).
+
 
 ## T021 - Order moves for early cutoffs
 
