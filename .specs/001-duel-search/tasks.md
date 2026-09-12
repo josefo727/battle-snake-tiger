@@ -709,7 +709,7 @@ Note: beyond the declared files, the seam is a `HeadingOrder` trait with `Natura
 ```yaml
 id: T022
 status: closed
-commits: { reconstructed: pending }
+commits: { reconstructed: 37bb6882e6d1a42fa3353dd0ad4b11f7db6e46a6 }
 source-commits: { red: a556ecd, green: ef7e126, refactor: 9b5290c }
 spec-ref: spec.md §Acceptance criteria 2, 3, and 4
 contract-ref: contracts/decision-diagnostic.schema.json
@@ -742,8 +742,9 @@ Note: the plan's ITERATION_START_FRACTION (40%) is named `ITERATION_START_PERCEN
 
 ```yaml
 id: T023
-status: open
-commits: { red: null, green: null, refactor: null }
+status: closed
+commits: { reconstructed: pending }
+source-commits: { red: 9c3edba, green: 197aac1, refactor: skipped }
 spec-ref: spec.md §Acceptance criteria 5
 contract-ref: contracts/rules-core-dependency.rs
 constitution-ref: Articles IX, X
@@ -760,7 +761,7 @@ constitution-ref: Articles IX, X
 
 **G - Green:** Implement the selection over the facade.
 
-**F - Refactor:** Skipped unless the branch table duplicates the facade helper.
+**F - Refactor:** Skipped - the selector does not use the facade's `supported_snake_count`; it matches the scope once and lets `ingest` tell a duel from anything else, so no branch table is duplicated.
 
 **Files**
 
@@ -768,6 +769,9 @@ constitution-ref: Articles IX, X
 - `engine/src/verdict/route.rs`
 - `engine/src/lib.rs`
 - `engine/tests/verdict_route.rs`
+
+Note: `Route::DuelSearch` carries a `Box<DuelBoard>` built by the selector, so the service (T024) never converts the request twice and has no unreachable 'ingest failed after routing' branch. A probe showed the reused classifier already rejects every state the kernel would refuse (health 0/101, overlap, one-segment snake, food under a snake, unknown `you`); the mapping of an ingest failure to `SafetyFallback` therefore is defensive and shares the branch that serves 3-4 snakes. The facade helper `supported_snake_count` is now used only by the contract tests.
+
 
 ## T024 - Decide moves through the verdict service
 
@@ -1291,3 +1295,4 @@ All tasks execute sequentially: kernel tasks share `duel.rs` and its differentia
 |------|--------|--------|
 | 2026-09-15 | T018 registers four positional assessors, not five; `Finish` is applied by search to terminal outcomes. | Terminal verdicts come from `advance` as `Over(Verdict)`, not from a position, so `Finish::score(verdict, ply)` cannot implement the position-taking `Assessor` trait (found in T012). |
 | 2026-09-16 | T016's `Leverage` is two assessors, `LengthAdvantage` and `HeadPressure`; T018 registers five terms. | Each of the two questions has its own `WeightSheet` coefficient (`length_advantage`, `head_pressure`), and the pipeline multiplies one raw value by one weight, so separate assessors keep the weights independent and the ledger informative (found while designing T016). |
+| 2026-09-16 | T023's `Route` borrows the data its engine needs (`DuelSearch { state, board }`, `SafetyFallback(&TurnState)`, `UnsupportedFallback(&FallbackContext)`). | Found while designing T024: with unit variants the service would have to re-match the scope and keep an unreachable arm; borrowing removes both. Behaviour of the selector is unchanged. |
