@@ -11,6 +11,22 @@ pub const SEARCH_TAIL_MARGIN: Duration = Duration::from_millis(10);
 /// Visited nodes between two reads of the clock.
 pub const POLL_INTERVAL_NODES: u32 = 1_024;
 
+/// Anything the search consults, once per node, to learn whether it must stop.
+pub trait StopSignal {
+    /// Counts one visited node and answers whether the search must stop.
+    fn should_stop(&mut self) -> bool;
+}
+
+/// A signal that never stops, for searches that run to their fixed depth.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct NeverStop;
+
+impl StopSignal for NeverStop {
+    fn should_stop(&mut self) -> bool {
+        false
+    }
+}
+
 /// The stop condition for one search. The clock is read only every
 /// [`POLL_INTERVAL_NODES`] visited nodes and on demand, and once the deadline has
 /// been seen the answer stays "stop" without reading the clock again.
@@ -69,11 +85,25 @@ impl<'clock> SearchAllowance<'clock> {
     /// Reads the clock now (at an iteration boundary, for example) and answers
     /// whether the deadline has been reached; restarts the node count.
     pub fn poll_now(&mut self) -> bool {
+        self.time_left().is_zero()
+    }
+
+    /// How much of the allowance remains, read from the clock now; zero once the
+    /// deadline has been reached. Restarts the node count like [`Self::poll_now`].
+    pub fn time_left(&mut self) -> Duration {
         if self.expired {
-            return true;
+            return Duration::ZERO;
         }
         self.nodes_since_poll = 0;
-        self.expired = self.clock.now() >= self.deadline;
-        self.expired
+        let now = self.clock.now();
+        let left = self.deadline.microseconds.saturating_sub(now.microseconds);
+        self.expired = left == 0;
+        Duration::from_micros(left)
+    }
+}
+
+impl StopSignal for SearchAllowance<'_> {
+    fn should_stop(&mut self) -> bool {
+        Self::should_stop(self)
     }
 }

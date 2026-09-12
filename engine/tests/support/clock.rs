@@ -34,3 +34,42 @@ impl Clock for ManualClock {
         }
     }
 }
+
+/// A clock that answers each read from a script (microseconds, one entry per
+/// read, the last entry repeating), so a test controls exactly what the search
+/// sees at every boundary.
+pub struct ScriptedClock {
+    script: Vec<u64>,
+    reads: AtomicUsize,
+}
+
+impl ScriptedClock {
+    pub fn new(script: &[u64]) -> Self {
+        assert!(!script.is_empty(), "a script needs at least one reading");
+        Self {
+            script: script.to_vec(),
+            reads: AtomicUsize::new(0),
+        }
+    }
+
+    /// Reads at `0` for the first `reads_before_expiry` reads, then far past any
+    /// deadline this suite uses.
+    pub fn expiring_after(reads_before_expiry: usize) -> Self {
+        let mut script = vec![0; reads_before_expiry];
+        script.push(u64::MAX / 2);
+        Self::new(&script)
+    }
+
+    pub fn reads(&self) -> usize {
+        self.reads.load(Ordering::SeqCst)
+    }
+}
+
+impl Clock for ScriptedClock {
+    fn now(&self) -> MonotonicInstant {
+        let index = self.reads.fetch_add(1, Ordering::SeqCst);
+        MonotonicInstant {
+            microseconds: self.script[index.min(self.script.len() - 1)],
+        }
+    }
+}

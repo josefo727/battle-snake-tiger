@@ -676,7 +676,7 @@ Note: the Green commit's first implementation had two maximizer copies; the shar
 ```yaml
 id: T021
 status: closed
-commits: { reconstructed: pending }
+commits: { reconstructed: 5fe171e7e9d376481668aa193b70c724759e0122 }
 source-commits: { red: 7bcf16c, green: 7d9353b, refactor: skipped }
 spec-ref: spec.md §Acceptance criteria 1
 contract-ref: n/a
@@ -708,8 +708,9 @@ Note: beyond the declared files, the seam is a `HeadingOrder` trait with `Natura
 
 ```yaml
 id: T022
-status: open
-commits: { red: null, green: null, refactor: null }
+status: closed
+commits: { reconstructed: pending }
+source-commits: { red: a556ecd, green: ef7e126, refactor: 9b5290c }
 spec-ref: spec.md §Acceptance criteria 2, 3, and 4
 contract-ref: contracts/decision-diagnostic.schema.json
 constitution-ref: Articles XI, XIV
@@ -726,13 +727,16 @@ constitution-ref: Articles XI, XIV
 
 **G - Green:** Implement the iteration loop, discard policy, and report assembly.
 
-**F - Refactor:** Separate the start-fraction predicate from the loop.
+**F - Refactor:** Extracted `may_start_iteration(left, span)`, a pure predicate beside `ITERATION_START_PERCENT`; the loop no longer carries the arithmetic.
 
 **Files**
 
 - `engine/src/lookahead/deepening.rs`
 - `engine/src/lookahead/mod.rs`
 - `engine/tests/lookahead_deepening.rs`
+
+Note: the plan's ITERATION_START_FRACTION (40%) is named `ITERATION_START_PERCENT` (integer percent, so the comparison stays in integer microseconds). The span is fixed by the first clock read of the driver, not by request arrival, so the fraction is of the time actually available to the search. Beyond the declared files: `StopSignal`/`NeverStop` and `SearchAllowance::time_left` in allowance.rs, `search_until`/`is_decisive`/`nodes_visited` and an internal `Window` in minimax.rs, and a `ScriptedClock` test double. A decisive score (|score| >= finite limit) ends deepening early (glossary: full-tree solve); `DEPTH_CEILING` (64) is clamped with `min` and has no test of its own because no feasible position reaches it.
+
 
 ## T023 - Select the engine route
 

@@ -6,12 +6,34 @@
 //! it). Finished duels are scored by [`Finish`], every other leaf by the pipeline.
 //! The search is fail-soft: a cut-off layer returns the bound it proved.
 
+use super::allowance::{NeverStop, StopSignal};
 use super::ledger::LookaheadReport;
 use super::ordering::{HeadingOrder, LearnedOrder};
 use crate::arena::duel::{Advance, DuelBoard, Side};
 use crate::arena::heading::Heading;
 use crate::valuation::finish::Finish;
 use crate::valuation::{AssessorSet, ValuationPipeline};
+
+/// The alpha-beta bounds a layer searches inside.
+#[derive(Clone, Copy, Debug)]
+struct Window {
+    alpha: i32,
+    beta: i32,
+}
+
+impl Window {
+    /// Everything between the two sentinels: no bound known yet.
+    const fn open(sentinel: i32) -> Self {
+        Self {
+            alpha: -sentinel,
+            beta: sentinel,
+        }
+    }
+}
+
+/// A search cut short by its stop signal; nothing partial survives it.
+#[derive(Clone, Copy, Debug)]
+struct Interrupted;
 
 pub struct Searcher<'pipeline, S, O = LearnedOrder> {
     pipeline: &'pipeline ValuationPipeline<S>,
@@ -51,12 +73,51 @@ impl<'pipeline, S: AssessorSet, O: HeadingOrder> Searcher<'pipeline, S, O> {
     ///
     /// Panics when `depth` is zero.
     pub fn search_fixed(&mut self, board: &DuelBoard, depth: u16) -> LookaheadReport {
+        self.search_until(board, depth, &mut NeverStop)
+            .expect("a search that is never told to stop completes")
+    }
+
+    /// Like [`Self::search_fixed`] but consults `stop` once per node and gives up
+    /// with `None` as soon as it says stop, leaving no partial answer behind. The
+    /// learned order only ever records genuine cutoffs, so an abandoned search
+    /// cannot make the next one wrong, only differently ordered.
+    ///
+    /// # Panics
+    ///
+    /// Panics when `depth` is zero.
+    pub fn search_until(
+        &mut self,
+        board: &DuelBoard,
+        depth: u16,
+        stop: &mut impl StopSignal,
+    ) -> Option<LookaheadReport> {
         assert!(depth >= 1, "a search needs at least one ply");
         let start_nodes = self.nodes;
         let sentinel = self.finish.sentinel();
-        let (best, score) = self.best_heading(board, depth, 0, -sentinel, sentinel);
+        let (best, score) = self
+            .best_heading(board, depth, 0, Window::open(sentinel), stop)
+            .ok()?;
         self.order.note_root_best(best);
-        LookaheadReport::completed(depth, self.nodes - start_nodes, best, score)
+        Some(LookaheadReport::completed(
+            depth,
+            self.nodes - start_nodes,
+            best,
+            score,
+        ))
+    }
+
+    /// Every position visited by this searcher so far, interrupted searches
+    /// included.
+    #[must_use]
+    pub const fn nodes_visited(&self) -> u64 {
+        self.nodes
+    }
+
+    /// Whether `score` is a finished game rather than a positional estimate, so
+    /// searching deeper cannot change it.
+    #[must_use]
+    pub const fn is_decisive(&self, score: i32) -> bool {
+        score.abs() >= self.finish.finite_limit()
     }
 
     /// The maximizing layer: our best heading for `board` and its value. The
@@ -66,9 +127,10 @@ impl<'pipeline, S: AssessorSet, O: HeadingOrder> Searcher<'pipeline, S, O> {
         board: &DuelBoard,
         depth: u16,
         ply: u16,
-        mut alpha: i32,
-        beta: i32,
-    ) -> (Heading, i32) {
+        window: Window,
+        stop: &mut impl StopSignal,
+    ) -> Result<(Heading, i32), Interrupted> {
+        let Window { mut alpha, beta } = window;
         let mut best = (Heading::ALL[0], -self.finish.sentinel());
         let root = ply == 0;
         for ours in self.order.arrange(Side::Us, ply) {
@@ -77,7 +139,8 @@ impl<'pipeline, S: AssessorSet, O: HeadingOrder> Searcher<'pipeline, S, O> {
             // a bound.
             let wins_ties = root && ours.index() < best.0.index();
             let floor = if wins_ties { alpha - 1 } else { alpha };
-            let score = self.minimizer(board, ours, depth, ply, floor, beta);
+            let narrowed = Window { alpha: floor, beta };
+            let score = self.minimizer(board, ours, depth, ply, narrowed, stop)?;
             if score > best.1 || (wins_ties && score == best.1) {
                 best = (ours, score);
                 alpha = alpha.max(score);
@@ -87,7 +150,7 @@ impl<'pipeline, S: AssessorSet, O: HeadingOrder> Searcher<'pipeline, S, O> {
                 break;
             }
         }
-        best
+        Ok(best)
     }
 
     /// The minimizing layer: the opponent's best reply to `ours`, each reply
@@ -98,17 +161,22 @@ impl<'pipeline, S: AssessorSet, O: HeadingOrder> Searcher<'pipeline, S, O> {
         ours: Heading,
         depth: u16,
         ply: u16,
-        alpha: i32,
-        mut beta: i32,
-    ) -> i32 {
+        window: Window,
+        stop: &mut impl StopSignal,
+    ) -> Result<i32, Interrupted> {
+        let Window { alpha, mut beta } = window;
         let mut best = self.finish.sentinel();
         for theirs in self.order.arrange(Side::Them, ply) {
+            if stop.should_stop() {
+                return Err(Interrupted);
+            }
             self.nodes += 1;
             let score = match board.advance(ours, theirs) {
                 Advance::Over(verdict) => self.finish.score(verdict, ply + 1),
                 Advance::Continues(next) if depth == 1 => self.pipeline.score(&next),
                 Advance::Continues(next) => {
-                    self.best_heading(&next, depth - 1, ply + 1, alpha, beta).1
+                    let inner = Window { alpha, beta };
+                    self.best_heading(&next, depth - 1, ply + 1, inner, stop)?.1
                 }
             };
             best = best.min(score);
@@ -118,6 +186,6 @@ impl<'pipeline, S: AssessorSet, O: HeadingOrder> Searcher<'pipeline, S, O> {
                 break;
             }
         }
-        best
+        Ok(best)
     }
 }

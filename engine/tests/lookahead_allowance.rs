@@ -155,3 +155,43 @@ fn a_report_records_depth_nodes_best_heading_and_principal_score() {
     assert_eq!(none.principal_score, None);
     assert!(!none.has_result());
 }
+
+#[test]
+fn time_left_reports_the_remaining_allowance_from_one_clock_read() {
+    let clock = ManualClock::at_micros(ARRIVAL + 100_000);
+    let mut a = allowance(&clock);
+
+    assert_eq!(a.time_left(), Duration::from_micros(270_000));
+    assert_eq!(clock.reads(), 1);
+}
+
+#[test]
+fn time_left_is_zero_from_the_deadline_on_and_stays_zero_without_reading() {
+    let clock = ManualClock::at_micros(DEADLINE);
+    let mut a = allowance(&clock);
+
+    assert_eq!(a.time_left(), Duration::ZERO);
+    clock.set_micros(ARRIVAL);
+
+    assert_eq!(a.time_left(), Duration::ZERO, "expiry is sticky");
+    assert_eq!(clock.reads(), 1);
+    assert!(a.should_stop());
+}
+
+#[test]
+fn time_left_restarts_the_node_count() {
+    let clock = ManualClock::at_micros(ARRIVAL);
+    let mut a = allowance(&clock);
+    for _ in 0..POLL_INTERVAL_NODES - 1 {
+        a.should_stop();
+    }
+
+    a.time_left();
+    for _ in 0..POLL_INTERVAL_NODES - 1 {
+        a.should_stop();
+    }
+
+    assert_eq!(clock.reads(), 1);
+    a.should_stop();
+    assert_eq!(clock.reads(), 2);
+}
