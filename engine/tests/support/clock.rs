@@ -73,3 +73,29 @@ impl Clock for ScriptedClock {
         }
     }
 }
+
+/// A clock that works for `healthy_reads` reads and then panics, to prove a
+/// failing decision cannot take the server down.
+pub struct FailingClock {
+    healthy_reads: usize,
+    reads: AtomicUsize,
+}
+
+impl FailingClock {
+    pub fn after(healthy_reads: usize) -> Self {
+        Self {
+            healthy_reads,
+            reads: AtomicUsize::new(0),
+        }
+    }
+}
+
+impl Clock for FailingClock {
+    fn now(&self) -> MonotonicInstant {
+        let read = self.reads.fetch_add(1, Ordering::SeqCst);
+        assert!(read < self.healthy_reads, "the clock has failed");
+        MonotonicInstant {
+            microseconds: 1_000_000,
+        }
+    }
+}

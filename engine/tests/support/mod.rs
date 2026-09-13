@@ -2,6 +2,7 @@
 // a subset, so an unused helper here is not unused in the suite overall.
 #![allow(dead_code)]
 
+pub mod beacon;
 pub mod clock;
 pub mod schema;
 

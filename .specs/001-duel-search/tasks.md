@@ -813,7 +813,7 @@ Note: beyond the declared files, verdict/report.rs holds the schema-v2 vocabular
 ```yaml
 id: T025
 status: closed
-commits: { reconstructed: pending }
+commits: { reconstructed: 65c666436e5b8b98ce6731ac63d52ed2fc5bd57c }
 source-commits: { red: 807436a, green: 5fc1f63, refactor: skipped }
 spec-ref: spec.md §Acceptance criteria 4
 contract-ref: contracts/decision-diagnostic.schema.json
@@ -848,8 +848,9 @@ Note: beyond the declared files, `engine/tests/support/schema.rs` validates even
 
 ```yaml
 id: T026
-status: open
-commits: { red: null, green: null, refactor: null }
+status: closed
+commits: { reconstructed: pending }
+source-commits: { red: dcecfdb, green: afe9673, refactor: skipped }
 spec-ref: spec.md §Acceptance criteria 2, 6, and 7
 contract-ref: contracts/openapi.yaml
 constitution-ref: Articles IV, VII, IX
@@ -866,7 +867,7 @@ constitution-ref: Articles IV, VII, IX
 
 **G - Green:** Implement the routes, validation, and the composition root `build_service`.
 
-**F - Refactor:** Unify the acknowledgement handlers.
+**F - Refactor:** Skipped - `/start` and `/end` already share the single `acknowledge` handler from the green step, and `choose_move` reads as validate, stamp, parse, decide, emit, answer.
 
 **Files**
 
@@ -874,6 +875,9 @@ constitution-ref: Articles IV, VII, IX
 - `engine/src/gateway/mod.rs`
 - `engine/src/lib.rs`
 - `engine/tests/gateway_http.rs`
+
+Note: beyond the declared files, `engine/tests/support/beacon.rs` (RecordingBeacon) and a `FailingClock` in support/clock.rs. Design points: the decision runs in `tokio::task::spawn_blocking` so a CPU-bound search cannot stall other games' requests; a panic in the decision becomes a 500 with no diagnostic (tested) and the router keeps serving; the wrong-content-type check happens before the arrival stamp, exactly like the sibling, and the arrival is stamped before body parsing. A syntactically valid but incomplete `/start` body is a client error (axum's 422), not a 200. No HTTP-level test yet drives the production `build_service` through a decision because the production clock arrives in T027.
+
 
 ## T027 - Run the server process
 
