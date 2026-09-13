@@ -849,7 +849,7 @@ Note: beyond the declared files, `engine/tests/support/schema.rs` validates even
 ```yaml
 id: T026
 status: closed
-commits: { reconstructed: pending }
+commits: { reconstructed: d6cd261a26c526636500065c091d7fbb675b1a69 }
 source-commits: { red: dcecfdb, green: afe9673, refactor: skipped }
 spec-ref: spec.md §Acceptance criteria 2, 6, and 7
 contract-ref: contracts/openapi.yaml
@@ -883,8 +883,9 @@ Note: beyond the declared files, `engine/tests/support/beacon.rs` (RecordingBeac
 
 ```yaml
 id: T027
-status: open
-commits: { red: null, green: null, refactor: null }
+status: closed
+commits: { reconstructed: pending }
+source-commits: { red: 4813e64, green: 271e93b, refactor: 3243f8c }
 spec-ref: spec.md §Acceptance criteria 2 and 6
 contract-ref: contracts/openapi.yaml
 constitution-ref: Articles VII, XI
@@ -900,7 +901,7 @@ constitution-ref: Articles VII, XI
 
 **G - Green:** Implement settings and `main`; add the loopback smoke test.
 
-**F - Refactor:** Skipped unless config parsing duplicates the sibling helper's shape.
+**F - Refactor:** Extracted `read<T: FromStr>` for the shared default-or-typed-error step; the config-parsing shape is not shared with the sibling's helper (that crate is reached only through the facade).
 
 **Files**
 
@@ -908,6 +909,9 @@ constitution-ref: Articles VII, XI
 - `engine/src/main.rs`
 - `engine/tests/gateway_settings.rs`
 - `engine/tests/process_smoke.rs`
+
+Note: beyond the declared files, `engine/src/gateway/clock.rs` holds `SystemClock` (in the library so it can be tested; main.rs only installs it) with `engine/tests/gateway_clock.rs`, and `engine/Cargo.toml` declares the `tiger-engine` binary. PORT=0 is accepted (ephemeral) and the process logs a `listening` line with the real address, which lets the process test avoid a port race. First look at real numbers from the binary on this machine (informational; T030/T032 measure properly): one duel from the start position reached depth 8 / 116,697 nodes in 372 ms on the debug build and depth 11 / 735,114 nodes in 270 ms on the release build (about 2.7 million nodes/s). Decisions typically use nearly the whole allowance because an iteration started before 40% of it is interrupted at the deadline; an iteration-cost estimate is a candidate improvement for T036 if the benchmark asks for it.
+
 
 ## T028 - Enforce static quality gates
 

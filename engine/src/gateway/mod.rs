@@ -1,5 +1,7 @@
-//! The edge of the service: what enters (webhook routes) and what leaves
-//! (diagnostics).
+//! The edge of the service: what enters (webhook routes), what leaves
+//! (diagnostics), and the process around them (clock, settings).
 
 pub mod beacon;
+pub mod clock;
 pub mod http;
+pub mod settings;

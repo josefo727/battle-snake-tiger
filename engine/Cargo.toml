@@ -9,6 +9,10 @@ publish = false
 name = "tiger_engine"
 path = "src/lib.rs"
 
+[[bin]]
+name = "tiger-engine"
+path = "src/main.rs"
+
 [dependencies]
 battle-snake-rust = { path = "../../battle-snake-rust" }
 axum = { version = "=0.8.9", default-features = false, features = ["http1", "json", "tokio"] }
