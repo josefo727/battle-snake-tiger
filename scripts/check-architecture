@@ -1,0 +1,80 @@
+#!/usr/bin/env bash
+# Inward-dependency check for the engine crate.
+#
+# Layers, innermost first: arena, valuation, lookahead, verdict. Each may import
+# only the layers before it (and the rules_core facade); none may reach the
+# runtime crates (axum, tokio, tracing), the filesystem or process APIs, or the
+# gateway. The gateway, lib.rs, main.rs and rules_core.rs are not restricted.
+#
+# usage: scripts/check-architecture [SRC_DIR]     (default: engine/src)
+set -uo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+SRC="${1:-$ROOT/engine/src}"
+
+LAYERS=(arena valuation lookahead verdict)
+OUTERMOST=gateway
+RUNTIME_CRATES=(axum tokio tracing)
+WORD='[^[:alnum:]_]'
+
+if [ ! -d "$SRC" ]; then
+    echo "architecture: no such directory: $SRC" >&2
+    exit 2
+fi
+
+violations=0
+flag() {
+    echo "architecture: $1: $2" >&2
+    violations=$((violations + 1))
+}
+
+# The file as one line with line comments removed (a `//` only starts a comment
+# at the start of a token, so `http://` inside a string survives).
+flatten() {
+    sed -E 's,(^|[[:space:]])//.*$,\1,' "$1" | tr '\n' ' '
+}
+
+# Whether the text matches the extended regex.
+has() {
+    grep -Eq -- "$2" <<<"$1"
+}
+
+# Whether some `use <prefix>...;` statement in the text names `token`, looking
+# at each statement as a unit so grouped and multi-line imports are seen.
+statement_names() {
+    grep -Eo -- "use[[:space:]]+$2[^;]*;" <<<"$1" |
+        grep -Eq -- "(^|$WORD)($3)($WORD|\$)"
+}
+
+check_file() {
+    local file=$1 text=$2 outward=$3 crate module
+    for crate in "${RUNTIME_CRATES[@]}"; do
+        if has "$text" "(^|$WORD)$crate::|use[[:space:]]+$crate($WORD|\$)"; then
+            flag "$file" "imports $crate (runtime crates belong in the gateway)"
+        fi
+    done
+    for module in fs process; do
+        if has "$text" "std::$module($WORD|\$)" || statement_names "$text" 'std::' "$module"; then
+            flag "$file" "uses std::$module (the filesystem and processes belong in the gateway)"
+        fi
+    done
+    if has "$text" "crate::($outward)($WORD|\$)" || statement_names "$text" 'crate::' "$outward"; then
+        flag "$file" "imports an outer layer ($outward): dependencies point inward"
+    fi
+}
+
+for index in "${!LAYERS[@]}"; do
+    layer=${LAYERS[$index]}
+    [ -d "$SRC/$layer" ] || continue
+    outer=("${LAYERS[@]:$((index + 1))}" "$OUTERMOST")
+    outward=$(IFS='|'; echo "${outer[*]}")
+    while IFS= read -r file; do
+        check_file "$file" "$(flatten "$file")" "$outward"
+    done < <(find "$SRC/$layer" -name '*.rs' | sort)
+done
+
+if [ "$violations" -gt 0 ]; then
+    echo "architecture: $violations violation(s)" >&2
+    exit 1
+fi
+echo "architecture: ok"

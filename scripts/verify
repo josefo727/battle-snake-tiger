@@ -1,0 +1,60 @@
+#!/usr/bin/env bash
+# The local verification entry point. Runs the named stages (default: all, in
+# order) and stops at the first failure, naming it. It assumes nothing about
+# where it runs: no CI provider, no network beyond what cargo-deny needs for its
+# advisory database. Branch coverage is a separate job (scripts/check-branch-coverage).
+#
+# usage: scripts/verify [--list] [STAGE...]
+#   stages: fmt test clippy architecture deny
+#   ARCH_SRC overrides the tree the architecture stage inspects.
+set -uo pipefail
+
+cd "$(dirname "${BASH_SOURCE[0]}")/.."
+
+STAGES=(fmt test clippy architecture deny)
+
+title() {
+    case $1 in
+        fmt) echo "cargo fmt --check" ;;
+        test) echo "cargo test --locked" ;;
+        clippy) echo "cargo clippy (warnings denied)" ;;
+        architecture) echo "architecture check" ;;
+        deny) echo "cargo deny check" ;;
+        *) return 1 ;;
+    esac
+}
+
+run() {
+    case $1 in
+        fmt) cargo fmt --all -- --check ;;
+        test) cargo test --locked ;;
+        clippy) cargo clippy --locked --all-targets -- -D warnings ;;
+        architecture) bash scripts/check-architecture ${ARCH_SRC:+"$ARCH_SRC"} ;;
+        deny) cargo deny check ;;
+    esac
+}
+
+if [ "${1:-}" = "--list" ]; then
+    printf '%s\n' "${STAGES[@]}"
+    exit 0
+fi
+
+requested=("$@")
+[ ${#requested[@]} -eq 0 ] && requested=("${STAGES[@]}")
+
+for stage in "${requested[@]}"; do
+    if ! title "$stage" >/dev/null; then
+        echo "verify: unknown stage: $stage (known: ${STAGES[*]})" >&2
+        exit 2
+    fi
+done
+
+for stage in "${requested[@]}"; do
+    name=$(title "$stage")
+    echo "==> $name"
+    if ! run "$stage"; then
+        echo "verify: FAILED at stage: $name" >&2
+        exit 1
+    fi
+done
+echo "verify: all stages passed"

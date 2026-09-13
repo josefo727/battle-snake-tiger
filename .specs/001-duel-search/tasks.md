@@ -884,7 +884,7 @@ Note: beyond the declared files, `engine/tests/support/beacon.rs` (RecordingBeac
 ```yaml
 id: T027
 status: closed
-commits: { reconstructed: pending }
+commits: { reconstructed: ff1db4df995cf4816c58dbcea423ee0434481bf1 }
 source-commits: { red: 4813e64, green: 271e93b, refactor: 3243f8c }
 spec-ref: spec.md §Acceptance criteria 2 and 6
 contract-ref: contracts/openapi.yaml
@@ -917,8 +917,9 @@ Note: beyond the declared files, `engine/src/gateway/clock.rs` holds `SystemCloc
 
 ```yaml
 id: T028
-status: open
-commits: { red: null, green: null, refactor: null }
+status: closed
+commits: { reconstructed: pending }
+source-commits: { red: fd6e6e8, green: 1ccaefd, refactor: 788e27c }
 spec-ref: spec.md §Acceptance criteria 1 to 8
 contract-ref: n/a
 constitution-ref: Articles X, XIII
@@ -935,7 +936,7 @@ constitution-ref: Articles X, XIII
 
 **G - Green:** Implement the stages and the check; write `deny.toml`.
 
-**F - Refactor:** Keep the scripts small and free of CI-provider assumptions.
+**F - Refactor:** Extracted `statement_names` (one pipeline for grouped and multi-line `use` statements); scripts are 60 and 80 lines, bash/grep/sed/tr/find only, no CI-provider assumption.
 
 **Files**
 
@@ -943,6 +944,9 @@ constitution-ref: Articles X, XIII
 - `scripts/verify`
 - `scripts/check-architecture`
 - `engine/tests/architecture_check.rs`
+
+Note: beyond the plain forbidden-import list of the DoD, the architecture check also enforces the layer order arena < valuation < lookahead < verdict < gateway (the plan's inward-dependency rule), and `scripts/verify` accepts stage names, `--list` and an `ARCH_SRC` override so its failure path can be self-tested without recursion. Known limits, deliberate: it is a text check, so a forbidden path built only through a macro or a string is not seen, and a token like `fs` inside a `use std::` statement always counts; a false positive fails safe. `cargo deny check` needs the advisory database (network on first run). The real run of `scripts/verify` passes all five stages.
+
 
 ## T029 - Gate branch coverage in a container
 
