@@ -918,7 +918,7 @@ Note: beyond the declared files, `engine/src/gateway/clock.rs` holds `SystemCloc
 ```yaml
 id: T028
 status: closed
-commits: { reconstructed: pending }
+commits: { reconstructed: e6dc776d35fd03de9f737d412042fc729b5ef24c }
 source-commits: { red: fd6e6e8, green: 1ccaefd, refactor: 788e27c }
 spec-ref: spec.md §Acceptance criteria 1 to 8
 contract-ref: n/a
@@ -952,8 +952,9 @@ Note: beyond the plain forbidden-import list of the DoD, the architecture check 
 
 ```yaml
 id: T029
-status: open
-commits: { red: null, green: null, refactor: null }
+status: closed
+commits: { reconstructed: pending }
+source-commits: { red: e5a39df, green: 559d195, refactor: skipped }
 spec-ref: spec.md §Acceptance criteria 1 to 5
 contract-ref: n/a
 constitution-ref: Article XII
@@ -970,13 +971,16 @@ constitution-ref: Article XII
 
 **G - Green:** Implement the threshold check per module and the container script; run it for real.
 
-**F - Refactor:** Keep the script small and fail-fast.
+**F - Refactor:** Skipped - the script is 50 lines under `set -euo pipefail` and already fail-fast (a failed instrumented run stops before the gate); nothing to simplify.
 
 **Files**
 
 - `engine/tests/coverage_gate.rs`
 - `scripts/check-branch-coverage`
 - `.specs/001-duel-search/evidence/coverage.md`
+
+Note: the derived image `tiger-engine-coverage:nightly-2026-09-18-llvm-cov-0.8.7` is built once from the pinned base digest (nightly + cargo-llvm-cov only) so later runs skip the several-minute install. Real result 2026-09-18: arena 64/66 (96.97%), valuation 31/32 (96.88%), lookahead 38/38 (100.00%); evidence in `.specs/001-duel-search/evidence/coverage.md` with the three uncovered arms and how to read Rust branch counts (conditionals, generics merged). The gate weights files by branch count, not by average, and compares with integers so 89.9% cannot round up. The whole workspace suite (including the process smoke test) runs under instrumentation.
+
 
 ## T030 - Measure kernel throughput and position repeat rate
 

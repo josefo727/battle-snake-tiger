@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+# Branch coverage of arena, valuation and lookahead, gated at 90% per module.
+#
+# Rust branch coverage is nightly-only, so everything runs in a disposable
+# container derived from the pinned Rust image; the host toolchain is never
+# touched and production keeps building on stable (scripts/verify is stable-only
+# and does not call this). The derived image, built once, only adds the pinned
+# nightly and cargo-llvm-cov. The sibling rules core is mounted beside the repo
+# because the engine reaches it by path.
+#
+# usage: scripts/check-branch-coverage
+# output: target/coverage/branch-coverage.json and the module table on stdout
+set -euo pipefail
+
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+SIBLING="$(cd "$REPO_ROOT/../battle-snake-rust" && pwd)"
+BASE_IMAGE="rust:1.98.1-slim-bookworm@sha256:ebd900bae66fd508b466cef82d64a83a5fb34682e4c8b2797a42908bddc95a57"
+NIGHTLY="nightly-2026-09-18"
+LLVM_COV="0.8.7"
+IMAGE="tiger-engine-coverage:${NIGHTLY}-llvm-cov-${LLVM_COV}"
+OUTPUT_DIR="$REPO_ROOT/target/coverage"
+REPORT="$OUTPUT_DIR/branch-coverage.json"
+
+mkdir -p "$OUTPUT_DIR"
+
+if ! docker image inspect "$IMAGE" >/dev/null 2>&1; then
+    echo "==> building $IMAGE (once)"
+    docker build -t "$IMAGE" - <<DOCKERFILE
+FROM $BASE_IMAGE
+RUN rustup toolchain install $NIGHTLY --profile minimal --component llvm-tools-preview \
+ && cargo install cargo-llvm-cov --version $LLVM_COV --locked
+DOCKERFILE
+fi
+
+echo "==> instrumenting branch coverage in a disposable container"
+docker run --rm \
+    -v "$REPO_ROOT:/workspace/battle-snake-engine:ro" \
+    -v "$SIBLING:/workspace/battle-snake-rust:ro" \
+    -v "$OUTPUT_DIR:/output" \
+    -w /workspace/battle-snake-engine \
+    -e CARGO_TARGET_DIR=/tmp/target \
+    "$IMAGE" \
+    bash -c "cargo +$NIGHTLY llvm-cov --branch --locked --json --output-path /output/branch-coverage.json \
+        && chown -R $(id -u):$(id -g) /output"
+
+echo "==> applying the 90% branch gate to $REPORT"
+COVERAGE_REPORT_PATH="$REPORT" cargo test --locked --test coverage_gate \
+    -- --ignored --exact --nocapture the_real_engine_report_meets_the_branch_threshold
