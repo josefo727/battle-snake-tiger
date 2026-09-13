@@ -987,7 +987,7 @@ Note: the derived image `tiger-engine-coverage:nightly-2026-09-18-llvm-cov-0.8.7
 ```yaml
 id: T030
 status: closed
-commits: { reconstructed: pending }
+commits: { reconstructed: 7fcd79b8ae751ee6368d5877c2928c8c8508c1aa }
 source-commits: { red: aab573b, green: 57141c2, refactor: 299c337 }
 spec-ref: spec.md §Acceptance criteria 4
 contract-ref: n/a
@@ -1019,8 +1019,9 @@ Note: beyond the declared files, the harness pieces are covered by ten fast test
 
 ```yaml
 id: T031
-status: open
-commits: { red: null, green: null, refactor: null }
+status: closed
+commits: { reconstructed: pending }
+source-commits: { red: skipped, green: skipped, refactor: skipped }
 spec-ref: spec.md §Acceptance criteria 1 and 4
 contract-ref: n/a
 constitution-ref: Articles VI, XI, XIV
@@ -1038,13 +1039,16 @@ constitution-ref: Articles VI, XI, XIV
 
 **G - Green:** Implement keys, entries, replacement, and integration into the search.
 
-**F - Refactor:** Isolate probing and storing behind two functions.
+**F - Refactor:** Skipped - the ADR 0005 gate did not pass, so no table was built.
 
 **Files**
 
 - `engine/src/lookahead/memo.rs`
 - `engine/src/lookahead/minimax.rs`
 - `engine/tests/lookahead_memo.rs`
+
+Closed as skipped, per the task's own condition: T030 measured usable repeats of 2.72% of visited positions (depth-9 replay of all 200 suite positions) and 8.28% (depth-13 replay of 20 positions, the search's median depth being 12 and its maximum 15), both below the 15% gate; see `.specs/001-duel-search/evidence/profile.md`. The rate rises with depth, so the gate is worth re-measuring if a later change makes the search reach much deeper. No Zobrist keys, table or search changes were written. Traceability: spec.md criteria 1 and 4 are met without it; ADR 0005 stands as written.
+
 
 ## T032 - Measure deadline, latency, and depth on loopback
 
