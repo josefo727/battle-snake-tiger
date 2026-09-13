@@ -953,7 +953,7 @@ Note: beyond the plain forbidden-import list of the DoD, the architecture check 
 ```yaml
 id: T029
 status: closed
-commits: { reconstructed: pending }
+commits: { reconstructed: 4ad835b7f60d0db7322ada71ef0c175db97110d3 }
 source-commits: { red: e5a39df, green: 559d195, refactor: skipped }
 spec-ref: spec.md §Acceptance criteria 1 to 5
 contract-ref: n/a
@@ -986,8 +986,9 @@ Note: the derived image `tiger-engine-coverage:nightly-2026-09-18-llvm-cov-0.8.7
 
 ```yaml
 id: T030
-status: open
-commits: { red: null, green: null, refactor: null }
+status: closed
+commits: { reconstructed: pending }
+source-commits: { red: aab573b, green: 57141c2, refactor: 299c337 }
 spec-ref: spec.md §Acceptance criteria 4
 contract-ref: n/a
 constitution-ref: Articles XI, XIV
@@ -1003,13 +1004,16 @@ constitution-ref: Articles XI, XIV
 
 **G - Green:** Implement the measurements and evidence writer; run it for real.
 
-**F - Refactor:** Separate measurement from assertion.
+**F - Refactor:** Separated: `measure_profile` measures, `problems` and `render` (pure) judge and report, and the ignored test composes them; two fast tests cover the pure parts.
 
 **Files**
 
 - `engine/tests/profile.rs`
 - `scripts/run-profile`
 - `.specs/001-duel-search/evidence/profile.md`
+
+Note: beyond the declared files, the harness pieces are covered by ten fast tests (suite, key, repeat counter, gate, traced search equal to the real search, throughput bookkeeping, depth summary) plus two for problems/render; the evidence commit is `d9c4dd7`. Results (release, 2026-09-18): kernel 52.9 ns/advance vs 139.5 ns for the reused resolver (2.6x); median completed depth 12 (max 15) at 2.93 million nodes/s; usable repeats 2.72% (depth-9 replay, 200 positions) and 8.28% (depth-13 replay, 20 positions), both below the 15% gate, so T031 closes as skipped. Harness additions: `scripts/run-profile` prints the environment identity; `PROFILE_REPEAT_DEPTH_CAP` and `PROFILE_REPEAT_STRIDE` allow the sensitivity run. Finding worth carrying to T036: the search node costs about 340 ns, dominated by the valuation pipeline, not the transition.
+
 
 ## T031 - Memoize positions with a transposition table
 

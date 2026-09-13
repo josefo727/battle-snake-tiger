@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+# Runs the profiling harness (engine/tests/profile.rs) in release mode and prints
+# the environment identity followed by the harness's report, so the evidence file
+# can quote both. Takes a few minutes; run it with the machine otherwise idle.
+#
+# usage: scripts/run-profile
+# output: stdout, and target/profile/report.txt
+set -euo pipefail
+
+cd "$(dirname "${BASH_SOURCE[0]}")/.."
+mkdir -p target/profile
+REPORT=target/profile/report.txt
+
+COMMAND="cargo test --release --locked --test profile -- --ignored --nocapture --exact profile_the_search_core"
+
+{
+    echo "=== environment ==="
+    echo "commit: $(git rev-parse HEAD)$(git diff --quiet HEAD -- . 2>/dev/null || echo ' (with uncommitted changes)')"
+    echo "rustc: $(rustc --version)"
+    echo "cpu: $(grep -m1 'model name' /proc/cpuinfo | cut -d: -f2- | sed 's/^ //')"
+    echo "logical_cores: $(nproc)"
+    echo "kernel: $(uname -srm)"
+    echo "memory: $(free -h | awk '/^Mem:/ {print $2}')"
+    echo "load_average_1_5_15: $(cut -d' ' -f1-3 /proc/loadavg)"
+    echo "command: $COMMAND"
+    echo "run_date_utc: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    echo "=== end environment ==="
+    $COMMAND 2>&1 | grep -v -E '^(running|test |test result|$)|Finished|Running|Compiling'
+} | tee "$REPORT"
