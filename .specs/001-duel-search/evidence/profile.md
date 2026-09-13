@@ -66,7 +66,7 @@ The gate needs at least 15% of visited positions to be repeats a table could ans
 
 - The kernel's transition is only 2.6x faster than the reused, allocating resolver (52.9 against 139.5 ns), not the order of magnitude the plan hoped for; the by-value `DuelBoard` copy (two 128-slot rings) is the probable cost. A search node costs about 340 ns in total (2.93 million per second) including move ordering and the valuation pipeline, so the pipeline, not the transition, dominates. Any speed-up effort should profile the assessors first.
 - 18 of 200 positions were solved early (a proven win or loss); one position completed only depth 1 (a forced, near-terminal position).
-- The slowest decision took 370.3 ms of the 370 ms allowance: an iteration begun before 40% of the allowance is cut off at the deadline, so nearly every decision spends the whole allowance.
+- The slowest decision took 370.3 ms of the 370 ms allowance: an iteration begun before 40% of the allowance is cut off at the deadline. (Correction, recorded with the T032 latency run: this does not make every decision use the whole allowance. When an iteration completes after the 40% mark the search ends there, so the median decision takes about 225-250 ms and the 95th percentile about 370 ms; see `latency.md`.)
 
 ## Limits of this evidence
 

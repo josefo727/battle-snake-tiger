@@ -5,6 +5,8 @@
 pub mod beacon;
 pub mod clock;
 pub mod schema;
+pub mod server;
+pub mod suite;
 
 use proptest::prelude::*;
 use serde_json::{Value, json};
@@ -111,21 +113,21 @@ fn snake_from_body(id: usize, body: &[(i32, i32)], health: i32) -> Value {
     })
 }
 
-/// A request for explicit head-first bodies and health values (Standard v1.2.3,
-/// 500 ms timeout, turn 0).
-pub fn request_from_bodies(
+/// The JSON value of a request for explicit head-first bodies and health values
+/// (Standard v1.2.3, 500 ms timeout, turn 0).
+pub fn request_value_from_bodies(
     bodies: &[&[(i32, i32)]],
     health: &[i32],
     you: usize,
     food: &[(i32, i32)],
-) -> TurnRequestDto {
+) -> Value {
     let snakes: Vec<Value> = bodies
         .iter()
         .enumerate()
         .map(|(i, body)| snake_from_body(i, body, health[i]))
         .collect();
     let food: Vec<Value> = food.iter().map(|&(x, y)| coordinate(x, y)).collect();
-    let request = json!({
+    json!({
         "game": {
             "id": "test-game",
             "ruleset": { "name": "standard", "version": "v1.2.3", "settings": {} },
@@ -136,8 +138,18 @@ pub fn request_from_bodies(
         "turn": 0,
         "board": { "height": 11, "width": 11, "food": food, "hazards": [], "snakes": snakes },
         "you": snake_from_body(you, bodies[you], health[you])
-    });
-    serde_json::from_value(request).expect("the test request must deserialize")
+    })
+}
+
+/// A request for explicit head-first bodies and health values.
+pub fn request_from_bodies(
+    bodies: &[&[(i32, i32)]],
+    health: &[i32],
+    you: usize,
+    food: &[(i32, i32)],
+) -> TurnRequestDto {
+    serde_json::from_value(request_value_from_bodies(bodies, health, you, food))
+        .expect("the test request must deserialize")
 }
 
 /// The reused `TurnState` for explicit head-first bodies and health values.
@@ -311,4 +323,13 @@ pub fn realize(spec: &StateSpec) -> TurnState {
     } else {
         turn_state_from_bodies(&[&first, &second], &health, 0, &food)
     }
+}
+
+/// A number from the environment, or `default` when it is unset or unparsable;
+/// the heavy harnesses use it for their workload overrides.
+pub fn env_number<T: std::str::FromStr>(name: &str, default: T) -> T {
+    std::env::var(name)
+        .ok()
+        .and_then(|value| value.parse().ok())
+        .unwrap_or(default)
 }

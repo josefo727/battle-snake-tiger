@@ -1,0 +1,60 @@
+#!/usr/bin/env bash
+# Runs the release-mode loopback latency and depth harness
+# (engine/tests/latency.rs::worst_case_duels_meet_the_p99_deadline_on_loopback)
+# and writes a versioned evidence record with the exact command and environment
+# identity. A failing gate still writes the record (and exits non-zero).
+#
+# usage: scripts/run-latency
+#   LATENCY_WARMUP / LATENCY_REQUESTS / LATENCY_SEQUENTIAL shrink the workload for
+#   a smoke run (defaults: 1000 / 20000 / 300); EVIDENCE_PATH redirects the record
+#   (use it for smoke runs so the real evidence is not overwritten).
+set -uo pipefail
+
+cd "$(dirname "${BASH_SOURCE[0]}")/.."
+
+EVIDENCE_PATH="${EVIDENCE_PATH:-.specs/001-duel-search/evidence/latency.md}"
+TEST=worst_case_duels_meet_the_p99_deadline_on_loopback
+COMMAND=(cargo test --release --locked --test latency -- --ignored --nocapture --exact "$TEST")
+
+commit="$(git rev-parse HEAD)"
+dirty=""
+git diff --quiet HEAD -- . 2>/dev/null || dirty=" (with uncommitted changes)"
+
+echo "==> ${COMMAND[*]}"
+output="$("${COMMAND[@]}" 2>&1)"
+status=$?
+printf '%s\n' "$output"
+
+report="$(printf '%s\n' "$output" | sed -n '/=== latency report ===/,/=== end latency report ===/p')"
+workload="warmup ${LATENCY_WARMUP:-1000}, concurrent ${LATENCY_REQUESTS:-20000}, sequential ${LATENCY_SEQUENTIAL:-300}"
+
+{
+    echo "# Evidence: loopback deadline, latency and depth (T032)"
+    echo
+    echo "## Environment identity"
+    echo
+    echo "- Commit: \`$commit\`$dirty"
+    echo "- Toolchain: \`$(rustc --version)\`, release profile"
+    echo "- CPU: \`$(grep -m1 'model name' /proc/cpuinfo | cut -d: -f2- | sed 's/^ //')\`, $(nproc) logical cores"
+    echo "- Kernel: \`$(uname -srm)\`"
+    echo "- Memory: \`$(free -h | awk '/^Mem:/ {print $2}')\`"
+    echo "- Load average (1/5/15 min) at the end of the run: \`$(cut -d' ' -f1-3 /proc/loadavg)\`"
+    echo "- Workload: $workload"
+    echo "- Exact command: \`${COMMAND[*]}\`"
+    echo "- Run date (UTC): \`$(date -u +%Y-%m-%dT%H:%M:%SZ)\`"
+    echo
+    echo "## Result"
+    echo
+    echo '```text'
+    echo "$report"
+    echo '```'
+    echo
+    if [ "$status" -eq 0 ]; then
+        echo "Gate: PASSED (p99 at or under declared_timeout - 120 ms, zero invalid moves, every duel decision searched to depth 2 or more, one decision event per request)."
+    else
+        echo "Gate: FAILED. The harness output above names the broken condition."
+    fi
+} > "$EVIDENCE_PATH"
+
+echo "==> evidence recorded at $EVIDENCE_PATH"
+exit "$status"

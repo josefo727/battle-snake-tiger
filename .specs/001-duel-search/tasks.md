@@ -1020,7 +1020,7 @@ Note: beyond the declared files, the harness pieces are covered by ten fast test
 ```yaml
 id: T031
 status: closed
-commits: { reconstructed: pending }
+commits: { reconstructed: 8f64840a73cab6f5ae7a63f61898811d622eed88 }
 source-commits: { red: skipped, green: skipped, refactor: skipped }
 spec-ref: spec.md §Acceptance criteria 1 and 4
 contract-ref: n/a
@@ -1054,8 +1054,9 @@ Closed as skipped, per the task's own condition: T030 measured usable repeats of
 
 ```yaml
 id: T032
-status: open
-commits: { red: null, green: null, refactor: null }
+status: closed
+commits: { reconstructed: pending }
+source-commits: { red: c0dde7b, green: fc909dd, refactor: c44dc98 }
 spec-ref: spec.md §Acceptance criteria 2 and 4
 contract-ref: contracts/openapi.yaml
 constitution-ref: Articles VII, XI, XII, XIV
@@ -1073,13 +1074,16 @@ constitution-ref: Articles VII, XI, XII, XIV
 
 **G - Green:** Implement the sampler, percentile calculation, and report command; run it for real.
 
-**F - Refactor:** Separate measurement from assertion.
+**F - Refactor:** Shared `env_number` in support for both heavy harnesses; measurement was already separate from assertion (`measure_phase` / `render` / `problems` / the ignored test that composes them).
 
 **Files**
 
 - `engine/tests/latency.rs`
 - `scripts/run-latency`
 - `.specs/001-duel-search/evidence/latency.md`
+
+Note: beyond the declared files, `support/server.rs` (the release-binary subprocess helper, extracted from the process smoke test), `support/suite.rs` (the midgame suite moved out of profile.rs, plus request-JSON builders), and `scripts/run-latency` writing the evidence record with environment identity. Evidence commit `57ea920`. Real result on the full run (release binary, 1,000 warmups, 20,000 requests at concurrency 16 on 16 worst-case duels, 300 sequential): 20,000/20,000 answered 200 with a valid move; p50 225.5 ms, p95 370.4 ms, p99 371.2 ms, max 377.5 ms against the 380 ms deadline; zero cutoffs; completed depth 8 to 13 (median 11; sequential median 12); gate PASSED. Worst-case bodies are sixteen suite positions that six plies cannot settle (a first smoke run showed positions solved at depth 1 ending early and failing the literal depth-2 gate). The sequential phase is 300 requests (each duel spends up to its whole allowance) instead of a larger figure. The p99 leaves 8.8 ms of headroom and the max only 2.5 ms: the 10 ms tail margin held under CPU saturation (16 request threads on 8 physical cores), but it is not generous.
+
 
 ## T033 - Drive the engine with the official rules CLI
 

@@ -10,175 +10,24 @@ use std::collections::HashMap;
 use std::hint::black_box;
 use std::time::Instant;
 
-use tiger_engine::arena::cellset::{Cell, CellSet};
+use tiger_engine::arena::cellset::Cell;
 use tiger_engine::arena::duel::{Advance, DuelBoard, Side};
 use tiger_engine::arena::heading::Heading;
 use tiger_engine::arena::ingest::direction_of;
-use tiger_engine::arena::serpent::Serpent;
 use tiger_engine::lookahead::ordering::{HeadingOrder, LearnedOrder};
 use tiger_engine::rules_core::{JointMoves, TurnState, resolve_turn};
 use tiger_engine::valuation::StandardPipeline;
 use tiger_engine::valuation::finish::Finish;
 use tiger_engine::valuation::weights::DEFAULT_PROFILE;
 
-use support::turn_state_from_bodies;
+use support::env_number;
+use support::suite::{SUITE_SEED, SUITE_SIZE, board_to_state, generate_suite};
 
-const SUITE_SIZE: usize = 200;
-const SUITE_SEED: u64 = 0x5EED_2026_0918;
 /// Share of visited positions, in percent, at which a transposition table is
 /// worth building (ADR 0005, plan.md evidence gate).
 const REPEAT_GATE_PERCENT: u64 = 15;
 
 type Key = Vec<u8>;
-
-// ---- the suite -----------------------------------------------------------------------
-
-/// splitmix64: the same generator the plan names for Zobrist keys, here for a
-/// reproducible suite.
-struct SplitMix(u64);
-
-impl SplitMix {
-    fn next(&mut self) -> u64 {
-        self.0 = self.0.wrapping_add(0x9E37_79B9_7F4A_7C15);
-        let mut z = self.0;
-        z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
-        z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
-        z ^ (z >> 31)
-    }
-
-    fn below(&mut self, bound: u64) -> u64 {
-        self.next() % bound
-    }
-
-    fn chance(&mut self, percent: u64) -> bool {
-        self.below(100) < percent
-    }
-}
-
-const START_CELLS: [(u8, u8); 8] = [
-    (1, 1),
-    (1, 5),
-    (1, 9),
-    (5, 1),
-    (5, 9),
-    (9, 1),
-    (9, 5),
-    (9, 9),
-];
-const OPENING_PELLETS: usize = 14;
-/// How often a snake steers toward the nearest pellet instead of wandering.
-const GREEDY_PERCENT: u64 = 60;
-
-fn cell(x: u8, y: u8) -> Cell {
-    Cell::from_xy(x, y).expect("on the board")
-}
-
-/// Two coiled snakes on distinct start cells with pellets scattered around.
-fn opening(rng: &mut SplitMix) -> DuelBoard {
-    let ours = START_CELLS[rng.below(8) as usize];
-    let theirs = loop {
-        let candidate = START_CELLS[rng.below(8) as usize];
-        if candidate != ours {
-            break candidate;
-        }
-    };
-    let coiled = |(x, y): (u8, u8)| {
-        let c = cell(x, y);
-        Serpent::new(&[c, c, c], 100).expect("a coiled start")
-    };
-    let mut pellets = CellSet::EMPTY;
-    while (pellets.len() as usize) < OPENING_PELLETS {
-        let c = cell(rng.below(11) as u8, rng.below(11) as u8);
-        if c != cell(ours.0, ours.1) && c != cell(theirs.0, theirs.1) {
-            pellets = pellets.with(c);
-        }
-    }
-    DuelBoard::try_new(coiled(ours), coiled(theirs), pellets).expect("a legal opening")
-}
-
-/// The four headings for `side`, the one nearest the closest pellet first with
-/// probability `GREEDY_PERCENT`, the rest in random order.
-fn heading_order(rng: &mut SplitMix, board: &DuelBoard, side: Side) -> [Heading; 4] {
-    let mut order = Heading::ALL;
-    for i in (1..4).rev() {
-        order.swap(i, rng.below(i as u64 + 1) as usize);
-    }
-    let head = board.serpent(side).head();
-    let nearest = board
-        .pellets()
-        .iter()
-        .min_by_key(|p| u32::from(p.x().abs_diff(head.x()) + p.y().abs_diff(head.y())));
-    if let Some(target) = nearest
-        && rng.chance(GREEDY_PERCENT)
-    {
-        let gap = |h: &Heading| {
-            h.step(head).map_or(u32::MAX, |c| {
-                u32::from(c.x().abs_diff(target.x()) + c.y().abs_diff(target.y()))
-            })
-        };
-        order.sort_by_key(gap);
-    }
-    order
-}
-
-/// One ply of play in which both snakes survive, or `None` when no such joint
-/// move exists.
-fn step(rng: &mut SplitMix, board: &DuelBoard) -> Option<DuelBoard> {
-    let ours = heading_order(rng, board, Side::Us);
-    let theirs = heading_order(rng, board, Side::Them);
-    ours.iter().find_map(|&us| {
-        theirs
-            .iter()
-            .find_map(|&them| match board.advance(us, them) {
-                Advance::Continues(next) => Some(next),
-                Advance::Over(_) => None,
-            })
-    })
-}
-
-fn play_to_midgame(rng: &mut SplitMix) -> Option<DuelBoard> {
-    let target = 20 + rng.below(26);
-    let mut board = opening(rng);
-    for _ in 0..target {
-        board = step(rng, &board)?;
-    }
-    Some(board)
-}
-
-/// 200 midgame duels, reproducible for a seed, played by two greedy-or-wandering
-/// snakes that never walk into certain death.
-fn generate_suite(seed: u64) -> Vec<DuelBoard> {
-    let mut rng = SplitMix(seed);
-    let mut suite = Vec::with_capacity(SUITE_SIZE);
-    while suite.len() < SUITE_SIZE {
-        if let Some(board) = play_to_midgame(&mut rng) {
-            suite.push(board);
-        }
-    }
-    suite
-}
-
-/// The reference model's state for a kernel position, our snake first.
-fn board_to_state(board: &DuelBoard) -> TurnState {
-    let body = |side| -> Vec<(i32, i32)> {
-        board
-            .serpent(side)
-            .body()
-            .map(|c| (i32::from(c.x()), i32::from(c.y())))
-            .collect()
-    };
-    let (us, them) = (body(Side::Us), body(Side::Them));
-    let health = [
-        i32::from(board.serpent(Side::Us).vigor()),
-        i32::from(board.serpent(Side::Them).vigor()),
-    ];
-    let food: Vec<(i32, i32)> = board
-        .pellets()
-        .iter()
-        .map(|c| (i32::from(c.x()), i32::from(c.y())))
-        .collect();
-    turn_state_from_bodies(&[&us, &them], &health, 0, &food)
-}
 
 // ---- repeat counting ------------------------------------------------------------------
 
@@ -656,13 +505,6 @@ fn depth_summaries_report_min_median_and_max() {
 const DEFAULT_REPEAT_DEPTH_CAP: u16 = 9;
 const DEFAULT_REPEAT_STRIDE: usize = 1;
 const THROUGHPUT_ROUNDS: u32 = 200;
-
-fn env_number<T: std::str::FromStr>(name: &str, default: T) -> T {
-    std::env::var(name)
-        .ok()
-        .and_then(|v| v.parse().ok())
-        .unwrap_or(default)
-}
 
 fn percent(part: u64, whole: u64) -> f64 {
     if whole == 0 {
