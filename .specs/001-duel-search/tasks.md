@@ -1090,7 +1090,7 @@ Note: beyond the declared files, `support/server.rs` (the release-binary subproc
 ```yaml
 id: T033
 status: closed
-commits: { reconstructed: pending }
+commits: { reconstructed: fc13af235ba8ffaa9ce865db546c90c87ef5af0e }
 source-commits: { red: d20f6c6, green: 74a5c64, refactor: skipped }
 spec-ref: spec.md §Acceptance criteria 1 and 5
 contract-ref: n/a
@@ -1124,8 +1124,9 @@ Note: beyond the declared files, `scripts/run-endtoend` (fetch if missing, build
 
 ```yaml
 id: T034
-status: open
-commits: { red: null, green: null, refactor: null }
+status: closed
+commits: { reconstructed: pending }
+source-commits: { red: ed95ef5, green: 4624d5a, refactor: skipped }
 spec-ref: spec.md §Acceptance criteria 8
 contract-ref: contracts/sparring-report.schema.json
 constitution-ref: Articles XIV
@@ -1142,7 +1143,7 @@ constitution-ref: Articles XIV
 
 **G - Green:** Implement win rate and the Wilson interval.
 
-**F - Refactor:** Skipped unless formulas are duplicated.
+**F - Refactor:** Skipped - the Wilson formula appears once and `win_rate` is a one-line division; nothing is duplicated.
 
 **Files**
 
@@ -1151,6 +1152,9 @@ constitution-ref: Articles XIV
 - `sparring/src/lib.rs`
 - `sparring/src/statistics.rs`
 - `sparring/tests/statistics.rs`
+
+Note: beyond the declared files, `Cargo.lock` gained the new package (no new external crates) and a `WinsExceedGames` error was added to the statistics API, with its test. The rate's denominator is every game played (draws included), so a draw counts as neither a win nor a loss in the numerator and is reported separately; the interval is on wins over all games. `scripts/verify` passes all five stages with the new member.
+
 
 ## T035 - Run and parse official-CLI games
 

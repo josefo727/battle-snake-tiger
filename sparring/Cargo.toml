@@ -1,0 +1,17 @@
+[package]
+name = "tiger-sparring"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.98.1"
+publish = false
+description = "Offline sparring benchmark for tiger-engine: seeded games, win rates, versioned reports."
+
+[lib]
+name = "tiger_sparring"
+path = "src/lib.rs"
+
+[dev-dependencies]
+proptest = "=1.11.0"
+
+[lints]
+workspace = true
