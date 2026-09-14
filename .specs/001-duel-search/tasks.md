@@ -1263,7 +1263,7 @@ Note: beyond the declared files, `sparring/src/{benchmark,launcher,options}.rs`,
 ```yaml
 id: T038
 status: closed
-commits: { reconstructed: pending }
+commits: { reconstructed: 51bf19456a11ebbcb852eedd2de0d100e875a4eb }
 source-commits: { red: skipped, green: skipped, refactor: skipped }
 spec-ref: spec.md §Acceptance criteria 8
 contract-ref: contracts/sparring-report.schema.json
@@ -1296,8 +1296,9 @@ Closed as not needed by the user's decision (2026-09-18): the first real sparrin
 
 ```yaml
 id: T039
-status: open
-commits: { red: null, green: null, refactor: null }
+status: closed
+commits: { reconstructed: pending }
+source-commits: { red: 5ca87eb, green: 8d6b28a, refactor: skipped }
 spec-ref: spec.md §Acceptance criteria 2 and 6
 contract-ref: n/a
 constitution-ref: Articles XIII
@@ -1314,13 +1315,16 @@ constitution-ref: Articles XIII
 
 **G - Green:** Add the Dockerfile and smoke script; run them for real.
 
-**F - Refactor:** Skipped unless the smoke script duplicates a helper.
+**F - Refactor:** Skipped - the smoke script's only helpers (`snake`, `request`, `post`) are each used and not shared with another script.
 
 **Files**
 
 - `Dockerfile`
 - `.dockerignore`
 - `scripts/container-smoke`
+
+Note: beyond the declared files, `engine/tests/packaging.rs` checks the Dockerfile and .dockerignore against the promises (digests equal the sibling's, only the engine binary, non-root, no opponent or rules CLI in the build context). The image is built with `docker build --build-context sibling=../rules-core` because the engine reaches the sibling rules core by path. Real smoke run: image 29,190,130 bytes; only tiger-engine in /usr/local/bin; no opponent, rules CLI, baseline or sparring binary anywhere in it; uid 10001, read-only root filesystem; GET / exact identity with application/json; /start and /end give {}; a duel and a melee each get a move; a duel searched to depth 11 inside the container. A follow-up fix (`be548ad`) hardened the sparring launcher against a self-connection false positive that made one full-suite run fail.
+
 
 ## Coverage matrix
 

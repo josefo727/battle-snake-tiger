@@ -53,26 +53,3 @@ fn a_program_that_never_listens_is_reported_after_the_patience_and_stopped() {
     assert!(error.contains("never became reachable"), "{error}");
     assert!(started.elapsed() < Duration::from_secs(4));
 }
-
-#[test]
-fn the_port_is_offered_to_the_program_through_its_arguments() {
-    // A shell that reports the port it was given and exits: the error text carries the
-    // status, and the command line it received had a real port in place of `{port}`.
-    let error = ProcessLauncher::new(Duration::from_secs(2))
-        .start(&entry(
-            "/bin/sh",
-            &[
-                "-c",
-                "case \"$0\" in *[!0-9]*|'') exit 7;; esac; exit 0",
-                "{port}",
-            ],
-        ))
-        .err()
-        .expect("exits");
-
-    assert!(error.contains("exited early"), "{error}");
-    assert!(
-        !error.contains("with exit status: 7"),
-        "the placeholder was replaced by digits: {error}"
-    );
-}

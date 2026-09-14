@@ -1,0 +1,11 @@
+# Nothing outside the engine's sources belongs in the build context: no build output, no
+# opponent or rules CLI (both live under reference/ and .rules-oracle/), no history, no docs.
+target
+**/target
+reference
+.rules-oracle
+.git
+.specs
+.claude
+PROVENANCE.md
+scripts

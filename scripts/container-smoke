@@ -1,0 +1,80 @@
+#!/usr/bin/env bash
+# Builds the digest-pinned image, runs it read-only as its non-root user and checks what
+# spec criteria 2 and 6 promise: the four routes (including the exact identity body), a
+# duel decided by the search, a melee served by the safety fallback, a hostile filesystem
+# (read-only, no writes) and an image with nothing in it but the engine (no opponent, no
+# rules CLI). The sibling rules core is a named build context because the engine reaches it
+# by path outside this repository.
+#
+# usage: scripts/container-smoke        (SIBLING_DIR overrides ../battle-snake-rust,
+#                                        SMOKE_PORT the host port, default 18081)
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+SIBLING="${SIBLING_DIR:-$ROOT/../battle-snake-rust}"
+IMAGE="tiger-engine:smoke"
+NAME="tiger-engine-smoke"
+PORT="${SMOKE_PORT:-18081}"
+IDENTITY='{"apiversion":"1","author":"josefo727","color":"#00D5FF","head":"tiger-king","tail":"tiger-tail","version":"0.1.0"}'
+
+fail() { echo "container-smoke: FAILED: $*" >&2; exit 1; }
+cleanup() { docker rm --force "$NAME" >/dev/null 2>&1 || true; }
+trap cleanup EXIT
+
+snake() { # id name x y
+    printf '{"id":"%s","name":"%s","health":90,"body":[{"x":%s,"y":%s},{"x":%s,"y":%s},{"x":%s,"y":%s}],"latency":"0","head":{"x":%s,"y":%s},"length":3,"shout":"","customizations":{"color":"#000000","head":"default","tail":"default"}}' \
+        "$1" "$2" "$3" "$4" "$3" "$(($4 - 1))" "$3" "$(($4 - 2))" "$3" "$4"
+}
+request() { # you-json other-snakes-json
+    printf '{"game":{"id":"smoke","ruleset":{"name":"standard","version":"v1.2.3","settings":{"foodSpawnChance":15,"minimumFood":1,"hazardDamagePerTurn":0}},"map":"standard","timeout":500,"source":"smoke"},"turn":3,"board":{"height":11,"width":11,"food":[{"x":8,"y":8}],"hazards":[],"snakes":[%s%s]},"you":%s}' \
+        "$1" "$2" "$1"
+}
+YOU="$(snake you you 5 5)"
+DUEL="$(request "$YOU" ",$(snake other other 2 2)")"
+MELEE="$(request "$YOU" ",$(snake a a 2 2),$(snake b b 8 3)")"
+
+echo "==> building $IMAGE"
+docker build --platform linux/amd64 --build-context "sibling=$SIBLING" --tag "$IMAGE" "$ROOT" >/dev/null 2>&1 \
+    || fail "the image did not build (run docker build by hand to see why)"
+
+echo "==> what is in the image"
+[ "$(docker run --rm --entrypoint sh "$IMAGE" -c 'ls /usr/local/bin')" = "tiger-engine" ] \
+    || fail "/usr/local/bin holds more than the engine"
+found="$(docker run --rm --entrypoint sh "$IMAGE" -c \
+    "find / -xdev -type f \( -name battlesnake -o -name 'shapeshifter*' -o -name snork -o -name battle-snake-rust -o -name server -o -name spar \) 2>/dev/null || true")"
+[ -z "$found" ] || fail "an opponent, the rules CLI or the sparring tool is inside the image: $found"
+
+echo "==> running read-only"
+docker run --detach --name "$NAME" --platform linux/amd64 --read-only --publish "$PORT:8080" "$IMAGE" >/dev/null
+base="http://127.0.0.1:$PORT"
+for _ in $(seq 1 60); do
+    curl --silent --fail "$base/" >/dev/null 2>&1 && break
+    sleep 0.25
+done
+
+[ "$(docker exec "$NAME" id -u 2>/dev/null || docker run --rm --entrypoint id "$IMAGE" -u)" != "0" ] \
+    || fail "the process runs as root"
+if docker exec "$NAME" sh -c 'touch /probe' >/dev/null 2>&1; then fail "the root filesystem is writable"; fi
+
+echo "==> the four routes"
+[ "$(curl --silent --fail "$base/")" = "$IDENTITY" ] || fail "GET / is not the exact identity"
+content_type="$(curl --silent --head "$base/" | tr -d '\r' | awk -F': ' 'tolower($1)=="content-type" {print $2}')"
+[ "$content_type" = "application/json" ] || fail "GET / content type is '$content_type'"
+post() { curl --silent --fail --header 'content-type: application/json' --data "$2" "$base$1"; }
+[ "$(post /start "$DUEL")" = "{}" ] || fail "POST /start is not {}"
+[ "$(post /end "$DUEL")" = "{}" ] || fail "POST /end is not {}"
+duel_answer="$(post /move "$DUEL")"
+echo "$duel_answer" | grep -Eq '^\{"move":"(up|right|down|left)"\}$' || fail "the duel answer is not one move: $duel_answer"
+melee_answer="$(post /move "$MELEE")"
+echo "$melee_answer" | grep -Eq '^\{"move":"(up|right|down|left)"\}$' || fail "the melee answer is not one move: $melee_answer"
+[ "$(curl --silent --output /dev/null --write-out '%{http_code}' --header 'content-type: application/json' --data '{broken' "$base/move")" = "400" ] \
+    || fail "malformed JSON is not a 400"
+
+echo "==> the decisions in the log"
+logs="$(docker logs "$NAME" 2>&1)"
+echo "$logs" | grep -q 'engine_path\\":\\"duel_search' || fail "the duel was not decided by the search"
+echo "$logs" | grep -q 'engine_path\\":\\"safety_fallback' || fail "the melee was not served by the safety fallback"
+depth="$(echo "$logs" | grep 'duel_search' | grep -o 'search_depth\\":[0-9]*' | head -1 | grep -o '[0-9]*$')"
+[ "${depth:-0}" -ge 2 ] || fail "the duel search completed only depth ${depth:-0}"
+
+echo "container-smoke: all checks passed (duel depth $depth, image $(docker image inspect "$IMAGE" --format '{{.Size}}') bytes)"

@@ -53,7 +53,9 @@ impl Launcher for ProcessLauncher {
         let address = SocketAddr::from(([127, 0, 0, 1], port));
         let deadline = Instant::now() + self.patience;
         loop {
-            if TcpStream::connect_timeout(&address, Duration::from_millis(200)).is_ok() {
+            if TcpStream::connect_timeout(&address, Duration::from_millis(200))
+                .is_ok_and(|stream| !is_self_connection(&stream))
+            {
                 return Ok(RunningServer::new(
                     format!("http://{address}"),
                     Box::new(guard),
@@ -71,4 +73,10 @@ impl Launcher for ProcessLauncher {
             thread::sleep(Duration::from_millis(50));
         }
     }
+}
+
+/// Connecting to a closed port in the ephemeral range can, now and then, connect the socket to
+/// itself (its own source port equals the destination port); that is not a server answering.
+fn is_self_connection(stream: &TcpStream) -> bool {
+    stream.local_addr().ok() == stream.peer_addr().ok()
 }
