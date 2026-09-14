@@ -14,7 +14,7 @@ pub fn load_contract(name: &str) -> Value {
 }
 
 /// Validates `instance` against the JSON Schema subset the contracts use:
-/// `type`, `const`, `enum`, `minimum`, `minLength`, `required`, `properties` and
+/// `type`, `const`, `enum`, `minimum`, `minLength`, `maximum`, `minItems`, `maxItems`, `items`, `required`, `properties` and
 /// `additionalProperties: false`. A keyword outside the subset is an error, so a
 /// contract that grows cannot silently stop being checked.
 pub fn validate(schema: &Value, instance: &Value) -> Result<(), String> {
@@ -58,6 +58,35 @@ fn validate_at(schema: &Value, instance: &Value, at: &str) -> Result<(), String>
                     let floor = rule.as_f64().ok_or_else(|| format!("{at}: bad minimum"))?;
                     if number < floor {
                         return Err(format!("{at}: {number} is below the minimum {floor}"));
+                    }
+                }
+            }
+            "maximum" => {
+                if let Some(number) = instance.as_f64() {
+                    let ceiling = rule.as_f64().ok_or_else(|| format!("{at}: bad maximum"))?;
+                    if number > ceiling {
+                        return Err(format!("{at}: {number} is above the maximum {ceiling}"));
+                    }
+                }
+            }
+            "minItems" | "maxItems" => {
+                if let Some(items) = instance.as_array() {
+                    let bound = rule
+                        .as_u64()
+                        .ok_or_else(|| format!("{at}: bad {keyword}"))?;
+                    let count = items.len() as u64;
+                    if keyword == "minItems" && count < bound {
+                        return Err(format!("{at}: {count} items, at least {bound} required"));
+                    }
+                    if keyword == "maxItems" && count > bound {
+                        return Err(format!("{at}: {count} items, at most {bound} allowed"));
+                    }
+                }
+            }
+            "items" => {
+                if let Some(items) = instance.as_array() {
+                    for (index, item) in items.iter().enumerate() {
+                        validate_at(rule, item, &format!("{at}[{index}]"))?;
                     }
                 }
             }

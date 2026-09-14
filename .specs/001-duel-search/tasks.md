@@ -1161,7 +1161,7 @@ Note: beyond the declared files, `Cargo.lock` gained the new package (no new ext
 ```yaml
 id: T035
 status: closed
-commits: { reconstructed: pending }
+commits: { reconstructed: 08416cd94ea2e3d76d7fa7f7fc11752209bab042 }
 source-commits: { red: 4df7145, green: 0339e85, refactor: 1cb2d2d }
 spec-ref: spec.md §Acceptance criteria 8
 contract-ref: contracts/opponent-roster.yaml
@@ -1194,8 +1194,9 @@ Note: beyond the declared files, `sparring/tests/transcript.rs` covers the parse
 
 ```yaml
 id: T036
-status: open
-commits: { red: null, green: null, refactor: null }
+status: closed
+commits: { reconstructed: pending }
+source-commits: { red: 2c31ef3, green: a2233f6, refactor: skipped }
 spec-ref: spec.md §Acceptance criteria 8
 contract-ref: contracts/sparring-report.schema.json
 constitution-ref: Articles VII, XIV
@@ -1211,13 +1212,16 @@ constitution-ref: Articles VII, XIV
 
 **G - Green:** Implement the report assembly and file adapter.
 
-**F - Refactor:** Skipped unless assembly duplicates the statistics module.
+**F - Refactor:** Skipped - assembly calls `statistics::summarize` for the rate and interval instead of recomputing them; nothing is duplicated.
 
 **Files**
 
 - `sparring/src/ledger.rs`
 - `sparring/src/lib.rs`
 - `sparring/tests/ledger.rs`
+
+Note: beyond the declared files, `engine/tests/support/schema.rs` gained `maximum`, `minItems`, `maxItems` and `items` and is included by path from the sparring tests, so both crates validate against the same real contract files. The report has no timestamp (the schema's additionalProperties is false); the run date lives in the evidence record. `EnvironmentIdentity` is data only: T037 fills it from the machine. Refusing to overwrite uses `OpenOptions::create_new`, so there is no check-then-create window.
+
 
 ## T037 - Provision opponents and run the first sparring benchmark
 
