@@ -1125,7 +1125,7 @@ Note: beyond the declared files, `scripts/run-endtoend` (fetch if missing, build
 ```yaml
 id: T034
 status: closed
-commits: { reconstructed: pending }
+commits: { reconstructed: 73ec8681271e9b33530f672c2772d0d9d7d30bb6 }
 source-commits: { red: ed95ef5, green: 4624d5a, refactor: skipped }
 spec-ref: spec.md §Acceptance criteria 8
 contract-ref: contracts/sparring-report.schema.json
@@ -1160,8 +1160,9 @@ Note: beyond the declared files, `Cargo.lock` gained the new package (no new ext
 
 ```yaml
 id: T035
-status: open
-commits: { red: null, green: null, refactor: null }
+status: closed
+commits: { reconstructed: pending }
+source-commits: { red: 4df7145, green: 0339e85, refactor: 1cb2d2d }
 spec-ref: spec.md §Acceptance criteria 8
 contract-ref: contracts/opponent-roster.yaml
 constitution-ref: Articles VII, XIV
@@ -1177,7 +1178,7 @@ constitution-ref: Articles VII, XIV
 
 **G - Green:** Implement parsing, the adapter, and the liveness check.
 
-**F - Refactor:** Separate process spawning from parsing.
+**F - Refactor:** Extracted `OfficialCli::run_cli` (directory, stale-file removal, spawn, exit status, read); `play` is now `run_cli` then `parse_transcript`.
 
 **Files**
 
@@ -1185,6 +1186,9 @@ constitution-ref: Articles VII, XIV
 - `sparring/src/transcript.rs`
 - `sparring/src/lib.rs`
 - `sparring/tests/runner.rs`
+
+Note: beyond the declared files, `sparring/tests/transcript.rs` covers the parser and `serde_json` (already pinned) joined the crate. Design points: outcomes are taken from the challenger's side (`parse_transcript(text, challenger, opponent)`); a game's length is the number of board lines (the CLI's 'completed after N turns'); `run_series` checks both contestants alive before any game; the liveness probe is a small HTTP client in the crate (no HTTP dependency). Soaking the tests found two flakes that were fixed before the Green commit: a probe request sent in several writes (connection reset by the stub) and 'text file busy' when a fake-CLI script is executed while another thread forks (the fake-CLI tests now take turns). The real CLI is exercised by T033's ignored games; the real benchmark comes in T037.
+
 
 ## T036 - Persist versioned sparring reports
 
