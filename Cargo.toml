@@ -1,6 +1,8 @@
 [workspace]
 resolver = "3"
 members = ["engine", "sparring"]
+# Third-party opponents cloned or built by scripts/provision-opponents live here.
+exclude = ["reference"]
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

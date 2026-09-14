@@ -1195,7 +1195,7 @@ Note: beyond the declared files, `sparring/tests/transcript.rs` covers the parse
 ```yaml
 id: T036
 status: closed
-commits: { reconstructed: pending }
+commits: { reconstructed: aca0bd0fb60856837888a1c68c5df90f13404f21 }
 source-commits: { red: 2c31ef3, green: a2233f6, refactor: skipped }
 spec-ref: spec.md §Acceptance criteria 8
 contract-ref: contracts/sparring-report.schema.json
@@ -1227,8 +1227,9 @@ Note: beyond the declared files, `engine/tests/support/schema.rs` gained `maximu
 
 ```yaml
 id: T037
-status: open
-commits: { red: null, green: null, refactor: null }
+status: closed
+commits: { reconstructed: pending }
+source-commits: { red: 26f84fe, green: f76d01d, refactor: skipped }
 spec-ref: spec.md §Acceptance criteria 8
 contract-ref: contracts/opponent-roster.yaml
 constitution-ref: Articles VIII, XIV
@@ -1244,7 +1245,7 @@ constitution-ref: Articles VIII, XIV
 
 **G - Green:** Implement orchestration and provisioning; run the benchmark for real.
 
-**F - Refactor:** Separate roster loading from orchestration.
+**F - Refactor:** Skipped - roster loading (`roster.rs`) and orchestration (`benchmark.rs`) were separate modules from the start; the launcher, options and `main` add no coupling between them.
 
 **Files**
 
@@ -1253,6 +1254,9 @@ constitution-ref: Articles VIII, XIV
 - `scripts/provision-opponents`
 - `scripts/run-sparring`
 - `.specs/001-duel-search/evidence/sparring.md`
+
+Note: beyond the declared files, `sparring/src/{benchmark,launcher,options}.rs`, `sparring/tests/{roster,options,benchmark,launcher}.rs`, the workspace now excludes `reference/`, the roster contract is 1.1.0, PROVENANCE.md records the black-box use, and a test validates every committed sparring report. Two rosters: `reference/roster.json` (Shapeshifter default and Flood, the criterion's opponents) and `reference/roster-strong.json` (Shapeshifter with tt + parallel_search + mcts_fallback, the strongest configuration that builds; `prod` fails only because of `spl`). Real results (evidence commit 014f08b): 30 seeds, tiger 14/30 vs Shapeshifter default (Wilson [0.302, 0.639]) and 13/30 vs Flood ([0.274, 0.608]); the sibling baseline 0/60; criterion 8 MET. Strong Shapeshifter, 12 seeds: tiger 4/12 ([0.138, 0.609]). The baseline bar is low (it loses every game), the games ran in parallel on one machine, opponents were untuned and nothing was repeated; see evidence/sparring.md.
+
 
 ## T038 - Satisfy the sparring acceptance bar by measured iteration
 

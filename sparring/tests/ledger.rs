@@ -297,3 +297,21 @@ fn a_sink_is_usable_through_the_port() {
 
     assert_eq!(sink.write(&a_report()), Ok(()));
 }
+
+#[test]
+fn every_committed_sparring_report_validates_against_the_schema() {
+    let evidence =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../.specs/001-duel-search/evidence");
+    let mut checked = 0;
+    for entry in fs::read_dir(&evidence).expect("the evidence directory exists") {
+        let path = entry.unwrap().path();
+        let name = path.file_name().unwrap().to_string_lossy().into_owned();
+        if name.starts_with("sparring-report") && name.ends_with(".json") {
+            let report: Value = serde_json::from_str(&fs::read_to_string(&path).unwrap()).unwrap();
+
+            assert_eq!(schema::validate(&contract(), &report), Ok(()), "{name}");
+            checked += 1;
+        }
+    }
+    assert!(checked >= 1, "no committed sparring report to check");
+}

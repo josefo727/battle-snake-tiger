@@ -1,0 +1,83 @@
+#!/usr/bin/env bash
+# Builds everything a sparring run needs and writes reference/roster.json:
+#   - the engine and the sibling one-turn baseline (release builds),
+#   - Shapeshifter from the existing local checkout ../shapeshifter (or $SHAPESHIFTER_DIR) (two builds: the
+#     default features, and tt + parallel_search + mcts_fallback, the strongest
+#     configuration that compiles for the standard board; `prod` also enables `spl`, which
+#     does not build here). It is used as a black-box HTTP opponent only; build output goes
+#     to log files and is not read,
+#   - Flood (the `Flood` agent of wrenger/snork, MIT) cloned at a pinned commit into the
+#     ignored reference/ directory.
+# Nothing built here is committed, linked into the engine or shipped in its image.
+#
+# usage: scripts/provision-opponents
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+REF="$ROOT/reference"
+LOGS="$REF/logs"
+SHAPESHIFTER="${SHAPESHIFTER_DIR:-$ROOT/../shapeshifter}"
+BASELINE_SRC="$ROOT/../battle-snake-rust"
+SNORK_URL="https://github.com/wrenger/snork"
+SNORK_COMMIT="76bec0c9c76b31b209fbeb8e409bb3e4c9133eb2"
+
+mkdir -p "$LOGS"
+
+quietly() {
+    local name="$1"; shift
+    echo "==> $name"
+    if ! "$@" >"$LOGS/$name.log" 2>&1; then
+        echo "provision-opponents: $name failed; its output is in $LOGS/$name.log" >&2
+        exit 1
+    fi
+}
+
+quietly engine cargo build --release --locked --manifest-path "$ROOT/Cargo.toml" -p tiger-engine
+quietly baseline cargo build --release --locked --manifest-path "$BASELINE_SRC/Cargo.toml" --target-dir "$ROOT/target/baseline"
+
+if [ ! -d "$REF/snork/.git" ]; then
+    quietly snork-clone git clone "$SNORK_URL" "$REF/snork"
+fi
+quietly snork-checkout git -C "$REF/snork" checkout --detach "$SNORK_COMMIT"
+quietly snork-build cargo build --release --manifest-path "$REF/snork/Cargo.toml"
+
+quietly shapeshifter-default cargo build --release --locked \
+    --manifest-path "$SHAPESHIFTER/Cargo.toml" --target-dir "$REF/shapeshifter-default"
+quietly shapeshifter-full cargo build --release --locked \
+    --manifest-path "$SHAPESHIFTER/Cargo.toml" --target-dir "$REF/shapeshifter-full" \
+    --features tt,parallel_search,mcts_fallback
+
+write_roster() {
+    local file="$1" opponents="$2"
+    cat > "$file" <<JSON
+{
+  "rules_cli_release": "v1.2.3",
+  "challenger": { "id": "tiger", "launch": {
+    "program": "$ROOT/target/release/tiger-engine",
+    "env": { "BIND_ADDR": "127.0.0.1", "PORT": "{port}" } } },
+  "baseline": { "id": "baseline", "launch": {
+    "program": "$ROOT/target/baseline/release/battle-snake-rust",
+    "env": { "BIND_ADDR": "127.0.0.1", "PORT": "{port}" } } },
+  "opponents": [
+$opponents
+  ]
+}
+JSON
+}
+
+SHAPESHIFTER_DEFAULT='    { "id": "shapeshifter", "launch": {
+      "program": "'"$REF"'/shapeshifter-default/release/shapeshifter",
+      "env": { "PORT": "{port}" } } }'
+FLOOD='    { "id": "flood", "launch": {
+      "program": "'"$REF"'/snork/target/release/server",
+      "args": ["--host", "127.0.0.1:{port}", "--config", "{\"Flood\":{}}"] } }'
+SHAPESHIFTER_FULL='    { "id": "shapeshifter-full", "launch": {
+      "program": "'"$REF"'/shapeshifter-full/release/shapeshifter",
+      "env": { "PORT": "{port}" } } }'
+
+# The acceptance criterion's opponents, and the strongest Shapeshifter apart: its search
+# uses many threads, so it is benchmarked with fewer games in flight at a time.
+write_roster "$REF/roster.json" "$SHAPESHIFTER_DEFAULT,
+$FLOOD"
+write_roster "$REF/roster-strong.json" "$SHAPESHIFTER_FULL"
+echo "==> rosters written to $REF/roster.json and $REF/roster-strong.json"

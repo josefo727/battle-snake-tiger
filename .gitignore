@@ -9,3 +9,6 @@
 
 # The official rules CLI fetched by scripts/fetch-rules-oracle (never committed).
 /.rules-oracle/
+
+# Third-party opponents built or cloned by scripts/provision-opponents (never committed).
+/reference/

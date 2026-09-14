@@ -1,10 +1,10 @@
 # contract: opponent-roster
-# version: 1.0.0
+# version: 1.1.0
 # captured: 2026-09-18
 # source: research.md §snork agents and PROVENANCE.md
 contract:
   name: opponent-roster
-  version: 1.0.0
+  version: 1.1.0
   captured: 2026-09-18
   ownership:
     provider: each named third-party project (black-box HTTP process)
@@ -25,19 +25,28 @@ opponents:
   - id: shapeshifter
     project: https://github.com/JonathanArns/shapeshifter
     license: none found (treated as all-rights-reserved)
-    provisioning: existing local checkout ../shapeshifter, default-feature release build
-    launch: "PORT=<free port> ./target/release/shapeshifter"
+    provisioning: existing local checkout ../shapeshifter, default-feature release build into reference/shapeshifter-default
+    launch: "PORT=<free port> reference/shapeshifter-default/release/shapeshifter"
+    move_path: /move
+  - id: shapeshifter-full
+    project: https://github.com/JonathanArns/shapeshifter
+    license: none found (treated as all-rights-reserved)
+    provisioning: same checkout, features tt, parallel_search and mcts_fallback (the `prod` set minus `spl`, which does not build), into reference/shapeshifter-full; benchmarked apart with fewer games in flight because its search is multi-threaded
+    launch: "PORT=<free port> reference/shapeshifter-full/release/shapeshifter"
     move_path: /move
   - id: flood
     project: https://github.com/wrenger/snork
     license: MIT
     provisioning: fresh clone inside this workspace's ignored reference directory
-    launch: to be recorded by the provisioning task after reading the README's run instructions
-    move_path: to be recorded by the provisioning task
+    provisioning_commit: 76bec0c9c76b31b209fbeb8e409bb3e4c9133eb2
+    launch: "reference/snork/target/release/server --host 127.0.0.1:<free port> --config '{\"Flood\":{}}'"
+    launch_note: the server's default agent is Mobility, so the config must name Flood (README, Running the Server)
+    move_path: /move
 baselines:
   - id: sibling-one-turn
     project: ../rules-core
-    launch: "BIND_ADDR=127.0.0.1 PORT=<free port> ../rules-core/target/release/rules-core"
+    launch: "BIND_ADDR=127.0.0.1 PORT=<free port> target/baseline/release/rules-core"
+    provisioning: built from ../rules-core into this repository's target/baseline so the sibling checkout is only read
     move_path: /move
 comparison:
   rule: >-
