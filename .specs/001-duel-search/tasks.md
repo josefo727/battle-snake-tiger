@@ -1228,7 +1228,7 @@ Note: beyond the declared files, `engine/tests/support/schema.rs` gained `maximu
 ```yaml
 id: T037
 status: closed
-commits: { reconstructed: pending }
+commits: { reconstructed: 9e62a4d4890b9ab46a7471f9674eb56a4e0ec26d }
 source-commits: { red: 26f84fe, green: f76d01d, refactor: skipped }
 spec-ref: spec.md §Acceptance criteria 8
 contract-ref: contracts/opponent-roster.yaml
@@ -1262,8 +1262,9 @@ Note: beyond the declared files, `sparring/src/{benchmark,launcher,options}.rs`,
 
 ```yaml
 id: T038
-status: open
-commits: { red: null, green: null, refactor: null }
+status: closed
+commits: { reconstructed: pending }
+source-commits: { red: skipped, green: skipped, refactor: skipped }
 spec-ref: spec.md §Acceptance criteria 8
 contract-ref: contracts/sparring-report.schema.json
 constitution-ref: Articles VIII, XIV
@@ -1280,13 +1281,16 @@ constitution-ref: Articles VIII, XIV
 
 **G - Green:** Iterate the default profile and search parameters until the check passes.
 
-**F - Refactor:** Remove any experiment scaffolding not adopted.
+**F - Refactor:** Skipped - nothing to remove: no experiment scaffolding was added.
 
 **Files**
 
 - `.specs/001-duel-search/evidence/sparring.md`
 - `engine/src/valuation/weights.rs`
 - `engine/tests/sparring_gate.rs`
+
+Closed as not needed by the user's decision (2026-09-18): the first real sparring measurement already satisfies acceptance criterion 8, so there was no failing bar to iterate on and no weight or ordering change was made. The DoD's recording item is met by `.specs/001-duel-search/evidence/sparring.md`: tiger won 14 of 30 against Shapeshifter (default) and 13 of 30 against Flood, the one-turn baseline 0 of 60, and 4 of 12 against the strongest Shapeshifter; a single iteration, so no trend. Further strength work against the strong Shapeshifter would be a separate, measured effort under the same protocol (about one hour of compute per measurement).
+
 
 ## T039 - Package the engine in a digest-pinned image
 
