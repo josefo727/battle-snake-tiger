@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# Plays the compiled engine through the official rules CLI
+# (engine/tests/cli_endtoend.rs): fetches the CLI if it is missing, builds the
+# sibling one-turn baseline into this repository's target directory (the sibling
+# checkout is only read), then runs the ignored games in release mode.
+#
+# usage: scripts/run-endtoend
+set -euo pipefail
+
+cd "$(dirname "${BASH_SOURCE[0]}")/.."
+
+[ -x .rules-oracle/battlesnake ] || bash scripts/fetch-rules-oracle
+
+echo "==> building the sibling baseline"
+cargo build --release --locked --manifest-path ../battle-snake-rust/Cargo.toml --target-dir target/baseline
+
+echo "==> playing the games"
+cargo test --release --locked --test cli_endtoend -- --ignored --nocapture --test-threads=1

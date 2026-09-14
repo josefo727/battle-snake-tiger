@@ -1055,7 +1055,7 @@ Closed as skipped, per the task's own condition: T030 measured usable repeats of
 ```yaml
 id: T032
 status: closed
-commits: { reconstructed: pending }
+commits: { reconstructed: e0db3a1eaa3dafcc18d65b5f271f4aa8afb4f6dc }
 source-commits: { red: c0dde7b, green: fc909dd, refactor: c44dc98 }
 spec-ref: spec.md §Acceptance criteria 2 and 4
 contract-ref: contracts/openapi.yaml
@@ -1089,8 +1089,9 @@ Note: beyond the declared files, `support/server.rs` (the release-binary subproc
 
 ```yaml
 id: T033
-status: open
-commits: { red: null, green: null, refactor: null }
+status: closed
+commits: { reconstructed: pending }
+source-commits: { red: d20f6c6, green: 74a5c64, refactor: skipped }
 spec-ref: spec.md §Acceptance criteria 1 and 5
 contract-ref: n/a
 constitution-ref: Articles IV, V, IX
@@ -1107,7 +1108,7 @@ constitution-ref: Articles IV, V, IX
 
 **G - Green:** Implement fetching, process launching, and decision counting; run it for real.
 
-**F - Refactor:** Share process helpers with the latency harness.
+**F - Refactor:** Skipped - the process helpers were shared from the start: `support::server` (Server, ExternalServer) already serves the smoke test, the latency harness and this suite.
 
 **Files**
 
@@ -1115,6 +1116,9 @@ constitution-ref: Articles IV, V, IX
 - `engine/tests/cli_endtoend.rs`
 - `engine/tests/support/mod.rs`
 - `.gitignore`
+
+Note: beyond the declared files, `scripts/run-endtoend` (fetch if missing, build the sibling baseline into `target/baseline`, run the ignored games) and `support::server::ExternalServer`; the baseline is built into this repository's target directory so the sibling checkout is never written to (opponent-roster.yaml names the sibling's own target path; T035 will use `target/baseline`). Real run 2026-09-18: 6 seeded duel games, all completed, tiger won all six, 312 decisions, 98.08% `duel_search`; exactly one non-duel decision per game (the unsupported_fallback the CLI sends the sole survivor at the last turn, so the share is over decisions and routing is checked per turn); a three-snake game completed with 7 safety_fallback decisions. The 95% floor guards against a repeat of the sibling's local-CLI classification blind spot: the CLI announces ruleset.version `cli`. The 6 wins are not the sparring benchmark (T036: 30 seeds, Wilson intervals).
+
 
 ## T034 - Compute win rates with Wilson intervals
 
@@ -1332,3 +1336,4 @@ All tasks execute sequentially: kernel tasks share `duel.rs` and its differentia
 | 2026-09-15 | T018 registers four positional assessors, not five; `Finish` is applied by search to terminal outcomes. | Terminal verdicts come from `advance` as `Over(Verdict)`, not from a position, so `Finish::score(verdict, ply)` cannot implement the position-taking `Assessor` trait (found in T012). |
 | 2026-09-16 | T016's `Leverage` is two assessors, `LengthAdvantage` and `HeadPressure`; T018 registers five terms. | Each of the two questions has its own `WeightSheet` coefficient (`length_advantage`, `head_pressure`), and the pipeline multiplies one raw value by one weight, so separate assessors keep the weights independent and the ledger informative (found while designing T016). |
 | 2026-09-16 | T023's `Route` borrows the data its engine needs (`DuelSearch { state, board }`, `SafetyFallback(&TurnState)`, `UnsupportedFallback(&FallbackContext)`). | Found while designing T024: with unit variants the service would have to re-match the scope and keep an unreachable arm; borrowing removes both. Behaviour of the selector is unchanged. |
+| 2026-09-18 | Spec criterion 1's timeout threshold is 130 ms, not 120 ms, and criterion 5 covers duels declaring 121-130 ms. | Found in T024: the search allowance ends 10 ms before the response deadline, so those timeouts leave the duel search no time. User decision (clarify Q3, option a); the tournament timeout is 500 ms. No code changed: the verdict service and its tests already behave this way. |

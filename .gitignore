@@ -6,3 +6,6 @@
 # boundary), so un-ignore the directory and only ignore local overrides.
 !.claude/
 .claude/settings.local.json
+
+# The official rules CLI fetched by scripts/fetch-rules-oracle (never committed).
+/.rules-oracle/

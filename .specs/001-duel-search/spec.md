@@ -10,11 +10,11 @@ As a competitive Battlesnake operator, I want my snake to look several turns ahe
 
 ## Acceptance criteria
 
-1. For a valid `POST /move` request declaring Standard rules-module `v1.2.3` (or the local CLI's `cli` identifier), non-wrapped, hazard-free 11x11, exactly two active snakes, and a timeout greater than 120 ms, the engine selects its move by evaluating at least one full additional turn beyond the immediate one for both snakes, not only immediate survival.
+1. For a valid `POST /move` request declaring Standard rules-module `v1.2.3` (or the local CLI's `cli` identifier), non-wrapped, hazard-free 11x11, exactly two active snakes, and a timeout greater than 130 ms (the 120 ms response reserve plus the 10 ms search tail margin), the engine selects its move by evaluating at least one full additional turn beyond the immediate one for both snakes, not only immediate survival.
 2. The returned move is always one of the four platform-valid direction strings and the response completes within `game.timeout - 120 ms` of transport-recorded arrival, matching the sibling project's deadline contract.
 3. When the allocated computation budget is exhausted before a deeper search layer completes, the engine returns the best move found at the deepest fully-completed search depth, never a partially evaluated or arbitrary move.
 4. Each decision reports, without affecting the chosen move, the completed search depth and the number of positions explored.
-5. A request outside the duel case (0, 1, 3, or 4 active snakes) or outside the certified ruleset/map/board scope receives the sibling project's existing one-turn safety or best-effort fallback response, unchanged from its own certified behavior.
+5. A request outside the duel case (0, 1, 3, or 4 active snakes) or outside the certified ruleset/map/board scope receives the sibling project's existing one-turn safety or best-effort fallback response, unchanged from its own certified behavior, as does a duel whose declared timeout is above 120 ms but not above 130 ms, which leaves the search no time (the decision then reports `budget_exhausted_before_first_depth`).
 6. `GET /` returns HTTP 200 with `Content-Type: application/json` and exactly `{ "apiversion": "1", "author": "josefo727", "color": "#00D5FF", "head": "tiger-king", "tail": "tiger-tail", "version": "0.1.0" }`.
 7. Each valid `POST /start` and `POST /end` request returns HTTP 200 with `Content-Type: application/json` and an empty JSON object.
 8. A fixed, reproducible sparring benchmark of 30 games per opponent, using fixed seeds 1 through 30, against each of Shapeshifter and `snork`'s Flood, reports this engine's win rate against each, and each win rate is strictly greater than the sibling one-turn-safety-only engine's win rate under the identical 30-seed benchmark against that same opponent.
@@ -51,6 +51,12 @@ None.
 - **Duel** - A supported request with exactly two active snakes, as distinct from a multiplayer (three or four snake) request.
 - **Completed search depth** - The greatest number of full search plies evaluated to completion before the response deadline or a full-tree solve, whichever comes first.
 - **Sparring benchmark** - A fixed, seeded set of repeated games against a declared external opponent, run through the official rules engine, whose aggregate results (win/loss/draw rate) are recorded as evidence rather than asserted.
+
+---
+
+## Amendments
+
+- 2026-09-18: criterion 1's timeout threshold changed from 120 ms to 130 ms and criterion 5 extended to the 121-130 ms duels, after the verdict service (T024) showed the search cannot run inside the 10 ms tail margin at those timeouts. Decision recorded as clarify Q3; the tournament timeout is 500 ms, so the amendment changes no played game.
 
 ---
 

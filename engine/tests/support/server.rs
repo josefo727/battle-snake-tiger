@@ -82,3 +82,47 @@ impl Drop for Server {
         let _ = self.child.wait();
     }
 }
+
+/// A third-party server binary started on a free loopback port (it does not
+/// announce its address, so the port is chosen first) and killed when dropped.
+pub struct ExternalServer {
+    child: Child,
+    pub addr: SocketAddr,
+}
+
+impl ExternalServer {
+    /// Starts `binary` with `BIND_ADDR`/`PORT` and waits until it accepts a
+    /// connection.
+    pub fn start(binary: &std::path::Path) -> Self {
+        let port = std::net::TcpListener::bind("127.0.0.1:0")
+            .and_then(|listener| listener.local_addr())
+            .expect("a free port")
+            .port();
+        let child = Command::new(binary)
+            .env_clear()
+            .env("BIND_ADDR", "127.0.0.1")
+            .env("PORT", port.to_string())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .unwrap_or_else(|error| panic!("cannot start {}: {error}", binary.display()));
+        let addr = SocketAddr::from(([127, 0, 0, 1], port));
+        let deadline = Instant::now() + PATIENCE;
+        while std::net::TcpStream::connect_timeout(&addr, Duration::from_millis(200)).is_err() {
+            assert!(
+                Instant::now() < deadline,
+                "{} never accepted a connection",
+                binary.display()
+            );
+            thread::sleep(Duration::from_millis(50));
+        }
+        Self { child, addr }
+    }
+}
+
+impl Drop for ExternalServer {
+    fn drop(&mut self) {
+        let _ = self.child.kill();
+        let _ = self.child.wait();
+    }
+}

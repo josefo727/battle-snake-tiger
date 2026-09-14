@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+# Downloads the official BattlesnakeOfficial/rules CLI v1.2.3 into .rules-oracle/
+# and verifies its release archive against a pinned SHA-256 before extracting the
+# `battlesnake` executable. The binary is git-ignored: it is a game runner for the
+# end-to-end and sparring runs, never linked, vendored or shipped in the image.
+# (The executable's own digest is checked again by engine/tests/cli_endtoend.rs.)
+#
+# usage: scripts/fetch-rules-oracle
+set -euo pipefail
+
+RELEASE="v1.2.3"
+ARCHIVE="battlesnake_1.2.3_Linux_x86_64.tar.gz"
+URL="https://github.com/BattlesnakeOfficial/rules/releases/download/${RELEASE}/${ARCHIVE}"
+EXPECTED_SHA256="9b25cacec0d3a4ce8e49ac2cd3337af2b04ece83f28f1bb84cb089063de0814d"
+
+DEST="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/.rules-oracle"
+mkdir -p "$DEST"
+
+echo "==> downloading $URL"
+curl --fail --location --silent --show-error --output "$DEST/$ARCHIVE" "$URL"
+
+actual="$(sha256sum "$DEST/$ARCHIVE" | awk '{print $1}')"
+if [ "$actual" != "$EXPECTED_SHA256" ]; then
+    echo "fetch-rules-oracle: checksum mismatch for $ARCHIVE" >&2
+    echo "  expected: $EXPECTED_SHA256" >&2
+    echo "  actual:   $actual" >&2
+    rm -f "$DEST/$ARCHIVE"
+    exit 1
+fi
+
+tar -xzf "$DEST/$ARCHIVE" -C "$DEST" battlesnake
+chmod +x "$DEST/battlesnake"
+rm -f "$DEST/$ARCHIVE"
+echo "==> rules oracle $RELEASE ready at $DEST/battlesnake"
