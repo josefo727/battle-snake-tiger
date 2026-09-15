@@ -3,7 +3,8 @@
 //! board, so search copies positions instead of undoing moves.
 
 use super::cellset::CellSet;
-use super::duel::{BoardError, DuelBoard, check_invariants};
+use super::duel::{BoardError, DuelBoard, MoveReport, check_invariants, move_serpent};
+use super::heading::Heading;
 use super::serpent::Serpent;
 
 /// The most serpents a melee holds.
@@ -30,6 +31,16 @@ impl Seat {
     pub const fn index(self) -> usize {
         self.0 as usize
     }
+}
+
+/// The result of resolving one joint move of a melee.
+// Positions are copied by value on purpose (no allocation on the search hot
+// path), so the size gap between the variants is accepted.
+#[allow(clippy::large_enum_variant)]
+#[derive(Clone, Copy, Debug)]
+pub enum MeleeOutcome {
+    /// We and at least one opponent are still alive.
+    Continues(MeleeBoard),
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -65,6 +76,47 @@ impl MeleeBoard {
             pellets,
             ply: 0,
         })
+    }
+
+    /// Resolves one simultaneous turn: every living seat moves by its heading
+    /// (dead seats' headings are ignored).
+    #[must_use]
+    pub fn advance(&self, moves: &[Heading; MAX_SEATS]) -> MeleeOutcome {
+        let mut next = *self;
+        next.ply += 1;
+        let _reports = next.movement_phase(moves);
+        next.feeding_phase();
+        MeleeOutcome::Continues(next)
+    }
+
+    /// Phase 1 of a turn: every living seat moves from the same starting board.
+    fn movement_phase(&mut self, moves: &[Heading; MAX_SEATS]) -> [MoveReport; MAX_SEATS] {
+        let mut reports = [MoveReport::IDLE; MAX_SEATS];
+        for seat in Seat::ALL {
+            if self.is_alive(seat) {
+                reports[seat.index()] =
+                    move_serpent(&mut self.serpents[seat.index()], moves[seat.index()]);
+            }
+        }
+        reports
+    }
+
+    /// Phase 2: any living head on a pellet eats; every eaten pellet is removed
+    /// afterwards so several heads entering one cell all eat.
+    fn feeding_phase(&mut self) {
+        let mut eaten = CellSet::EMPTY;
+        for seat in Seat::ALL {
+            if !self.is_alive(seat) {
+                continue;
+            }
+            let serpent = &mut self.serpents[seat.index()];
+            let head = serpent.head();
+            if self.pellets.contains(head) {
+                serpent.eat(Self::MAX_VIGOR);
+                eaten = eaten.with(head);
+            }
+        }
+        self.pellets = self.pellets.difference(eaten);
     }
 
     /// The living seats, in seat order.

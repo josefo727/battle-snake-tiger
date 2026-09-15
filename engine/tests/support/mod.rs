@@ -183,6 +183,41 @@ pub fn reference_after(state: &TurnState, us: Heading, them: Heading) -> TurnRes
     resolve_turn(state, &moves).expect("the reference resolves the turn")
 }
 
+/// The reused resolver's answer for one joint move of a state with any number
+/// of snakes; `headings` are in the state's own snake order.
+pub fn reference_after_all(state: &TurnState, headings: &[Heading]) -> TurnResolution {
+    let directions: Vec<Direction> = headings.iter().map(|&h| to_direction(h)).collect();
+    let moves = JointMoves::try_new(directions, state.snakes().len()).expect("one move per snake");
+    resolve_turn(state, &moves).expect("the reference resolves the turn")
+}
+
+/// The snake ids by melee seat: ours first, then the others in state order.
+pub fn seat_ids(state: &TurnState) -> Vec<String> {
+    let mut ids = vec![state.you().id().as_str().to_owned()];
+    for (index, snake) in state.snakes().iter().enumerate() {
+        if index != state.you_index() {
+            ids.push(snake.id().as_str().to_owned());
+        }
+    }
+    ids
+}
+
+/// Seat-ordered headings (ours first) rearranged into the state's snake order.
+pub fn headings_in_state_order(state: &TurnState, by_seat: &[Heading]) -> Vec<Heading> {
+    let you = state.you_index();
+    let mut ordered = Vec::with_capacity(by_seat.len());
+    let mut next_other = 1;
+    for index in 0..state.snakes().len() {
+        if index == you {
+            ordered.push(by_seat[0]);
+        } else {
+            ordered.push(by_seat[next_other]);
+            next_other += 1;
+        }
+    }
+    ordered
+}
+
 /// A resolved snake's head-first body as kernel cells.
 pub fn resolved_body(resolution: &TurnResolution, snake_id: &str) -> Vec<Cell> {
     resolution
@@ -324,6 +359,47 @@ pub fn realize(spec: &StateSpec) -> TurnState {
     } else {
         turn_state_from_bodies(&[&first, &second], &health, 0, &food)
     }
+}
+
+#[derive(Clone, Debug)]
+pub struct MeleeSpec {
+    pub snakes: Vec<SnakeSpec>,
+    pub food: Vec<u8>,
+    pub you: usize,
+}
+
+/// Three or four legal snakes, ours anywhere in the list.
+pub fn melee_spec() -> impl Strategy<Value = MeleeSpec> {
+    (
+        proptest::collection::vec(snake_spec(), 3..=4),
+        proptest::collection::vec(0u8..121, 0..8),
+        0usize..4,
+    )
+        .prop_map(|(snakes, food, you)| MeleeSpec {
+            you: you % snakes.len(),
+            snakes,
+            food,
+        })
+}
+
+pub fn realize_melee(spec: &MeleeSpec) -> TurnState {
+    let mut taken = CellSet::EMPTY;
+    let bodies: Vec<Vec<(i32, i32)>> = spec
+        .snakes
+        .iter()
+        .map(|snake| realize_snake(snake, &mut taken))
+        .collect();
+    let mut food: Vec<(i32, i32)> = Vec::new();
+    for &index in &spec.food {
+        let cell = Cell::from_index(index).expect("index is on the board");
+        let point = (i32::from(cell.x()), i32::from(cell.y()));
+        if !taken.contains(cell) && !food.contains(&point) {
+            food.push(point);
+        }
+    }
+    let health: Vec<i32> = spec.snakes.iter().map(|s| i32::from(s.health)).collect();
+    let slices: Vec<&[(i32, i32)]> = bodies.iter().map(Vec::as_slice).collect();
+    turn_state_from_bodies(&slices, &health, spec.you, &food)
 }
 
 /// A number from the environment, or `default` when it is unset or unparsable;

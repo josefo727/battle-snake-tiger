@@ -3,12 +3,15 @@
 use super::cellset::{Cell, CellSet};
 use super::duel::{BoardError, DuelBoard};
 use super::heading::Heading;
+use super::melee::MeleeBoard;
 use super::serpent::{Serpent, SerpentError};
 use crate::rules_core::{Direction, SnakeState, TurnState};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum IngestError {
     NotADuel,
+    /// A melee has three or four snakes.
+    NotAMelee,
     CellOutOfRange,
     Serpent(SerpentError),
     Board(BoardError),
@@ -31,6 +34,27 @@ pub fn ingest(state: &TurnState) -> Result<DuelBoard, IngestError> {
     let pellets = CellSet::from_bits(state.food().bits());
 
     DuelBoard::try_new(us, them, pellets).map_err(IngestError::Board)
+}
+
+/// Converts a reused `TurnState` with three or four snakes into a `MeleeBoard`
+/// with our snake in seat 0 and the others in their original order.
+///
+/// # Errors
+///
+/// Fails unless the state has three or four snakes with valid bodies.
+pub fn ingest_melee(state: &TurnState) -> Result<MeleeBoard, IngestError> {
+    let snakes = state.snakes();
+    if !(3..=4).contains(&snakes.len()) {
+        return Err(IngestError::NotAMelee);
+    }
+    let mut serpents = vec![to_serpent(state.you())?];
+    for (index, snake) in snakes.iter().enumerate() {
+        if index != state.you_index() {
+            serpents.push(to_serpent(snake)?);
+        }
+    }
+    let pellets = CellSet::from_bits(state.food().bits());
+    MeleeBoard::try_new(&serpents, pellets).map_err(IngestError::Board)
 }
 
 /// The wire direction for a kernel heading: the one bridge out of the kernel,

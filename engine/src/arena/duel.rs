@@ -195,17 +195,27 @@ pub(super) fn check_invariants(serpents: &[Serpent], pellets: CellSet) -> Result
 }
 
 /// What one serpent's move leaves behind for the elimination phase.
-struct MoveReport {
+#[derive(Clone, Copy, Debug)]
+pub(super) struct MoveReport {
     /// The step left the board (the serpent is left unmoved and is eliminated).
-    off_board: bool,
+    pub(super) off_board: bool,
     /// The new head landed on a cell the serpent's own body still holds.
-    self_hit: bool,
-    /// Cells of every segment after the head, as the other serpent sees them.
-    segments: CellSet,
+    pub(super) self_hit: bool,
+    /// Cells of every segment after the head, as the other serpents see them.
+    pub(super) segments: CellSet,
+}
+
+impl MoveReport {
+    /// The report of a seat that did not move (a dead one): it blocks nothing.
+    pub(super) const IDLE: Self = Self {
+        off_board: false,
+        self_hit: false,
+        segments: CellSet::EMPTY,
+    };
 }
 
 /// Movement phase for one serpent: new head, old tail released, one vigor lost.
-fn move_serpent(serpent: &mut Serpent, heading: Heading) -> MoveReport {
+pub(super) fn move_serpent(serpent: &mut Serpent, heading: Heading) -> MoveReport {
     serpent.lose_vigor();
     let Some(target) = heading.step(serpent.head()) else {
         return MoveReport {

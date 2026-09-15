@@ -11,7 +11,7 @@ Ordering: the N-snake kernel and its differential equivalence to the reused reso
 ```yaml
 id: T001
 status: closed
-commits: { reconstructed: pending }
+commits: { reconstructed: c12dd32d03d56dc27999f6f6b54d284b4c43c8c3 }
 source-commits: { red: ff1f1b3, green: 0b76907, refactor: skipped }
 spec-ref: spec.md §Acceptance criteria 1
 contract-ref: n/a
@@ -42,8 +42,9 @@ constitution-ref: Articles II, IX, X
 
 ```yaml
 id: T002
-status: open
-commits: { red: null, green: null, refactor: null }
+status: closed
+commits: { reconstructed: pending }
+source-commits: { red: 4ccaf7a, green: 1eb500b, refactor: skipped }
 spec-ref: spec.md §Acceptance criteria 1
 contract-ref: n/a
 constitution-ref: Articles II, IV, X
@@ -60,7 +61,7 @@ constitution-ref: Articles II, IV, X
 
 **G - Green:** Implement ingest, the movement and feeding phases over the seats.
 
-**F - Refactor:** Reuse the duel kernel's `move_serpent` and report types instead of copying them.
+**F - Refactor:** Skipped - the duel kernel's move_serpent and MoveReport were reused in the Green (made crate-visible), so nothing was copied.
 
 **Files**
 
