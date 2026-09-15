@@ -60,8 +60,8 @@ None.
 
 ---
 
-## Closed (filled during verify)
+## Closed (reconstructed history)
 
-- Date: `<YYYY-MM-DD>`
-- Commit: `<sha>`
-- Notes: `<non-obvious context for future readers>`
+- Date: `2026-09-14`
+- Commit: `pending`
+- Notes: Task commits consolidate the preserved Red-Green-Refactor beats.

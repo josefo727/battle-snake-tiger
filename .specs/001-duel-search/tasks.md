@@ -1297,7 +1297,7 @@ Closed as not needed by the user's decision (2026-09-18): the first real sparrin
 ```yaml
 id: T039
 status: closed
-commits: { reconstructed: pending }
+commits: { reconstructed: a2b346a9cb1d64dc31626f44b86935bb34cfad1d }
 source-commits: { red: 5ca87eb, green: 8d6b28a, refactor: skipped }
 spec-ref: spec.md §Acceptance criteria 2 and 6
 contract-ref: n/a
@@ -1361,3 +1361,4 @@ All tasks execute sequentially: kernel tasks share `duel.rs` and its differentia
 | 2026-09-16 | T016's `Leverage` is two assessors, `LengthAdvantage` and `HeadPressure`; T018 registers five terms. | Each of the two questions has its own `WeightSheet` coefficient (`length_advantage`, `head_pressure`), and the pipeline multiplies one raw value by one weight, so separate assessors keep the weights independent and the ledger informative (found while designing T016). |
 | 2026-09-16 | T023's `Route` borrows the data its engine needs (`DuelSearch { state, board }`, `SafetyFallback(&TurnState)`, `UnsupportedFallback(&FallbackContext)`). | Found while designing T024: with unit variants the service would have to re-match the scope and keep an unreachable arm; borrowing removes both. Behaviour of the selector is unchanged. |
 | 2026-09-18 | Spec criterion 1's timeout threshold is 130 ms, not 120 ms, and criterion 5 covers duels declaring 121-130 ms. | Found in T024: the search allowance ends 10 ms before the response deadline, so those timeouts leave the duel search no time. User decision (clarify Q3, option a); the tournament timeout is 500 ms. No code changed: the verdict service and its tests already behave this way. |
+| Reconstruction | Task implementation is consolidated into one commit; `source-commits` points to the preserved R/G/F evidence in the original history. | Approved repository reconstruction; the consolidated commit body preserves the full R/G/F narrative. |
