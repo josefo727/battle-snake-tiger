@@ -207,7 +207,7 @@ Note: `build_service` and `router` gained the lifecycle beacon parameter; `main.
 ```yaml
 id: T007
 status: closed
-commits: { reconstructed: pending }
+commits: { reconstructed: b3c08b5a86e3e79107ded7f17bddaa5495bc323c }
 source-commits: { red: a7f8ef7, green: 46ab007, refactor: skipped }
 spec-ref: spec.md §Acceptance criteria 1 and 3
 contract-ref: n/a
@@ -238,8 +238,9 @@ Note: settings are now read before the subscriber starts, so the error for a bad
 
 ```yaml
 id: T008
-status: open
-commits: { red: null, green: null, refactor: null }
+status: closed
+commits: { reconstructed: pending }
+source-commits: { red: 2c0e065, green: d65ca38, refactor: skipped }
 spec-ref: spec.md §Acceptance criteria 6
 contract-ref: n/a
 constitution-ref: Articles II, XIII
@@ -253,12 +254,15 @@ constitution-ref: Articles II, XIII
 
 **G - Green:** Add the mount, the environment and the directory preparation.
 
-**F - Refactor:** Skipped unless the smoke helpers duplicate each other.
+**F - Refactor:** Skipped - the smoke script's added block reuses its `post` and `fail` helpers and repeats nothing.
 
 **Files**
 
 - `scripts/container-smoke`
 - `engine/tests/packaging.rs`
+
+Note: the smoke script chmods its temporary log directory to 0777 so the container's uid 10001 can create the file; on the server the directory is owned by 10001. The engine now on the VPS is still the previous one (Sansón); the next deploy of this engine will carry the mount.
+
 
 ## Coverage matrix
 

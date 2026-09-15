@@ -44,8 +44,12 @@ found="$(docker run --rm --entrypoint sh "$IMAGE" -c \
     "find / -xdev -type f \( -name battlesnake -o -name 'shapeshifter*' -o -name snork -o -name battle-snake-rust -o -name server -o -name spar \) 2>/dev/null || true")"
 [ -z "$found" ] || fail "an opponent, the rules CLI or the sparring tool is inside the image: $found"
 
-echo "==> running read-only"
-docker run --detach --name "$NAME" --platform linux/amd64 --read-only --publish "$PORT:8080" "$IMAGE" >/dev/null
+echo "==> running read-only, with a mounted log directory"
+LOGDIR="$(mktemp -d)"
+chmod 0777 "$LOGDIR" # the container's user (uid 10001) must be able to create today's file in it
+trap 'cleanup; rm -rf "$LOGDIR"' EXIT
+docker run --detach --name "$NAME" --platform linux/amd64 --read-only --publish "$PORT:8080" \
+    --volume "$LOGDIR:/var/log/tiger" --env LOG_DIR=/var/log/tiger "$IMAGE" >/dev/null
 base="http://127.0.0.1:$PORT"
 for _ in $(seq 1 60); do
     curl --silent --fail "$base/" >/dev/null 2>&1 && break
@@ -76,5 +80,14 @@ echo "$logs" | grep -q 'engine_path\\":\\"duel_search' || fail "the duel was not
 echo "$logs" | grep -q 'engine_path\\":\\"safety_fallback' || fail "the melee was not served by the safety fallback"
 depth="$(echo "$logs" | grep 'duel_search' | grep -o 'search_depth\\":[0-9]*' | head -1 | grep -o '[0-9]*$')"
 [ "${depth:-0}" -ge 2 ] || fail "the duel search completed only depth ${depth:-0}"
+
+echo "==> the daily log file"
+[ "$(post /start "$DUEL")" = "{}" ] && [ "$(post /end "$DUEL")" = "{}" ] || fail "lifecycle routes failed"
+logfile="$LOGDIR/tiger.log.$(date -u +%Y-%m-%d)"
+for _ in $(seq 1 40); do grep -q game_ended "$logfile" 2>/dev/null && break; sleep 0.25; done
+[ -f "$logfile" ] || fail "no tiger.log.YYYY-MM-DD file appeared in the mounted directory"
+for wanted in game_started game_ended move_decision; do
+    grep -q "$wanted" "$logfile" || fail "$wanted is missing from $logfile"
+done
 
 echo "container-smoke: all checks passed (duel depth $depth, image $(docker image inspect "$IMAGE" --format '{{.Size}}') bytes)"

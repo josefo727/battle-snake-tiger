@@ -198,3 +198,23 @@ fn the_smoke_script_checks_every_promise_of_the_image() {
     );
     assert!(mode & 0o111 != 0, "the script is executable");
 }
+
+// ---- the log directory on the shared server -----------------------------------------------
+
+#[test]
+fn the_smoke_script_runs_the_image_with_a_mounted_log_directory_and_reads_todays_file() {
+    let script = read("scripts/container-smoke");
+
+    for promise in [
+        "LOG_DIR=/var/log/tiger",
+        "tiger.log.",
+        "game_started",
+        "game_ended",
+        "move_decision",
+    ] {
+        assert!(
+            script.contains(promise),
+            "the smoke script never checks `{promise}`"
+        );
+    }
+}
