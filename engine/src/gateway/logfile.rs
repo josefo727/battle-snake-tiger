@@ -39,6 +39,27 @@ impl Shared {
         }
     }
 
+    /// Deletes the oldest daily files beyond `keep_days` (today's included in the count). Only
+    /// regular files named exactly like a daily file are candidates; errors are ignored.
+    fn prune(&self) {
+        let Ok(entries) = fs::read_dir(&self.directory) else {
+            return;
+        };
+        let mut dated: Vec<(CivilDate, PathBuf)> = entries
+            .filter_map(Result::ok)
+            .filter(|entry| entry.path().is_file())
+            .filter_map(|entry| {
+                let date = parse_file_name(entry.file_name().to_str()?)?;
+                Some((date, entry.path()))
+            })
+            .collect();
+        dated.sort();
+        let surplus = dated.len().saturating_sub(self.keep_days.max(1));
+        for (_, path) in dated.into_iter().take(surplus) {
+            let _ = fs::remove_file(path);
+        }
+    }
+
     fn open_day(&self, date: CivilDate) -> Option<(CivilDate, File)> {
         fs::create_dir_all(&self.directory).ok()?;
         let file = OpenOptions::new()
@@ -46,9 +67,15 @@ impl Shared {
             .append(true)
             .open(self.directory.join(file_name(date)))
             .ok()?;
-        let _ = self.keep_days;
+        self.prune();
         Some((date, file))
     }
+}
+
+/// The day a file name stands for, if it is exactly `tiger.log.YYYY-MM-DD`.
+#[must_use]
+pub fn parse_file_name(name: &str) -> Option<CivilDate> {
+    name.strip_prefix("tiger.log.").and_then(CivilDate::parse)
 }
 
 /// A `MakeWriter` that appends every event to the daily file of the calendar's

@@ -44,7 +44,7 @@ Note: parsing also rejects the year-0 style sign and any trailing whitespace; th
 ```yaml
 id: T002
 status: closed
-commits: { reconstructed: pending }
+commits: { reconstructed: 6b6ec95a50c2556cc7ebea45999b4cfe79022948 }
 source-commits: { red: 5287bc9, green: 7e0595a, refactor: skipped }
 spec-ref: spec.md §Acceptance criteria 1 and 3
 contract-ref: n/a
@@ -76,8 +76,9 @@ Note: retention (`keep_days`) is accepted but not applied yet; T003 adds it at t
 
 ```yaml
 id: T003
-status: open
-commits: { red: null, green: null, refactor: null }
+status: closed
+commits: { reconstructed: pending }
+source-commits: { red: 004b4df, green: 810c55c, refactor: skipped }
 spec-ref: spec.md §Acceptance criteria 2
 contract-ref: n/a
 constitution-ref: Articles II, VII
@@ -93,12 +94,15 @@ constitution-ref: Articles II, VII
 
 **G - Green:** Implement the pattern match, ordering and deletion.
 
-**F - Refactor:** Skipped unless the pattern is repeated between writer and pruner.
+**F - Refactor:** Skipped - the `tiger.log.` prefix appears once, inside `parse_file_name` for reading and `file_name` for writing, which are next to each other.
 
 **Files**
 
 - `engine/src/gateway/logfile.rs`
 - `engine/tests/gateway_logfile.rs`
+
+Note: the count includes the file just opened, so `LOG_KEEP_DAYS=14` leaves today plus the thirteen newest earlier files.
+
 
 ## T004 - Read LOG_DIR and LOG_KEEP_DAYS
 

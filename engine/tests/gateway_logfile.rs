@@ -5,7 +5,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicI64, Ordering};
 
 use tiger_engine::gateway::calendar::{Calendar, CivilDate};
-use tiger_engine::gateway::logfile::{DailyFileWriter, file_name};
+use tiger_engine::gateway::logfile::{DailyFileWriter, file_name, parse_file_name};
 use tracing_subscriber::fmt::MakeWriter;
 
 /// A calendar the test moves by hand, in Unix seconds.
@@ -225,4 +225,145 @@ fn it_works_as_the_writer_of_a_tracing_subscriber() {
     let line: serde_json::Value = serde_json::from_str(content.trim()).expect("one JSON line");
     assert_eq!(line["target"], "move_decision");
     assert_eq!(line["fields"]["message"], "an event for the file");
+}
+
+// ---- retention ----------------------------------------------------------------------------
+
+fn touch(dir: &Path, name: &str) {
+    fs::write(dir.join(name), "old").unwrap();
+}
+
+fn daily_files(dir: &Path) -> Vec<String> {
+    let mut names: Vec<String> = fs::read_dir(dir)
+        .unwrap()
+        .map(|e| e.unwrap())
+        .filter(|e| e.path().is_file())
+        .filter_map(|e| e.file_name().into_string().ok())
+        .filter(|n| parse_file_name(n).is_some())
+        .collect();
+    names.sort();
+    names
+}
+
+#[test]
+fn only_exact_daily_names_are_daily_files() {
+    assert_eq!(
+        parse_file_name("tiger.log.2026-09-19"),
+        Some(day(2026, 9, 19))
+    );
+    for other in [
+        "tiger.log",
+        "tiger.log.",
+        "tiger.log.2026-09-19.gz",
+        "tiger.log.2026-13-01",
+        "tiger.log.2026-9-19",
+        "other.log.2026-09-19",
+        "Tiger.log.2026-09-19",
+        " tiger.log.2026-09-19",
+        "notes.txt",
+        "",
+    ] {
+        assert_eq!(parse_file_name(other), None, "{other:?}");
+    }
+}
+
+#[test]
+fn opening_a_new_days_file_keeps_only_the_newest_daily_files() {
+    let scratch = Scratch::new("retain");
+    for d in 1..=20 {
+        touch(&scratch.0, &format!("tiger.log.2026-08-{d:02}"));
+    }
+    let writer = DailyFileWriter::new(scratch.0.clone(), 14, FakeCalendar::at(day(2026, 9, 19)));
+
+    log_one(&writer, "today");
+
+    let kept = daily_files(&scratch.0);
+    assert_eq!(kept.len(), 14, "{kept:?}");
+    assert_eq!(kept.first().unwrap(), "tiger.log.2026-08-08");
+    assert_eq!(kept.last().unwrap(), "tiger.log.2026-09-19");
+}
+
+#[test]
+fn nothing_else_in_the_directory_is_ever_touched() {
+    let scratch = Scratch::new("careful");
+    for d in 1..=5 {
+        touch(&scratch.0, &format!("tiger.log.2026-08-{d:02}"));
+    }
+    for other in [
+        "notes.txt",
+        "tiger.log",
+        "tiger.log.2026-08-01.gz",
+        "other.log.2026-01-01",
+        "tiger.log.2026-13-01",
+    ] {
+        touch(&scratch.0, other);
+    }
+    fs::create_dir(scratch.0.join("tiger.log.2020-01-01")).unwrap();
+    let writer = DailyFileWriter::new(scratch.0.clone(), 1, FakeCalendar::at(day(2026, 9, 19)));
+
+    log_one(&writer, "today");
+
+    assert_eq!(daily_files(&scratch.0), ["tiger.log.2026-09-19"]);
+    for survivor in [
+        "notes.txt",
+        "tiger.log",
+        "tiger.log.2026-08-01.gz",
+        "other.log.2026-01-01",
+        "tiger.log.2026-13-01",
+    ] {
+        assert!(
+            scratch.0.join(survivor).is_file(),
+            "{survivor} must survive"
+        );
+    }
+    assert!(
+        scratch.0.join("tiger.log.2020-01-01").is_dir(),
+        "a directory is not a log file"
+    );
+}
+
+#[test]
+fn fewer_files_than_the_limit_are_all_kept() {
+    let scratch = Scratch::new("few");
+    touch(&scratch.0, "tiger.log.2026-09-01");
+    touch(&scratch.0, "tiger.log.2026-09-10");
+    let writer = DailyFileWriter::new(scratch.0.clone(), 14, FakeCalendar::at(day(2026, 9, 19)));
+
+    log_one(&writer, "today");
+
+    assert_eq!(daily_files(&scratch.0).len(), 3);
+}
+
+#[test]
+fn a_limit_of_zero_still_keeps_todays_file() {
+    let scratch = Scratch::new("zero");
+    touch(&scratch.0, "tiger.log.2026-09-18");
+    let writer = DailyFileWriter::new(scratch.0.clone(), 0, FakeCalendar::at(day(2026, 9, 19)));
+
+    log_one(&writer, "today");
+
+    assert_eq!(daily_files(&scratch.0), ["tiger.log.2026-09-19"]);
+    assert_eq!(read(&scratch.0, day(2026, 9, 19)), "today\n");
+}
+
+#[test]
+fn pruning_happens_when_a_day_opens_not_on_every_line() {
+    let scratch = Scratch::new("once");
+    let calendar = FakeCalendar::at(day(2026, 9, 19));
+    let writer = DailyFileWriter::new(scratch.0.clone(), 2, calendar.clone());
+    log_one(&writer, "first line of the day");
+    touch(&scratch.0, "tiger.log.2026-01-01");
+
+    log_one(&writer, "second line of the same day");
+    assert!(
+        scratch.0.join("tiger.log.2026-01-01").is_file(),
+        "no scan on an ordinary write"
+    );
+
+    calendar.advance_days(1);
+    log_one(&writer, "first line of the next day");
+    assert_eq!(
+        daily_files(&scratch.0),
+        ["tiger.log.2026-09-19", "tiger.log.2026-09-20"]
+    );
 }
