@@ -7,6 +7,7 @@ use std::sync::Arc;
 use tiger_engine::build_service;
 use tiger_engine::gateway::beacon::TracingBeacon;
 use tiger_engine::gateway::clock::SystemClock;
+use tiger_engine::gateway::lifecycle::TracingLifecycleBeacon;
 use tiger_engine::gateway::settings::Settings;
 
 #[tokio::main]
@@ -36,7 +37,11 @@ async fn main() -> ExitCode {
         }
     }
 
-    let app = build_service(Arc::new(SystemClock::new()), Arc::new(TracingBeacon));
+    let app = build_service(
+        Arc::new(SystemClock::new()),
+        Arc::new(TracingBeacon),
+        Arc::new(TracingLifecycleBeacon),
+    );
     if let Err(error) = axum::serve(listener, app).await {
         tracing::error!("the server stopped: {error}");
         return ExitCode::FAILURE;

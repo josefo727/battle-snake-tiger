@@ -12,6 +12,7 @@ use axum::routing::{get, post};
 use serde::Serialize;
 
 use super::beacon::{DecisionBeacon, DecisionEvent};
+use super::lifecycle::{LifecycleBeacon, LifecycleEvent};
 use crate::ENGINE_VERSION;
 use crate::rules_core::{Clock, MoveResponseDto, TurnRequestDto, direction_to_wire};
 use crate::verdict::service::VerdictService;
@@ -48,6 +49,11 @@ struct Gateway {
     clock: Arc<dyn Clock>,
     service: Arc<VerdictService>,
     beacon: Arc<dyn DecisionBeacon>,
+    #[allow(
+        dead_code,
+        reason = "scaffold: the handlers emit lifecycle events in the green step"
+    )]
+    lifecycle: Arc<dyn LifecycleBeacon>,
 }
 
 /// Builds the router over an already configured service. The clock is the one
@@ -56,17 +62,19 @@ pub fn router(
     clock: Arc<dyn Clock>,
     service: VerdictService,
     beacon: Arc<dyn DecisionBeacon>,
+    lifecycle: Arc<dyn LifecycleBeacon>,
 ) -> Router {
     Router::new()
         .route("/", get(identity))
-        .route("/start", post(acknowledge))
-        .route("/end", post(acknowledge))
+        .route("/start", post(start_game))
+        .route("/end", post(end_game))
         .route("/move", post(choose_move))
         .layer(DefaultBodyLimit::max(MAX_BODY_BYTES))
         .with_state(Gateway {
             clock,
             service: Arc::new(service),
             beacon,
+            lifecycle,
         })
 }
 
@@ -74,10 +82,29 @@ async fn identity() -> Json<Identity> {
     Json(IDENTITY)
 }
 
-/// `/start` and `/end` share one acknowledgement: any syntactically valid game
-/// gets the empty object, whatever its scope.
-async fn acknowledge(Json(_game): Json<TurnRequestDto>) -> Json<Nothing> {
+/// `/start` and `/end` both report the event and answer the same way: any syntactically
+/// valid game gets the empty object, whatever its scope.
+fn acknowledge(
+    gateway: &Gateway,
+    game: &TurnRequestDto,
+    event: fn(&TurnRequestDto) -> LifecycleEvent,
+) -> Json<Nothing> {
+    gateway.lifecycle.emit(&event(game));
     Json(Nothing {})
+}
+
+async fn start_game(
+    State(gateway): State<Gateway>,
+    Json(game): Json<TurnRequestDto>,
+) -> Json<Nothing> {
+    acknowledge(&gateway, &game, LifecycleEvent::started)
+}
+
+async fn end_game(
+    State(gateway): State<Gateway>,
+    Json(game): Json<TurnRequestDto>,
+) -> Json<Nothing> {
+    acknowledge(&gateway, &game, LifecycleEvent::ended)
 }
 
 async fn choose_move(State(gateway): State<Gateway>, headers: HeaderMap, body: Bytes) -> Response {

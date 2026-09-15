@@ -14,7 +14,7 @@ use tiger_engine::rules_core::{Clock, MonotonicInstant};
 use tiger_engine::verdict::service::VerdictService;
 use tower::ServiceExt;
 
-use support::beacon::RecordingBeacon;
+use support::beacon::{RecordingBeacon, RecordingLifecycle};
 use support::clock::{FailingClock, ManualClock};
 use support::request_json_with;
 
@@ -24,6 +24,7 @@ const ARRIVAL: u64 = 1_000_000;
 struct Harness {
     app: Router,
     beacon: Arc<RecordingBeacon>,
+    lifecycle: Arc<RecordingLifecycle>,
 }
 
 /// The real router over a service capped at two plies, on a clock that stands still.
@@ -31,9 +32,11 @@ fn harness() -> Harness {
     let clock = Arc::new(ManualClock::at_micros(ARRIVAL));
     let beacon = Arc::new(RecordingBeacon::default());
     let service = VerdictService::new(clock.clone()).with_depth_limit(2);
+    let lifecycle = Arc::new(RecordingLifecycle::default());
     Harness {
-        app: router(clock, service, beacon.clone()),
+        app: router(clock, service, beacon.clone(), lifecycle.clone()),
         beacon,
+        lifecycle,
     }
 }
 
@@ -103,7 +106,11 @@ async fn get_root_returns_exactly_the_registered_identity() {
 #[tokio::test]
 async fn the_composition_root_serves_the_same_identity() {
     let clock: Arc<dyn Clock> = Arc::new(ManualClock::at_micros(ARRIVAL));
-    let app = build_service(clock, Arc::new(RecordingBeacon::default()));
+    let app = build_service(
+        clock,
+        Arc::new(RecordingBeacon::default()),
+        Arc::new(RecordingLifecycle::default()),
+    );
 
     let answer = send(
         &app,
@@ -331,7 +338,12 @@ async fn a_panic_inside_the_decision_is_a_500_and_leaves_the_router_serving() {
     let clock = Arc::new(FailingClock::after(1));
     let beacon = Arc::new(RecordingBeacon::default());
     let service = VerdictService::new(clock.clone()).with_depth_limit(2);
-    let app = router(clock, service, beacon.clone());
+    let app = router(
+        clock,
+        service,
+        beacon.clone(),
+        Arc::new(RecordingLifecycle::default()),
+    );
 
     let failed = send(&app, json_post("/move", &duel_json())).await;
     let identity = send(
@@ -386,4 +398,79 @@ proptest! {
         let _ = only_move(&answer);
         prop_assert_eq!(h.beacon.events().len(), 1);
     }
+}
+
+// ---- lifecycle events -------------------------------------------------------------------------
+
+#[tokio::test]
+async fn a_valid_start_and_a_valid_end_each_emit_one_lifecycle_event_and_the_same_empty_answer() {
+    let h = harness();
+    let body = request_json_with("v1.2.3", 4, 500, 0, &[]);
+
+    let started = send(&h.app, json_post("/start", &body)).await;
+    let ended = send(&h.app, json_post("/end", &body)).await;
+
+    assert_eq!(
+        (started.status, started.body.as_slice()),
+        (StatusCode::OK, &b"{}"[..])
+    );
+    assert_eq!(
+        (ended.status, ended.body.as_slice()),
+        (StatusCode::OK, &b"{}"[..])
+    );
+    let events = h.lifecycle.events();
+    assert_eq!(events.len(), 2);
+    assert_eq!(
+        (
+            events[0].event,
+            events[0].game_id.as_str(),
+            events[0].snakes
+        ),
+        ("game_started", "test-game", 4)
+    );
+    assert_eq!(events[0].ruleset.as_deref(), Some("standard/v1.2.3"));
+    assert_eq!(
+        (events[1].event, events[1].we_survived),
+        ("game_ended", Some(true))
+    );
+}
+
+#[tokio::test]
+async fn a_game_outside_the_certified_scope_still_reports_its_start() {
+    let h = harness();
+
+    send(
+        &h.app,
+        json_post("/start", &request_json_with("v9.9.9", 2, 500, 0, &[])),
+    )
+    .await;
+
+    let events = h.lifecycle.events();
+    assert_eq!(events.len(), 1);
+    assert_eq!(events[0].ruleset.as_deref(), Some("standard/v9.9.9"));
+}
+
+#[tokio::test]
+async fn a_rejected_request_and_a_move_emit_no_lifecycle_event() {
+    let h = harness();
+
+    send(&h.app, json_post("/start", "{not json")).await;
+    send(
+        &h.app,
+        raw_post("/end", Some("text/plain"), duel_json().into_bytes()),
+    )
+    .await;
+    send(
+        &h.app,
+        raw_post("/start", Some("application/json"), vec![b' '; 70_000]),
+    )
+    .await;
+    send(&h.app, json_post("/end", r#"{"game":{}}"#)).await;
+    send(&h.app, json_post("/move", &duel_json())).await;
+
+    assert!(
+        h.lifecycle.events().is_empty(),
+        "{:?}",
+        h.lifecycle.events()
+    );
 }

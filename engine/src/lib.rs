@@ -5,6 +5,7 @@ use std::sync::Arc;
 use axum::Router;
 
 use crate::gateway::beacon::DecisionBeacon;
+use crate::gateway::lifecycle::LifecycleBeacon;
 use crate::rules_core::Clock;
 use crate::verdict::service::VerdictService;
 
@@ -19,7 +20,11 @@ pub mod verdict;
 pub const ENGINE_VERSION: &str = "0.1.0";
 
 /// The composition root: the full router over the production search settings.
-pub fn build_service(clock: Arc<dyn Clock>, beacon: Arc<dyn DecisionBeacon>) -> Router {
+pub fn build_service(
+    clock: Arc<dyn Clock>,
+    beacon: Arc<dyn DecisionBeacon>,
+    lifecycle: Arc<dyn LifecycleBeacon>,
+) -> Router {
     let service = VerdictService::new(clock.clone());
-    gateway::http::router(clock, service, beacon)
+    gateway::http::router(clock, service, beacon, lifecycle)
 }

@@ -140,7 +140,7 @@ Note: `Settings` stopped being `Copy` (it holds a path); nothing relied on that.
 ```yaml
 id: T005
 status: closed
-commits: { reconstructed: pending }
+commits: { reconstructed: 120235ab49cceb6f2ea66844519ffbf7de6f017a }
 source-commits: { red: e362464, green: 48abca5, refactor: a0aee53 }
 spec-ref: spec.md §Acceptance criteria 4 and 5
 contract-ref: contracts/game-lifecycle.schema.json
@@ -172,8 +172,9 @@ Note: the request DTO carries no snake names at all (only ids), so there is noth
 
 ```yaml
 id: T006
-status: open
-commits: { red: null, green: null, refactor: null }
+status: closed
+commits: { reconstructed: pending }
+source-commits: { red: f990b14, green: ee3cf0c, refactor: skipped }
 spec-ref: spec.md §Acceptance criteria 4
 contract-ref: contracts/game-lifecycle.schema.json
 constitution-ref: Articles II, IV, VII
@@ -189,7 +190,7 @@ constitution-ref: Articles II, IV, VII
 
 **G - Green:** Emit from the handlers and thread the beacon through `build_service`.
 
-**F - Refactor:** Skipped unless the two handlers duplicate the request handling.
+**F - Refactor:** Skipped - the two handlers are three lines each and already share the one `acknowledge` step that holds the emitting and the answer.
 
 **Files**
 
@@ -197,6 +198,9 @@ constitution-ref: Articles II, IV, VII
 - `engine/src/lib.rs`
 - `engine/tests/gateway_http.rs`
 - `engine/tests/support/beacon.rs`
+
+Note: `build_service` and `router` gained the lifecycle beacon parameter; `main.rs` passes the tracing beacon. A game outside the certified scope still reports its start because /start acknowledges any syntactically valid game.
+
 
 ## T007 - Write the same log to the daily file from the process
 
