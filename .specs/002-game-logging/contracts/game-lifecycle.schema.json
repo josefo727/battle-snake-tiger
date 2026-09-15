@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tiger-engine.local/contracts/game-lifecycle.v1.schema.json",
+  "$comment": "contract: game-lifecycle; version: 1.0.0; captured: 2026-09-19; source: 002-game-logging spec.md criterion 4",
+  "x-contract": "game-lifecycle",
+  "x-version": "1.0.0",
+  "x-captured": "2026-09-19",
+  "title": "Game lifecycle event",
+  "type": "object",
+  "required": ["level", "target", "event", "schema_version", "game_id", "turn", "snakes"],
+  "properties": {
+    "level": { "const": "INFO" },
+    "target": { "const": "game_lifecycle" },
+    "event": { "enum": ["game_started", "game_ended"] },
+    "schema_version": { "const": "1.0.0" },
+    "game_id": { "type": "string", "minLength": 1 },
+    "turn": { "type": "integer", "minimum": 0 },
+    "ruleset": { "type": "string", "description": "Ruleset name and version, e.g. standard/v1.2.3; present on game_started." },
+    "map": { "type": "string", "description": "Present on game_started." },
+    "timeout_ms": { "type": "integer", "minimum": 0, "description": "Present on game_started." },
+    "board_width": { "type": "integer", "minimum": 1, "description": "Present on game_started." },
+    "board_height": { "type": "integer", "minimum": 1, "description": "Present on game_started." },
+    "snakes": { "type": "integer", "minimum": 0, "description": "Snakes on the board: at the start, or still alive at the end." },
+    "we_survived": { "type": "boolean", "description": "Present on game_ended: our snake is still on the board." }
+  },
+  "additionalProperties": false
+}
