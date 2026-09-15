@@ -5,4 +5,5 @@ pub mod beacon;
 pub mod calendar;
 pub mod clock;
 pub mod http;
+pub mod logfile;
 pub mod settings;

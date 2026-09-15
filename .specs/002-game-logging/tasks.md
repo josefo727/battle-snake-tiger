@@ -11,7 +11,7 @@ Ordering: the calendar, then the file writer and its retention, then the setting
 ```yaml
 id: T001
 status: closed
-commits: { reconstructed: pending }
+commits: { reconstructed: bcaa2bc40723af9b4b602c9060bac646b4c92279 }
 source-commits: { red: a7d86cc, green: 0230c30, refactor: skipped }
 spec-ref: spec.md §Acceptance criteria 1 and 2
 contract-ref: n/a
@@ -43,8 +43,9 @@ Note: parsing also rejects the year-0 style sign and any trailing whitespace; th
 
 ```yaml
 id: T002
-status: open
-commits: { red: null, green: null, refactor: null }
+status: closed
+commits: { reconstructed: pending }
+source-commits: { red: 5287bc9, green: 7e0595a, refactor: skipped }
 spec-ref: spec.md §Acceptance criteria 1 and 3
 contract-ref: n/a
 constitution-ref: Articles II, VII, X
@@ -60,13 +61,16 @@ constitution-ref: Articles II, VII, X
 
 **G - Green:** Implement the rotation, append, directory creation and error swallowing.
 
-**F - Refactor:** Skipped unless opening and rotating duplicate each other.
+**F - Refactor:** Skipped - opening and rotating are one step (`open_day`, called when the day differs) and the error handling is a single place (`append`).
 
 **Files**
 
 - `engine/src/gateway/logfile.rs`
 - `engine/src/gateway/mod.rs`
 - `engine/tests/gateway_logfile.rs`
+
+Note: retention (`keep_days`) is accepted but not applied yet; T003 adds it at the point where a new day's file is opened.
+
 
 ## T003 - Keep only the configured number of daily files
 
