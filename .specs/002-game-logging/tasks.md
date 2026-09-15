@@ -10,8 +10,9 @@ Ordering: the calendar, then the file writer and its retention, then the setting
 
 ```yaml
 id: T001
-status: open
-commits: { red: null, green: null, refactor: null }
+status: closed
+commits: { reconstructed: pending }
+source-commits: { red: a7d86cc, green: 0230c30, refactor: skipped }
 spec-ref: spec.md §Acceptance criteria 1 and 2
 contract-ref: n/a
 constitution-ref: Articles II, VII
@@ -27,13 +28,16 @@ constitution-ref: Articles II, VII
 
 **G - Green:** Implement days-from-civil, formatting, parsing and the system calendar.
 
-**F - Refactor:** Skipped unless the formatting and parsing duplicate a digit helper.
+**F - Refactor:** Skipped - formatting and parsing share no digit helper worth extracting (parsing folds bytes, formatting uses the standard width flags).
 
 **Files**
 
 - `engine/src/gateway/calendar.rs`
 - `engine/src/gateway/mod.rs`
 - `engine/tests/gateway_calendar.rs`
+
+Note: parsing also rejects the year-0 style sign and any trailing whitespace; the exhaustive walk from 1970 to 2100 doubles as the proof of the leap-year rules.
+
 
 ## T002 - Append log lines to a daily file
 

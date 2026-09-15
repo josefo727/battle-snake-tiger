@@ -2,6 +2,7 @@
 //! (diagnostics), and the process around them (clock, settings).
 
 pub mod beacon;
+pub mod calendar;
 pub mod clock;
 pub mod http;
 pub mod settings;
