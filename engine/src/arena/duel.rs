@@ -32,6 +32,8 @@ impl Side {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum BoardError {
+    /// A melee holds two to four serpents.
+    SeatCount,
     SerpentsOverlap,
     PelletUnderSerpent,
     VigorOutOfRange,
@@ -72,21 +74,7 @@ impl DuelBoard {
     /// Rejects serpents that share a cell, a pellet under a serpent, and a
     /// vigor outside `1..=100`.
     pub fn try_new(us: Serpent, them: Serpent, pellets: CellSet) -> Result<Self, BoardError> {
-        for serpent in [&us, &them] {
-            if !(1..=Self::MAX_VIGOR).contains(&serpent.vigor()) {
-                return Err(BoardError::VigorOutOfRange);
-            }
-        }
-        if !us.cells().intersection(them.cells()).is_empty() {
-            return Err(BoardError::SerpentsOverlap);
-        }
-        if !pellets
-            .intersection(us.cells().union(them.cells()))
-            .is_empty()
-        {
-            return Err(BoardError::PelletUnderSerpent);
-        }
-
+        check_invariants(&[us, them], pellets)?;
         Ok(Self {
             serpents: [us, them],
             pellets,
@@ -185,6 +173,25 @@ impl DuelBoard {
     pub const fn occupied(&self) -> CellSet {
         self.serpents[0].cells().union(self.serpents[1].cells())
     }
+}
+
+/// The invariants every starting position shares: each serpent's vigor in
+/// `1..=MAX_VIGOR`, no two serpents sharing a cell, no pellet under a serpent.
+pub(super) fn check_invariants(serpents: &[Serpent], pellets: CellSet) -> Result<(), BoardError> {
+    let mut taken = CellSet::EMPTY;
+    for serpent in serpents {
+        if !(1..=DuelBoard::MAX_VIGOR).contains(&serpent.vigor()) {
+            return Err(BoardError::VigorOutOfRange);
+        }
+        if !taken.intersection(serpent.cells()).is_empty() {
+            return Err(BoardError::SerpentsOverlap);
+        }
+        taken = taken.union(serpent.cells());
+    }
+    if !pellets.intersection(taken).is_empty() {
+        return Err(BoardError::PelletUnderSerpent);
+    }
+    Ok(())
 }
 
 /// What one serpent's move leaves behind for the elimination phase.

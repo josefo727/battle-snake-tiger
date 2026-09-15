@@ -10,8 +10,9 @@ Ordering: the N-snake kernel and its differential equivalence to the reused reso
 
 ```yaml
 id: T001
-status: open
-commits: { red: null, green: null, refactor: null }
+status: closed
+commits: { reconstructed: pending }
+source-commits: { red: ff1f1b3, green: 0b76907, refactor: skipped }
 spec-ref: spec.md §Acceptance criteria 1
 contract-ref: n/a
 constitution-ref: Articles II, IX, X
@@ -28,7 +29,7 @@ constitution-ref: Articles II, IX, X
 
 **G - Green:** Implement the checks, the seat accessors and the duel conversion.
 
-**F - Refactor:** Share the invariant checks with the duel board where they are literally the same.
+**F - Refactor:** Skipped - the invariant check was shared with the duel board in the Green itself (one helper, both boards), so no duplication is left to remove.
 
 **Files**
 
