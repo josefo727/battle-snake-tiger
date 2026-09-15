@@ -40,3 +40,11 @@ None. (Snake names in `game_started` were left out by default, see clarify Q2.)
 
 - **Daily file** - `LOG_DIR/tiger.log.YYYY-MM-DD`, the JSON lines of one UTC day.
 - **Lifecycle event** - `game_started` or `game_ended`.
+
+---
+
+## Closed (reconstructed history)
+
+- Date: `2026-09-15`
+- Commit: `pending`
+- Notes: Task commits consolidate the preserved Red-Green-Refactor beats.

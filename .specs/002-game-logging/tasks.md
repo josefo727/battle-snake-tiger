@@ -239,7 +239,7 @@ Note: settings are now read before the subscriber starts, so the error for a bad
 ```yaml
 id: T008
 status: closed
-commits: { reconstructed: pending }
+commits: { reconstructed: 4f32c01c5a25bc58938bf6c54bf7d06c372560d3 }
 source-commits: { red: 2c0e065, green: d65ca38, refactor: skipped }
 spec-ref: spec.md §Acceptance criteria 6
 contract-ref: n/a
@@ -279,3 +279,4 @@ Note: the smoke script chmods its temporary log directory to 0777 so the contain
 
 | Date | Change | Reason |
 |------|--------|--------|
+| Reconstruction | Task implementation is consolidated into one commit; `source-commits` points to the preserved R/G/F evidence in the original history. | Approved repository reconstruction; the consolidated commit body preserves the full R/G/F narrative. |
