@@ -109,7 +109,7 @@ Note: the count includes the file just opened, so `LOG_KEEP_DAYS=14` leaves toda
 ```yaml
 id: T004
 status: closed
-commits: { reconstructed: pending }
+commits: { reconstructed: 94769841c6e29ce56e467243090e4ae4979fe056 }
 source-commits: { red: 920d008, green: fec25a3, refactor: skipped }
 spec-ref: spec.md §Acceptance criteria 1 and 2
 contract-ref: n/a
@@ -139,8 +139,9 @@ Note: `Settings` stopped being `Copy` (it holds a path); nothing relied on that.
 
 ```yaml
 id: T005
-status: open
-commits: { red: null, green: null, refactor: null }
+status: closed
+commits: { reconstructed: pending }
+source-commits: { red: e362464, green: 48abca5, refactor: a0aee53 }
 spec-ref: spec.md §Acceptance criteria 4 and 5
 contract-ref: contracts/game-lifecycle.schema.json
 constitution-ref: Articles II, IV
@@ -156,13 +157,16 @@ constitution-ref: Articles II, IV
 
 **G - Green:** Implement the mapping, the port and the tracing adapter.
 
-**F - Refactor:** Skipped unless the two constructors share more than the identity fields.
+**F - Refactor:** Replaced the beacon tests' private tracing capture with the shared `support::capture::json_lines`.
 
 **Files**
 
 - `engine/src/gateway/lifecycle.rs`
 - `engine/src/gateway/mod.rs`
 - `engine/tests/gateway_lifecycle.rs`
+
+Note: the request DTO carries no snake names at all (only ids), so there is nothing to leak even by accident; the started and ended constructors share their identity fields through `about`.
+
 
 ## T006 - Emit lifecycle events from /start and /end
 

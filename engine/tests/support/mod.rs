@@ -3,6 +3,7 @@
 #![allow(dead_code)]
 
 pub mod beacon;
+pub mod capture;
 pub mod clock;
 pub mod schema;
 pub mod server;

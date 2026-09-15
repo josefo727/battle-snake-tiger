@@ -1,7 +1,6 @@
 mod support;
 
-use std::io;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use proptest::prelude::*;
 use serde_json::{Value, json};
@@ -9,8 +8,8 @@ use tiger_engine::gateway::beacon::{DecisionBeacon, DecisionEvent, SCHEMA_VERSIO
 use tiger_engine::rules_core::{Direction, MonotonicInstant};
 use tiger_engine::verdict::report::{Diagnostic, EnginePath, SelectionReason, VerdictReport};
 use tiger_engine::verdict::service::VerdictService;
-use tracing_subscriber::fmt::MakeWriter;
 
+use support::capture::json_lines;
 use support::clock::ManualClock;
 use support::schema::{load_contract, validate};
 use support::{request_from_bodies, request_with};
@@ -368,42 +367,12 @@ fn a_duel_a_melee_and_an_unsupported_game_each_produce_a_valid_event() {
 
 // ---- the tracing adapter --------------------------------------------------------
 
-#[derive(Clone, Default)]
-struct Capture(Arc<Mutex<Vec<u8>>>);
-
-impl io::Write for Capture {
-    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        self.0.lock().unwrap().extend_from_slice(buf);
-        Ok(buf.len())
-    }
-    fn flush(&mut self) -> io::Result<()> {
-        Ok(())
-    }
-}
-
-impl<'a> MakeWriter<'a> for Capture {
-    type Writer = Self;
-    fn make_writer(&'a self) -> Self::Writer {
-        self.clone()
-    }
-}
-
 fn captured_lines(events: &[DecisionEvent]) -> Vec<Value> {
-    let capture = Capture::default();
-    let subscriber = tracing_subscriber::fmt()
-        .json()
-        .with_writer(capture.clone())
-        .with_max_level(tracing::Level::INFO)
-        .finish();
-    tracing::subscriber::with_default(subscriber, || {
+    json_lines(|| {
         for event in events {
             TracingBeacon.emit(event);
         }
-    });
-    let text = String::from_utf8(capture.0.lock().unwrap().clone()).unwrap();
-    text.lines()
-        .map(|line| serde_json::from_str(line).expect("a JSON log line"))
-        .collect()
+    })
 }
 
 #[test]
