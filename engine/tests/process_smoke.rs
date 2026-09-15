@@ -11,6 +11,7 @@ use serde_json::Value;
 
 use support::request_json_with;
 use support::server::{PATIENCE, Server, spawn};
+use tiger_engine::gateway::calendar::{Calendar, SystemCalendar};
 
 const IDENTITY: &str = r##"{"apiversion":"1","author":"josefo727","color":"#00D5FF","head":"tiger-king","tail":"tiger-tail","version":"0.1.0"}"##;
 
@@ -185,4 +186,104 @@ fn the_binary_refuses_an_invalid_port_and_says_which_setting_is_wrong() {
             .any(|line| line.contains("PORT") && line.contains("not-a-port")),
         "{output:?}"
     );
+}
+
+// ---- the daily log file ---------------------------------------------------------------------
+
+struct Scratch(std::path::PathBuf);
+
+impl Scratch {
+    fn new(label: &str) -> Self {
+        let path =
+            std::env::temp_dir().join(format!("tiger-process-{}-{label}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&path);
+        std::fs::create_dir_all(&path).unwrap();
+        Self(path)
+    }
+}
+
+impl Drop for Scratch {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.0);
+    }
+}
+
+fn todays_file(dir: &std::path::Path) -> std::path::PathBuf {
+    dir.join(format!("tiger.log.{}", SystemCalendar.today()))
+}
+
+/// The lines of `path`, retried briefly: the server writes each event before it answers, but
+/// the test may read a moment ahead of the file system.
+fn wait_for_lines(path: &std::path::Path, wanted: impl Fn(&str) -> bool) -> String {
+    let deadline = std::time::Instant::now() + PATIENCE;
+    loop {
+        let text = std::fs::read_to_string(path).unwrap_or_default();
+        if wanted(&text) || std::time::Instant::now() > deadline {
+            return text;
+        }
+        thread::sleep(Duration::from_millis(25));
+    }
+}
+
+#[test]
+fn with_log_dir_set_the_process_writes_its_events_to_todays_file_and_still_prints_them() {
+    let scratch = Scratch::new("logdir");
+    let dir = scratch.0.join("logs");
+    let server = Server::start_with(&[("LOG_DIR", dir.to_str().unwrap())], None);
+    let duel = request_json_with("v1.2.3", 2, 500, 0, &[(8, 8)]);
+
+    post_json(server.addr, "/start", &duel);
+    post_json(server.addr, "/move", &duel);
+    post_json(server.addr, "/end", &duel);
+
+    let text = wait_for_lines(&todays_file(&dir), |t| {
+        t.contains("game_ended") && t.contains("move_decision")
+    });
+    for wanted in ["listening", "game_started", "move_decision", "game_ended"] {
+        assert!(
+            text.contains(wanted),
+            "`{wanted}` missing from the file:\n{text}"
+        );
+    }
+    for line in text.lines() {
+        serde_json::from_str::<Value>(line).expect("every line of the file is JSON");
+    }
+    server.wait_for_log(|line| line["target"] == "move_decision");
+    server.wait_for_log(|line| line["target"] == "game_lifecycle");
+}
+
+#[test]
+fn an_unwritable_log_dir_never_stops_the_server_from_serving_or_printing() {
+    let scratch = Scratch::new("blocked");
+    let blocker = scratch.0.join("in-the-way");
+    std::fs::write(&blocker, "a file, not a directory").unwrap();
+    let server = Server::start_with(&[("LOG_DIR", blocker.join("logs").to_str().unwrap())], None);
+
+    let reply = get(server.addr, "/");
+    post_json(
+        server.addr,
+        "/start",
+        &request_json_with("v1.2.3", 2, 500, 0, &[]),
+    );
+
+    assert_eq!(reply.status, 200);
+    assert_eq!(reply.body, IDENTITY);
+    server.wait_for_log(|line| line["target"] == "game_lifecycle");
+}
+
+#[test]
+fn without_log_dir_nothing_is_written_to_disk() {
+    let scratch = Scratch::new("nolog");
+    let server = Server::start_with(&[], Some(&scratch.0));
+
+    get(server.addr, "/");
+    post_json(
+        server.addr,
+        "/start",
+        &request_json_with("v1.2.3", 2, 500, 0, &[]),
+    );
+    server.wait_for_log(|line| line["target"] == "game_lifecycle");
+
+    let entries: Vec<_> = std::fs::read_dir(&scratch.0).unwrap().collect();
+    assert!(entries.is_empty(), "{entries:?}");
 }

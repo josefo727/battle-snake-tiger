@@ -173,7 +173,7 @@ Note: the request DTO carries no snake names at all (only ids), so there is noth
 ```yaml
 id: T006
 status: closed
-commits: { reconstructed: pending }
+commits: { reconstructed: ef3927908d26886cabe5f78388acd05b67b27075 }
 source-commits: { red: f990b14, green: ee3cf0c, refactor: skipped }
 spec-ref: spec.md §Acceptance criteria 4
 contract-ref: contracts/game-lifecycle.schema.json
@@ -206,8 +206,9 @@ Note: `build_service` and `router` gained the lifecycle beacon parameter; `main.
 
 ```yaml
 id: T007
-status: open
-commits: { red: null, green: null, refactor: null }
+status: closed
+commits: { reconstructed: pending }
+source-commits: { red: a7f8ef7, green: 46ab007, refactor: skipped }
 spec-ref: spec.md §Acceptance criteria 1 and 3
 contract-ref: n/a
 constitution-ref: Articles II, VII
@@ -223,12 +224,15 @@ constitution-ref: Articles II, VII
 
 **G - Green:** Wire the layers in `main.rs`.
 
-**F - Refactor:** Skipped unless the two layers duplicate their configuration.
+**F - Refactor:** Skipped - the two layers differ in their writer and in `with_ansi`; the shared part is the single call `fmt::layer().json()`, not worth a helper.
 
 **Files**
 
 - `engine/src/main.rs`
 - `engine/tests/process_smoke.rs`
+
+Note: settings are now read before the subscriber starts, so the error for a bad setting is printed by a stdout-only subscriber. The startup-error test (bad PORT) still passes unchanged.
+
 
 ## T008 - Mount the log directory on the shared server
 

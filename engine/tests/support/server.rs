@@ -20,7 +20,19 @@ pub struct Server {
 
 /// Starts the binary with exactly the given environment and streams its stdout.
 pub fn spawn(env: &[(&str, &str)]) -> (Child, Receiver<String>) {
-    let mut child = Command::new(env!("CARGO_BIN_EXE_tiger-engine"))
+    spawn_in(env, None)
+}
+
+/// Like [`spawn`], optionally with a working directory.
+pub fn spawn_in(
+    env: &[(&str, &str)],
+    directory: Option<&std::path::Path>,
+) -> (Child, Receiver<String>) {
+    let mut command = Command::new(env!("CARGO_BIN_EXE_tiger-engine"));
+    if let Some(directory) = directory {
+        command.current_dir(directory);
+    }
+    let mut child = command
         .env_clear()
         .envs(env.iter().copied())
         .stdout(Stdio::piped())
@@ -43,7 +55,15 @@ impl Server {
     /// Starts the binary on an ephemeral loopback port and waits for it to say
     /// where it listens.
     pub fn start() -> Self {
-        let (child, logs) = spawn(&[("BIND_ADDR", "127.0.0.1"), ("PORT", "0")]);
+        Self::start_with(&[], None)
+    }
+
+    /// Like [`Server::start`] with extra environment variables and an optional working
+    /// directory.
+    pub fn start_with(extra: &[(&str, &str)], directory: Option<&std::path::Path>) -> Self {
+        let mut env = vec![("BIND_ADDR", "127.0.0.1"), ("PORT", "0")];
+        env.extend_from_slice(extra);
+        let (child, logs) = spawn_in(&env, directory);
         let mut server = Self {
             child,
             addr: SocketAddr::from(([127, 0, 0, 1], 0)),
