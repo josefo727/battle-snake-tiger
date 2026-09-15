@@ -1,24 +1,30 @@
-//! Process settings: where the server listens.
+//! Process settings: where the server listens and where it keeps its log.
 
 use core::fmt;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+use std::path::PathBuf;
 use std::str::FromStr;
 
 const DEFAULT_BIND_ADDR: IpAddr = IpAddr::V4(Ipv4Addr::UNSPECIFIED);
 const DEFAULT_PORT: u16 = 8080;
+const DEFAULT_LOG_KEEP_DAYS: usize = 14;
 
 /// Where the server listens, read from `BIND_ADDR` (default `0.0.0.0`) and `PORT`
-/// (default `8080`).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// (default `8080`), and where it keeps its daily log files: `LOG_DIR` (unset or empty
+/// means no files) and `LOG_KEEP_DAYS` (default 14).
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Settings {
     pub bind_addr: IpAddr,
     pub port: u16,
+    pub log_dir: Option<PathBuf>,
+    pub log_keep_days: usize,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SettingsError {
     InvalidBindAddr(String),
     InvalidPort(String),
+    InvalidLogKeepDays(String),
 }
 
 impl fmt::Display for SettingsError {
@@ -31,6 +37,10 @@ impl fmt::Display for SettingsError {
             Self::InvalidPort(value) => write!(
                 formatter,
                 "PORT {value:?} is not a port number; use a whole number from 0 to 65535"
+            ),
+            Self::InvalidLogKeepDays(value) => write!(
+                formatter,
+                "LOG_KEEP_DAYS {value:?} is not a number of days; use a whole number of 1 or more"
             ),
         }
     }
@@ -53,7 +63,24 @@ impl Settings {
             SettingsError::InvalidBindAddr,
         )?;
         let port = read(&lookup, "PORT", DEFAULT_PORT, SettingsError::InvalidPort)?;
-        Ok(Self { bind_addr, port })
+        let log_dir = lookup("LOG_DIR")
+            .filter(|dir| !dir.is_empty())
+            .map(PathBuf::from);
+        let log_keep_days = read(
+            &lookup,
+            "LOG_KEEP_DAYS",
+            DEFAULT_LOG_KEEP_DAYS,
+            SettingsError::InvalidLogKeepDays,
+        )?;
+        if log_keep_days == 0 {
+            return Err(SettingsError::InvalidLogKeepDays("0".to_owned()));
+        }
+        Ok(Self {
+            bind_addr,
+            port,
+            log_dir,
+            log_keep_days,
+        })
     }
 
     /// Reads the settings from the real process environment.

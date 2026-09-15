@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
+use std::path::PathBuf;
 
 use proptest::prelude::*;
 use tiger_engine::gateway::settings::{Settings, SettingsError};
@@ -115,4 +116,59 @@ proptest! {
         prop_assert_eq!(settings.port, port);
         prop_assert_eq!(settings.socket_addr(), SocketAddr::from((octets, port)));
     }
+}
+
+#[test]
+fn without_log_settings_nothing_is_written_to_disk_and_files_are_kept_fourteen_days() {
+    let settings = Settings::from_lookup(lookup(&[])).unwrap();
+
+    assert_eq!(settings.log_dir, None);
+    assert_eq!(settings.log_keep_days, 14);
+}
+
+#[test]
+fn a_log_directory_and_a_retention_are_read() {
+    let settings = Settings::from_lookup(lookup(&[
+        ("LOG_DIR", "/var/log/tiger"),
+        ("LOG_KEEP_DAYS", "7"),
+    ]))
+    .unwrap();
+
+    assert_eq!(settings.log_dir, Some(PathBuf::from("/var/log/tiger")));
+    assert_eq!(settings.log_keep_days, 7);
+}
+
+#[test]
+fn an_empty_log_directory_counts_as_unset() {
+    let settings = Settings::from_lookup(lookup(&[("LOG_DIR", "")])).unwrap();
+
+    assert_eq!(settings.log_dir, None);
+}
+
+#[test]
+fn a_retention_that_is_not_a_whole_number_of_days_from_one_is_refused() {
+    for bad in ["0", "-1", "abc", "", "3.5", " 7", "99999999999999999999"] {
+        let error = Settings::from_lookup(lookup(&[("LOG_KEEP_DAYS", bad)])).unwrap_err();
+
+        assert_eq!(
+            error,
+            SettingsError::InvalidLogKeepDays(bad.to_owned()),
+            "{bad:?}"
+        );
+    }
+    let message = SettingsError::InvalidLogKeepDays("0".to_owned()).to_string();
+    assert!(
+        message.contains("LOG_KEEP_DAYS")
+            && message.contains("\"0\"")
+            && message.contains("1 or more"),
+        "{message}"
+    );
+}
+
+#[test]
+fn the_older_settings_are_still_checked_first() {
+    let error =
+        Settings::from_lookup(lookup(&[("PORT", "nope"), ("LOG_KEEP_DAYS", "nope")])).unwrap_err();
+
+    assert!(matches!(error, SettingsError::InvalidPort(_)));
 }

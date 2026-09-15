@@ -77,7 +77,7 @@ Note: retention (`keep_days`) is accepted but not applied yet; T003 adds it at t
 ```yaml
 id: T003
 status: closed
-commits: { reconstructed: pending }
+commits: { reconstructed: 34477bb5a0e63426d4bdd724a0620fb9e57c0e2b }
 source-commits: { red: 004b4df, green: 810c55c, refactor: skipped }
 spec-ref: spec.md §Acceptance criteria 2
 contract-ref: n/a
@@ -108,8 +108,9 @@ Note: the count includes the file just opened, so `LOG_KEEP_DAYS=14` leaves toda
 
 ```yaml
 id: T004
-status: open
-commits: { red: null, green: null, refactor: null }
+status: closed
+commits: { reconstructed: pending }
+source-commits: { red: 920d008, green: fec25a3, refactor: skipped }
 spec-ref: spec.md §Acceptance criteria 1 and 2
 contract-ref: n/a
 constitution-ref: Articles II, VII
@@ -124,12 +125,15 @@ constitution-ref: Articles II, VII
 
 **G - Green:** Parse both variables.
 
-**F - Refactor:** Skipped unless the parsing repeats the existing read helper.
+**F - Refactor:** Skipped - LOG_KEEP_DAYS reuses the existing `read` helper; the only added logic is the zero check.
 
 **Files**
 
 - `engine/src/gateway/settings.rs`
 - `engine/tests/gateway_settings.rs`
+
+Note: `Settings` stopped being `Copy` (it holds a path); nothing relied on that.
+
 
 ## T005 - Define the lifecycle events and their contract
 
