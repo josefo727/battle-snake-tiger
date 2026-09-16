@@ -6,3 +6,4 @@
 # everyone who runs the test benefits from these saved cases.
 cc 9c40125e8df08730f5782c029a728d6e7cf22854639d34e57278592597fb833d # shrinks to version = "v1.2.3", snakes = 2, timeout = 121, you = 0
 cc 4832ee35f2c6c2588022a34117d91c7a3f92677464bf1688ddffc50a81d2b11d # shrinks to version = "v1.2.3", snakes = 2, timeout = 121, you = 0
+cc 570da3c37d22d7ee5c018a7ad3b48472f438a29cd53ae3cb3a8e9949fb09b131 # shrinks to version = "v1.2.3", snakes = 3, timeout = 131, you = 0

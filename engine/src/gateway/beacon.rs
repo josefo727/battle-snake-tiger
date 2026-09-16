@@ -68,6 +68,7 @@ impl DecisionEvent {
 const fn engine_path_name(path: EnginePath) -> &'static str {
     match path {
         EnginePath::DuelSearch => "duel_search",
+        EnginePath::MeleeSearch => "safety_fallback",
         EnginePath::SafetyFallback => "safety_fallback",
         EnginePath::UnsupportedFallback => "unsupported_fallback",
     }

@@ -390,7 +390,7 @@ Note: two Red expectations were wrong for a melee (an iteration of thousands of 
 ```yaml
 id: T013
 status: closed
-commits: { reconstructed: pending }
+commits: { reconstructed: 2dbb7a324ae90536f61b4278a3fb657cdef264dd }
 source-commits: { red: 480902f, green: 187efdf, refactor: skipped }
 spec-ref: spec.md §Acceptance criteria 1 and 5
 contract-ref: n/a
@@ -419,8 +419,9 @@ Note: the Red's one-snake test assumed the classifier certifies one snake; it do
 
 ```yaml
 id: T014
-status: open
-commits: { red: null, green: null, refactor: null }
+status: closed
+commits: { reconstructed: pending }
+source-commits: { red: 7250221, green: 25ba92d, refactor: 25ba92d }
 spec-ref: spec.md §Acceptance criteria 1, 3 and 4
 contract-ref: contracts/decision-diagnostic.schema.json
 constitution-ref: Articles II, XI
@@ -436,13 +437,16 @@ constitution-ref: Articles II, XI
 
 **G - Green:** Implement the melee branch.
 
-**F - Refactor:** Share the search-to-report step with the duel branch.
+**F - Refactor:** Done in the Green: both search branches share report_search and allowance_for.
 
 **Files**
 
 - `engine/src/verdict/service.rs`
 - `engine/src/verdict/report.rs`
 - `engine/tests/verdict_service.rs`
+
+Note: the Red's no-time example declared 131 ms (one millisecond of search the manual clock never spends, so depth 6 ran unbounded); corrected to 125 ms in the Green. The Green leaves the beacon contract test red on purpose: it is T015's observed failure.
+
 
 ## T015 - Diagnostic contract 2.1.0 and the transport
 

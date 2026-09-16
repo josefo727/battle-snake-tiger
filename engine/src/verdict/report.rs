@@ -6,6 +6,7 @@ use crate::rules_core::{DecisionReport, Direction, SafetyDiagnostic};
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum EnginePath {
     DuelSearch,
+    MeleeSearch,
     SafetyFallback,
     UnsupportedFallback,
 }
@@ -61,9 +62,10 @@ pub struct VerdictReport {
 }
 
 impl VerdictReport {
-    /// A decision made by the duel search at a completed depth.
+    /// A decision made by a search (`engine_path` names which) at a completed depth.
     #[must_use]
     pub const fn searched(
+        engine_path: EnginePath,
         selected_move: Direction,
         principal_score: i32,
         proven_win: bool,
@@ -72,7 +74,7 @@ impl VerdictReport {
         elapsed_us: u64,
     ) -> Self {
         Self {
-            engine_path: EnginePath::DuelSearch,
+            engine_path,
             selected_move,
             elapsed_us,
             search_depth,
@@ -88,7 +90,7 @@ impl VerdictReport {
         }
     }
 
-    /// The duel search finished no depth, so `reused` (the one-turn safety
+    /// A search finished no depth, so `reused` (the one-turn safety
     /// decision) answered; the positions the search did visit still count.
     #[must_use]
     pub fn budget_exhausted(reused: &DecisionReport, search_nodes: u64, elapsed_us: u64) -> Self {

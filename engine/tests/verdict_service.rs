@@ -3,9 +3,10 @@ mod support;
 use std::sync::Arc;
 
 use proptest::prelude::*;
-use tiger_engine::arena::ingest::{direction_of, ingest};
+use tiger_engine::arena::ingest::{direction_of, ingest, ingest_melee};
 use tiger_engine::lookahead::minimax::Searcher;
 use tiger_engine::lookahead::ordering::NaturalOrder;
+use tiger_engine::lookahead::paranoid::MeleeSearcher;
 use tiger_engine::rules_core::{
     Direction, MonotonicInstant, RequestTiming, Scope, TurnRequestDto, classify,
     decide_unsupported, decide_within_deadline, declared_timeout, direction_to_wire,
@@ -13,6 +14,9 @@ use tiger_engine::rules_core::{
 };
 use tiger_engine::valuation::StandardPipeline;
 use tiger_engine::valuation::finish::Finish;
+use tiger_engine::valuation::melee::MeleeValuation;
+use tiger_engine::valuation::melee::finish::MeleeFinish;
+use tiger_engine::valuation::melee::weights::DEFAULT_MELEE_PROFILE;
 use tiger_engine::valuation::weights::DEFAULT_PROFILE;
 use tiger_engine::verdict::report::{Diagnostic, EnginePath, SelectionReason, VerdictReport};
 use tiger_engine::verdict::service::VerdictService;
@@ -181,32 +185,65 @@ fn when_no_depth_completes_the_reused_safety_decision_answers_and_says_why() {
 
 // ---- the other routes ----------------------------------------------------------
 
+/// What a plain fixed-depth paranoid search says about the request's melee.
+fn melee_searched(request: &TurnRequestDto, depth: u16) -> (Direction, i32) {
+    let state = to_turn_state(request).expect("a supported request");
+    let board = ingest_melee(&state).expect("a melee");
+    let valuation = MeleeValuation::standard();
+    let report = MeleeSearcher::with_order(
+        &valuation,
+        MeleeFinish::new(&DEFAULT_MELEE_PROFILE),
+        NaturalOrder,
+    )
+    .search_fixed(&board, depth);
+    (
+        direction_of(report.best.expect("a completed depth")),
+        report.principal_score.expect("a completed depth"),
+    )
+}
+
+// ---- the melee path -----------------------------------------------------------
+
 #[test]
-fn three_snakes_get_exactly_what_the_reused_safety_engine_returns() {
+fn a_melee_answers_with_the_paranoid_heading_at_the_completed_depth() {
     let clock = Arc::new(ManualClock::at_micros(ARRIVAL));
-    let request = request_with("v1.2.3", 3, 500, 0, &[]);
+    for snakes in [3, 4] {
+        let request = request_with("v1.2.3", snakes, 500, 1, &[(5, 6), (2, 3)]);
+
+        let report = service(&clock, 2).decide(&request, arrival());
+
+        let (direction, score) = melee_searched(&request, 2);
+        assert_eq!(report.engine_path, EnginePath::MeleeSearch, "{snakes}");
+        assert_eq!(report.selected_move, direction, "{snakes}");
+        assert_eq!(report.principal_score, Some(score), "{snakes}");
+        assert_eq!(report.search_depth, 2, "{snakes}");
+        assert!(report.nodes_explored > 0, "{snakes}");
+        assert!(!report.fallback_used, "{snakes}");
+        assert_eq!(
+            report.selection_reason,
+            SelectionReason::SearchCompletedDepth
+        );
+        assert_eq!(report.diagnostic, Diagnostic::None);
+    }
+}
+
+#[test]
+fn a_melee_with_no_search_time_uses_the_safety_engine_and_says_so() {
+    // 125 ms declared: the search deadline is already in the past on arrival.
+    let clock = Arc::new(ManualClock::at_micros(ARRIVAL));
+    let request = request_with("v1.2.3", 4, 125, 0, &[]);
 
     let report = service(&clock, 6).decide(&request, arrival());
 
-    let Scope::Supported(state) = classify(&request) else {
-        panic!("the request is supported");
-    };
-    let deadline = response_deadline(
-        RequestTiming {
-            arrived_at: arrival(),
-        },
-        declared_timeout(&request),
-    )
-    .expect("above the reserve");
-    let reused = decide_within_deadline(&state, clock.as_ref(), arrival(), deadline).unwrap();
     assert_eq!(report.engine_path, EnginePath::SafetyFallback);
-    assert_eq!(report.selection_reason, SelectionReason::OneTurnSafety);
-    assert_eq!(report.selected_move, reused.selected_move);
-    assert_eq!(report.fallback_used, reused.fallback_used);
-    assert_eq!(report.elapsed_us, reused.elapsed_us);
+    assert_eq!(
+        report.selection_reason,
+        SelectionReason::BudgetExhaustedBeforeFirstDepth
+    );
+    assert!(report.fallback_used);
     assert_eq!(report.search_depth, 0);
-    assert_eq!(report.principal_score, None);
-    assert_eq!(report.diagnostic, Diagnostic::None);
+    assert_eq!(report.diagnostic, Diagnostic::DeadlineCutoff);
+    assert_wire_direction(&report);
 }
 
 #[test]
@@ -289,11 +326,13 @@ proptest! {
             EnginePath::UnsupportedFallback
         } else if snakes == 2 && searchable {
             EnginePath::DuelSearch
+        } else if snakes >= 3 && searchable {
+            EnginePath::MeleeSearch
         } else {
             EnginePath::SafetyFallback
         };
         prop_assert_eq!(report.engine_path, expected_path);
-        if report.engine_path == EnginePath::DuelSearch {
+        if matches!(report.engine_path, EnginePath::DuelSearch | EnginePath::MeleeSearch) {
             prop_assert!((1..=2).contains(&report.search_depth));
             prop_assert!(!report.fallback_used);
             prop_assert!(report.principal_score.is_some());
