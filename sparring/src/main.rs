@@ -1,11 +1,11 @@
 //! `spar`: runs the seeded benchmark of the engine and the sibling baseline
 //! against each opponent of a roster through the official rules CLI and writes a
-//! versioned report.
+//! versioned report; with `--melee`, the four-snake placement benchmark instead.
 
 use std::process::{Command, ExitCode};
 use std::time::Duration;
 
-use tiger_sparring::benchmark::{Plan, run_benchmark};
+use tiger_sparring::benchmark::{Plan, run_benchmark, run_melee_benchmark};
 use tiger_sparring::launcher::ProcessLauncher;
 use tiger_sparring::ledger::{EngineIdentity, EnvironmentIdentity, JsonFileSink};
 use tiger_sparring::options::Options;
@@ -19,7 +19,7 @@ fn main() -> ExitCode {
         Ok(options) => options,
         Err(error) => {
             eprintln!(
-                "spar: {error:?}\nusage: spar --output REPORT.json [--roster PATH] [--oracle PATH] [--seeds 1-30] [--workers N] [--overwrite] [--commit SHA] [--scratch DIR]"
+                "spar: {error:?}\nusage: spar --output REPORT.json [--melee] [--roster PATH] [--oracle PATH] [--seeds 1-30] [--workers N] [--overwrite] [--commit SHA] [--scratch DIR]"
             );
             return ExitCode::FAILURE;
         }
@@ -57,9 +57,10 @@ fn main() -> ExitCode {
     let sink = JsonFileSink::new(options.output.clone(), options.overwrite);
 
     println!(
-        "spar: {} seeds, {} worker(s), opponents: {}",
+        "spar: {} seeds, {} worker(s), {}: {}",
         plan.seeds.len(),
         plan.workers,
+        if options.melee { "seats" } else { "opponents" },
         roster
             .opponents
             .iter()
@@ -67,6 +68,18 @@ fn main() -> ExitCode {
             .collect::<Vec<_>>()
             .join(", ")
     );
+    if options.melee {
+        return melee(
+            &roster,
+            &plan,
+            &runner,
+            &launcher,
+            &sink,
+            engine,
+            environment,
+            &options,
+        );
+    }
     let outcome = match run_benchmark(
         &roster,
         &plan,
@@ -110,6 +123,69 @@ fn main() -> ExitCode {
         ExitCode::SUCCESS
     } else {
         println!("criterion 8: NOT MET");
+        ExitCode::from(2)
+    }
+}
+
+/// The placement benchmark: prints every game's placements and the means, and
+/// exits 0 when criterion 6 holds.
+#[allow(clippy::too_many_arguments)]
+fn melee(
+    roster: &Roster,
+    plan: &Plan,
+    runner: &OfficialCli,
+    launcher: &ProcessLauncher,
+    sink: &JsonFileSink,
+    engine: EngineIdentity,
+    environment: EnvironmentIdentity,
+    options: &Options,
+) -> ExitCode {
+    let outcome =
+        match run_melee_benchmark(roster, plan, runner, launcher, sink, engine, environment) {
+            Ok(outcome) => outcome,
+            Err(error) => {
+                eprintln!("spar: the benchmark failed: {error:?}");
+                return ExitCode::FAILURE;
+            }
+        };
+    println!("seat one | seed | turns | placements");
+    for game in &outcome.report.games {
+        let places: Vec<String> = game
+            .placements
+            .iter()
+            .map(|(snake, place)| format!("{snake} {place}"))
+            .collect();
+        println!(
+            "{} | {} | {} | {}",
+            game.seat_one,
+            game.seed,
+            game.turns,
+            places.join(", ")
+        );
+    }
+    let summary = &outcome.report.summary;
+    println!(
+        "mean placement: {} {:.3} | {} {:.3} | {} (in the {}'s games) {:.3}",
+        summary.challenger,
+        summary.challenger_mean,
+        summary.baseline,
+        summary.baseline_mean,
+        summary.reference_opponent,
+        summary.challenger,
+        summary.reference_mean_in_challenger_games
+    );
+    for opponent in &summary.opponents {
+        println!(
+            "{}: {:.3} beside the challenger, {:.3} beside the baseline",
+            opponent.id, opponent.mean_with_challenger, opponent.mean_with_baseline
+        );
+    }
+    println!("report written to {}", options.output.display());
+    if outcome.criterion_met() {
+        println!("criterion 6: MET");
+        ExitCode::SUCCESS
+    } else {
+        println!("criterion 6: NOT MET");
         ExitCode::from(2)
     }
 }

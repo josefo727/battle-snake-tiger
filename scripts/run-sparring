@@ -2,13 +2,13 @@
 # Runs the sparring benchmark: provisions the opponents if there is no roster yet, builds
 # the `spar` tool and runs it. All arguments go to `spar` (it requires --output).
 #
-# usage: scripts/run-sparring --output REPORT.json [--workers N] [--overwrite] [--seeds 1-30]
-# exit:  0 criterion 8 met, 2 completed but not met, 1 failure
+# usage: scripts/run-sparring --output REPORT.json [--melee] [--workers N] [--overwrite] [--seeds 1-30]
+# exit:  0 criterion met (8 for duels, 6 with --melee), 2 completed but not met, 1 failure
 set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
-[ -f reference/roster.json ] || bash scripts/provision-opponents
+[ -f reference/roster.json ] && [ -f reference/roster-melee.json ] || bash scripts/provision-opponents
 [ -x .rules-oracle/battlesnake ] || bash scripts/fetch-rules-oracle
 
 cargo build --release --locked -p tiger-sparring

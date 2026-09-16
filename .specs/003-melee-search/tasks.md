@@ -669,7 +669,7 @@ Note: the contract file lives at .specs/001-duel-search/contracts/opponent-roste
 ```yaml
 id: T022
 status: closed
-commits: { reconstructed: pending }
+commits: { reconstructed: fd0b63123354246827f593fa76ceb32cee3ef851 }
 source-commits: { red: cfc6fda, green: d4f7dda, refactor: d4f7dda }
 spec-ref: spec.md §Acceptance criteria 6
 contract-ref: contracts/melee-report.schema.json
@@ -699,8 +699,9 @@ constitution-ref: Articles II, XIV
 
 ```yaml
 id: T023
-status: open
-commits: { red: null, green: null, refactor: null }
+status: closed
+commits: { reconstructed: pending }
+source-commits: { red: 8985c17, green: 8a618d7, refactor: skipped }
 spec-ref: spec.md §Acceptance criteria 6
 contract-ref: n/a
 constitution-ref: Article XIV
@@ -715,7 +716,7 @@ constitution-ref: Article XIV
 
 **G - Green:** Implement it.
 
-**F - Refactor:** Skipped.
+**F - Refactor:** Skipped - no smell detected; the melee branch of main mirrors the duel one.
 
 **Files**
 

@@ -12,6 +12,9 @@ pub struct Options {
     pub overwrite: bool,
     pub commit: Option<String>,
     pub scratch: PathBuf,
+    /// Run the four-snake placement benchmark instead of the duel one; the
+    /// roster then defaults to `reference/roster-melee.json`.
+    pub melee: bool,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -37,12 +40,18 @@ impl Options {
             overwrite: false,
             commit: None,
             scratch: PathBuf::from("target/sparring"),
+            melee: false,
         };
         let mut output = None;
+        let mut roster_given = false;
         let mut rest = args.iter();
         while let Some(flag) = rest.next() {
             if flag == "--overwrite" {
                 options.overwrite = true;
+                continue;
+            }
+            if flag == "--melee" {
+                options.melee = true;
                 continue;
             }
             let known = [
@@ -66,7 +75,10 @@ impl Options {
             };
             match flag.as_str() {
                 "--output" => output = Some(PathBuf::from(value)),
-                "--roster" => options.roster = PathBuf::from(value),
+                "--roster" => {
+                    options.roster = PathBuf::from(value);
+                    roster_given = true;
+                }
                 "--oracle" => options.oracle = PathBuf::from(value),
                 "--scratch" => options.scratch = PathBuf::from(value),
                 "--commit" => options.commit = Some(value.clone()),
@@ -77,6 +89,9 @@ impl Options {
             }
         }
         options.output = output.ok_or(OptionsError::MissingOutput)?;
+        if options.melee && !roster_given {
+            options.roster = PathBuf::from("reference/roster-melee.json");
+        }
         Ok(options)
     }
 }

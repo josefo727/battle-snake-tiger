@@ -18,6 +18,21 @@ fn only_the_output_is_required_and_everything_else_has_a_default() {
     assert_eq!(options.workers, 1);
     assert!(!options.overwrite);
     assert_eq!(options.commit, None);
+    assert!(!options.melee);
+}
+
+#[test]
+fn the_melee_flag_selects_the_placement_benchmark_and_its_roster() {
+    let melee = Options::parse(&args(&["--output", "m.json", "--melee"])).expect("valid");
+    let own_roster = Options::parse(&args(&[
+        "--melee", "--roster", "r.json", "--output", "m.json",
+    ]))
+    .expect("valid");
+
+    assert!(melee.melee);
+    assert_eq!(melee.roster, PathBuf::from("reference/roster-melee.json"));
+    assert!(own_roster.melee);
+    assert_eq!(own_roster.roster, PathBuf::from("r.json"));
 }
 
 #[test]
