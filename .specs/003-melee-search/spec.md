@@ -44,3 +44,11 @@ None.
 
 - **Melee** - a supported game with three or four active snakes.
 - **Placement** - the rank of a snake in a finished game: 1 for the last alive, then by elimination order backwards; simultaneous eliminations share the average rank.
+
+---
+
+## Closed (reconstructed history)
+
+- Date: `2026-09-16`
+- Commit: `pending`
+- Notes: Task commits consolidate the preserved Red-Green-Refactor beats.

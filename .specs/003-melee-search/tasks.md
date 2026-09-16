@@ -730,7 +730,7 @@ constitution-ref: Article XIV
 ```yaml
 id: T024
 status: closed
-commits: { reconstructed: pending }
+commits: { reconstructed: cc9282e63453380a22c1885240cac1280d0fd441 }
 source-commits: { red: n/a (measurement), green: 9981e18, refactor: skipped }
 spec-ref: spec.md §Acceptance criteria 6
 contract-ref: contracts/melee-report.schema.json
@@ -755,3 +755,8 @@ constitution-ref: Articles XIV
 - `engine/src/valuation/melee/weights.rs`
 
 Note: criterion 6 met on the first run with the default profile (tiger 2.300, baseline 3.767, Sansón 3.267 in the tiger's games); the weights file was not changed. A first run with three games in flight was discarded as unfair (evidence/placement.md §Fairness measures); files also touched: scripts/provision-opponents, PROVENANCE.md.
+
+## Amendments
+
+
+| Reconstruction | Task implementation is consolidated into one commit; `source-commits` points to the preserved R/G/F evidence in the original history. | Approved repository reconstruction; the consolidated commit body preserves the full R/G/F narrative. |
