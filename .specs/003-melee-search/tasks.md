@@ -174,7 +174,7 @@ Note: the Red's hand example had the wrong food distance (1 instead of 4); corre
 ```yaml
 id: T006
 status: closed
-commits: { reconstructed: pending }
+commits: { reconstructed: 71a976620c116f415081cb4e2115c2d662c59e17 }
 source-commits: { red: 735e1a1, green: 7805b21, refactor: skipped }
 spec-ref: spec.md §Acceptance criteria 1
 contract-ref: n/a
@@ -202,8 +202,9 @@ constitution-ref: Articles II, X
 
 ```yaml
 id: T007
-status: open
-commits: { red: null, green: null, refactor: null }
+status: closed
+commits: { reconstructed: pending }
+source-commits: { red: cbac800, green: 3e91e3d, refactor: skipped }
 spec-ref: spec.md §Acceptance criteria 1 and 3
 contract-ref: n/a
 constitution-ref: Articles II, X
@@ -219,7 +220,7 @@ constitution-ref: Articles II, X
 
 **G - Green:** Implement the formulas and bounds.
 
-**F - Refactor:** Skipped - no smell expected.
+**F - Refactor:** Skipped - no smell detected; the finish is one match over the outcome.
 
 **Files**
 

@@ -2,5 +2,7 @@
 //! `MeleeBoard`, combined by the same pipeline as the duel terms.
 
 pub mod attrition;
+pub mod finish;
 pub mod standing;
 pub mod territory;
+pub mod weights;
