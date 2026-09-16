@@ -578,7 +578,7 @@ Note: the first gate run failed in the container because the stop-command test n
 ```yaml
 id: T019
 status: closed
-commits: { reconstructed: pending }
+commits: { reconstructed: d14b24c2f38c63fde1eebb3455adbb2fcb83afef }
 source-commits: { red: 2e250a3, green: 5d0b0ea, refactor: 7c79609 }
 spec-ref: spec.md §Acceptance criteria 6
 contract-ref: contracts/melee-report.schema.json
@@ -605,8 +605,9 @@ constitution-ref: Articles II, XIV
 
 ```yaml
 id: T020
-status: open
-commits: { red: null, green: null, refactor: null }
+status: closed
+commits: { reconstructed: pending }
+source-commits: { red: d60f972, green: 303ef5a, refactor: skipped }
 spec-ref: spec.md §Acceptance criteria 6
 contract-ref: contracts/opponent-roster.yaml
 constitution-ref: Articles II, XIV
@@ -621,7 +622,7 @@ constitution-ref: Articles II, XIV
 
 **G - Green:** Implement it.
 
-**F - Refactor:** Build the duel arguments from the bout arguments.
+**F - Refactor:** Skipped - the duel arguments and CLI run were built from the bout ones in the Green itself (a duel is the two-seat bout), leaving nothing duplicated.
 
 **Files**
 

@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::time::Duration;
 
-use crate::transcript::{GameOutcome, TranscriptError, parse_transcript};
+use crate::transcript::{GameOutcome, TranscriptError, parse_melee, parse_transcript};
 
 /// A snake the runner can reach over HTTP.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -21,6 +21,21 @@ pub struct Duel {
     pub challenger: Contestant,
     pub opponent: Contestant,
     pub seed: u64,
+}
+
+/// A game of several snakes: the seats in the order the CLI is given them.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Bout {
+    pub seats: Vec<Contestant>,
+    pub seed: u64,
+}
+
+/// Each seat's placement (1 is best, shared places averaged), in seat order.
+#[derive(Clone, Debug, PartialEq)]
+pub struct BoutResult {
+    pub seed: u64,
+    pub placements: Vec<f64>,
+    pub turns: u32,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -55,6 +70,15 @@ pub trait SparringRunner {
     ///
     /// Fails when the game cannot be run or its transcript cannot be read.
     fn play(&self, duel: &Duel) -> Result<GameResult, RunnerError>;
+}
+
+/// Something that can play a bout of several snakes (liveness checks come
+/// from [`SparringRunner`]).
+pub trait MeleeRunner {
+    /// # Errors
+    ///
+    /// Fails when the game cannot be run or its transcript cannot be read.
+    fn play_bout(&self, bout: &Bout) -> Result<BoutResult, RunnerError>;
 }
 
 /// Plays one duel per seed, in order, after both contestants have proved alive.
@@ -97,18 +121,19 @@ impl OfficialCli {
         }
     }
 
-    /// The `battlesnake play` arguments for `duel`, writing the transcript to `output`.
+    /// The `battlesnake play` arguments for `bout`, writing the transcript to
+    /// `output`: one `--name`/`--url` pair per seat, in seat order.
     #[must_use]
-    pub fn arguments(duel: &Duel, output: &Path) -> Vec<String> {
+    pub fn bout_arguments(bout: &Bout, output: &Path) -> Vec<String> {
         let mut args: Vec<String> = [
             "play", "-W", "11", "-H", "11", "-g", "standard", "-m", "standard", "-t", "500", "-r",
         ]
         .map(str::to_owned)
         .to_vec();
-        args.push(duel.seed.to_string());
+        args.push(bout.seed.to_string());
         args.push("-o".to_owned());
         args.push(output.display().to_string());
-        for snake in [&duel.challenger, &duel.opponent] {
+        for snake in &bout.seats {
             args.extend([
                 "--name".to_owned(),
                 snake.name.clone(),
@@ -119,14 +144,28 @@ impl OfficialCli {
         args
     }
 
-    /// Runs the CLI for `duel` and returns the transcript it wrote. Everything about
-    /// processes and files lives here; reading the transcript does not.
-    fn run_cli(&self, duel: &Duel) -> Result<String, RunnerError> {
-        let failed = |reason: String| RunnerError::GameFailed {
+    /// The `battlesnake play` arguments for `duel`, writing the transcript to `output`.
+    #[must_use]
+    pub fn arguments(duel: &Duel, output: &Path) -> Vec<String> {
+        Self::bout_arguments(&Self::as_bout(duel), output)
+    }
+
+    /// A duel is the two-seat bout, challenger first.
+    fn as_bout(duel: &Duel) -> Bout {
+        Bout {
+            seats: vec![duel.challenger.clone(), duel.opponent.clone()],
             seed: duel.seed,
+        }
+    }
+
+    /// Runs the CLI for `bout` and returns the transcript it wrote. Everything about
+    /// processes and files lives here; reading the transcript does not.
+    fn run_cli(&self, bout: &Bout) -> Result<String, RunnerError> {
+        let failed = |reason: String| RunnerError::GameFailed {
+            seed: bout.seed,
             reason,
         };
-        let output = self.transcript_path(duel);
+        let output = self.transcript_path(bout);
         fs::create_dir_all(&self.scratch).map_err(|error| {
             failed(format!("cannot create {}: {error}", self.scratch.display()))
         })?;
@@ -134,7 +173,7 @@ impl OfficialCli {
         let _ = fs::remove_file(&output);
 
         let status = Command::new(&self.executable)
-            .args(Self::arguments(duel, &output))
+            .args(Self::bout_arguments(bout, &output))
             .stdout(Stdio::null())
             .stderr(Stdio::null())
             .status()
@@ -152,8 +191,8 @@ impl OfficialCli {
         })
     }
 
-    /// Where the transcript of `duel` is written: one file per pairing and seed.
-    fn transcript_path(&self, duel: &Duel) -> PathBuf {
+    /// Where the transcript of `bout` is written: one file per seating and seed.
+    fn transcript_path(&self, bout: &Bout) -> PathBuf {
         let safe = |name: &str| -> String {
             name.chars()
                 .map(|c| {
@@ -165,12 +204,25 @@ impl OfficialCli {
                 })
                 .collect()
         };
-        self.scratch.join(format!(
-            "{}-vs-{}-{}.jsonl",
-            safe(&duel.challenger.name),
-            safe(&duel.opponent.name),
-            duel.seed
-        ))
+        let names: Vec<String> = bout.seats.iter().map(|s| safe(&s.name)).collect();
+        self.scratch
+            .join(format!("{}-{}.jsonl", names.join("-vs-"), bout.seed))
+    }
+}
+
+impl MeleeRunner for OfficialCli {
+    fn play_bout(&self, bout: &Bout) -> Result<BoutResult, RunnerError> {
+        let text = self.run_cli(bout)?;
+        let names: Vec<&str> = bout.seats.iter().map(|s| s.name.as_str()).collect();
+        let game = parse_melee(&text, &names).map_err(|error| RunnerError::Transcript {
+            seed: bout.seed,
+            error,
+        })?;
+        Ok(BoutResult {
+            seed: bout.seed,
+            placements: game.placements,
+            turns: game.turns,
+        })
     }
 }
 
@@ -184,7 +236,7 @@ impl SparringRunner for OfficialCli {
     }
 
     fn play(&self, duel: &Duel) -> Result<GameResult, RunnerError> {
-        let text = self.run_cli(duel)?;
+        let text = self.run_cli(&Self::as_bout(duel))?;
         let game = parse_transcript(&text, &duel.challenger.name, &duel.opponent.name).map_err(
             |error| RunnerError::Transcript {
                 seed: duel.seed,

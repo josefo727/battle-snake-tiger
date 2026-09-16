@@ -7,7 +7,8 @@ use std::path::{Path, PathBuf};
 use std::sync::{Mutex, MutexGuard};
 
 use tiger_sparring::runner::{
-    Contestant, Duel, GameResult, OfficialCli, RunnerError, SparringRunner, run_series,
+    Bout, BoutResult, Contestant, Duel, GameResult, MeleeRunner, OfficialCli, RunnerError,
+    SparringRunner, run_series,
 };
 use tiger_sparring::transcript::{GameOutcome, TranscriptError};
 
@@ -432,4 +433,124 @@ fn a_missing_executable_is_a_failed_game_that_names_it() {
         panic!("expected GameFailed");
     };
     assert!(reason.contains("no-such-cli"), "{reason}");
+}
+
+// ---- bouts of four snakes --------------------------------------------------------------------
+
+fn bout(seed: u64) -> Bout {
+    Bout {
+        seats: vec![
+            contestant("tiger", "http://127.0.0.1:1"),
+            contestant("sanson", "http://127.0.0.1:2"),
+            contestant("flood-a", "http://127.0.0.1:3"),
+            contestant("flood-b", "http://127.0.0.1:4"),
+        ],
+        seed,
+    }
+}
+
+#[test]
+fn the_bout_arguments_name_every_seat_in_order() {
+    let args = OfficialCli::bout_arguments(&bout(3), Path::new("/tmp/out.jsonl"));
+
+    let expected = [
+        "play",
+        "-W",
+        "11",
+        "-H",
+        "11",
+        "-g",
+        "standard",
+        "-m",
+        "standard",
+        "-t",
+        "500",
+        "-r",
+        "3",
+        "-o",
+        "/tmp/out.jsonl",
+        "--name",
+        "tiger",
+        "--url",
+        "http://127.0.0.1:1",
+        "--name",
+        "sanson",
+        "--url",
+        "http://127.0.0.1:2",
+        "--name",
+        "flood-a",
+        "--url",
+        "http://127.0.0.1:3",
+        "--name",
+        "flood-b",
+        "--url",
+        "http://127.0.0.1:4",
+    ];
+    assert_eq!(args, expected);
+    // A duel is the two-seat bout.
+    assert_eq!(
+        OfficialCli::arguments(&duel(3), Path::new("/tmp/out.jsonl")),
+        OfficialCli::bout_arguments(
+            &Bout {
+                seats: vec![duel(3).challenger, duel(3).opponent],
+                seed: 3
+            },
+            Path::new("/tmp/out.jsonl")
+        )
+    );
+}
+
+const FOUR_TRANSCRIPT: &str = concat!(
+    r#"{"id":"g","ruleset":{"name":"standard","version":"cli"}}"#,
+    "\n",
+    r#"{"game":{"id":"g"},"turn":0,"board":{"snakes":[{"id":"1","name":"tiger"},{"id":"2","name":"sanson"},{"id":"3","name":"flood-a"},{"id":"4","name":"flood-b"}]}}"#,
+    "\n",
+    r#"{"game":{"id":"g"},"turn":1,"board":{"snakes":[{"id":"1","name":"tiger"},{"id":"2","name":"sanson"}]}}"#,
+    "\n",
+    r#"{"game":{"id":"g"},"turn":2,"board":{"snakes":[{"id":"2","name":"sanson"}]}}"#,
+    "\n",
+    r#"{"winnerId":"2","winnerName":"sanson","isDraw":false}"#,
+    "\n",
+);
+
+#[test]
+fn a_bout_is_run_through_the_cli_and_the_placements_are_read_by_seat() {
+    let _turn = one_at_a_time();
+    let scratch = Scratch::new("bout");
+    let cli = OfficialCli::new(
+        fake_cli(&scratch.0, Some(FOUR_TRANSCRIPT), 0),
+        scratch.0.join("games"),
+    );
+
+    let result = cli.play_bout(&bout(5)).expect("the fake CLI plays");
+
+    assert_eq!(
+        result,
+        BoutResult {
+            seed: 5,
+            placements: vec![2.0, 1.0, 3.5, 3.5],
+            turns: 3
+        }
+    );
+    let args = fs::read_to_string(scratch.0.join("args.txt")).unwrap();
+    assert!(
+        args.contains("-r 5")
+            && args.contains("--name flood-b")
+            && args.contains("http://127.0.0.1:4"),
+        "{args}"
+    );
+}
+
+#[test]
+fn a_bout_whose_cli_fails_is_a_failed_game_with_its_seed() {
+    let _turn = one_at_a_time();
+    let scratch = Scratch::new("bout-fail");
+    let cli = OfficialCli::new(fake_cli(&scratch.0, None, 2), scratch.0.join("games"));
+
+    let error = cli.play_bout(&bout(6)).unwrap_err();
+
+    assert!(
+        matches!(error, RunnerError::GameFailed { seed: 6, .. }),
+        "{error:?}"
+    );
 }
