@@ -453,7 +453,7 @@ Note: the Red's no-time example declared 131 ms (one millisecond of search the m
 ```yaml
 id: T015
 status: closed
-commits: { reconstructed: pending }
+commits: { reconstructed: e8c4debd4ea717eb2b18a16f09d62d0f2ae5bf03 }
 source-commits: { red: 93cd3f2, green: 153eba4, refactor: skipped }
 spec-ref: spec.md §Acceptance criteria 4 and 5
 contract-ref: contracts/decision-diagnostic.schema.json
@@ -486,8 +486,9 @@ Note: also updated the process smoke and the CLI end-to-end expectations (files 
 
 ```yaml
 id: T016
-status: open
-commits: { red: null, green: null, refactor: null }
+status: closed
+commits: { reconstructed: pending }
+source-commits: { red: c4afc0a, green: 29c047b, refactor: skipped }
 spec-ref: spec.md §Acceptance criteria 1; plan.md §Risks
 contract-ref: n/a
 constitution-ref: Articles XIV
@@ -502,13 +503,16 @@ constitution-ref: Articles XIV
 
 **G - Green:** Wire the real searcher and record the evidence.
 
-**F - Refactor:** Skipped.
+**F - Refactor:** Skipped - the evidence run is the Green; no code smell found in the harness.
 
 **Files**
 
 - `engine/tests/profile_melee.rs`
 - `scripts/run-profile`
 - `.specs/003-melee-search/evidence/profile-melee.md`
+
+Note: Green is the generator commit 29c047b plus the evidence commit 3bf2e19; the gate passed on the first run (median depth 4 for four snakes, 6 for three).
+
 
 ## T017 - Loopback latency with four-snake requests
 

@@ -3,15 +3,19 @@
 # the environment identity followed by the harness's report, so the evidence file
 # can quote both. Takes a few minutes; run it with the machine otherwise idle.
 #
-# usage: scripts/run-profile
-# output: stdout, and target/profile/report.txt
+# usage: scripts/run-profile [melee]      (melee: the four-snake harness, engine/tests/profile_melee.rs)
+# output: stdout, and target/profile/report.txt (report-melee.txt for melee)
 set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 mkdir -p target/profile
-REPORT=target/profile/report.txt
-
-COMMAND="cargo test --release --locked --test profile -- --ignored --nocapture --exact profile_the_search_core"
+if [ "${1:-}" = melee ]; then
+    REPORT=target/profile/report-melee.txt
+    COMMAND="cargo test --release --locked --test profile_melee -- --ignored --nocapture --exact profile_the_melee_search"
+else
+    REPORT=target/profile/report.txt
+    COMMAND="cargo test --release --locked --test profile -- --ignored --nocapture --exact profile_the_search_core"
+fi
 
 {
     echo "=== environment ==="

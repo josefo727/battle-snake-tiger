@@ -5,6 +5,7 @@
 pub mod beacon;
 pub mod capture;
 pub mod clock;
+pub mod melee_suite;
 pub mod schema;
 pub mod server;
 pub mod suite;
