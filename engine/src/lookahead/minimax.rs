@@ -16,14 +16,14 @@ use crate::valuation::{AssessorSet, ValuationPipeline};
 
 /// The alpha-beta bounds a layer searches inside.
 #[derive(Clone, Copy, Debug)]
-struct Window {
-    alpha: i32,
-    beta: i32,
+pub(super) struct Window {
+    pub(super) alpha: i32,
+    pub(super) beta: i32,
 }
 
 impl Window {
     /// Everything between the two sentinels: no bound known yet.
-    const fn open(sentinel: i32) -> Self {
+    pub(super) const fn open(sentinel: i32) -> Self {
         Self {
             alpha: -sentinel,
             beta: sentinel,
@@ -33,7 +33,7 @@ impl Window {
 
 /// A search cut short by its stop signal; nothing partial survives it.
 #[derive(Clone, Copy, Debug)]
-struct Interrupted;
+pub(super) struct Interrupted;
 
 pub struct Searcher<'pipeline, S, O = LearnedOrder> {
     pipeline: &'pipeline ValuationPipeline<S>,

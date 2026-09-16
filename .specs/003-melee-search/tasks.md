@@ -267,7 +267,7 @@ Note: the Red's starving example put the pellet where a rival owned it (pressure
 ```yaml
 id: T009
 status: closed
-commits: { reconstructed: pending }
+commits: { reconstructed: e1b7e5ca9754e584ab7cff0ea98d0519c893a8b2 }
 source-commits: { red: 892a9db, green: 25efe8f, refactor: skipped }
 spec-ref: spec.md §Acceptance criteria 1 and 5
 contract-ref: n/a
@@ -295,8 +295,9 @@ constitution-ref: Articles II, X
 
 ```yaml
 id: T010
-status: open
-commits: { red: null, green: null, refactor: null }
+status: closed
+commits: { reconstructed: pending }
+source-commits: { red: e2c391f, green: 8adf307, refactor: skipped }
 spec-ref: spec.md §Acceptance criteria 1 and 3
 contract-ref: n/a
 constitution-ref: Articles II, VIII, X, XII
@@ -312,7 +313,7 @@ constitution-ref: Articles II, VIII, X, XII
 
 **G - Green:** Implement the recursion with fail-soft windows.
 
-**F - Refactor:** Share `Window` and `Interrupted` with the duel searcher.
+**F - Refactor:** Skipped - Window and Interrupted were shared with the duel searcher from the Red (crate-visible); the three layers mirror the duel's shape.
 
 **Files**
 
@@ -320,6 +321,9 @@ constitution-ref: Articles II, VIII, X, XII
 - `engine/src/lookahead/minimax.rs`
 - `engine/src/lookahead/mod.rs`
 - `engine/tests/lookahead_paranoid.rs`
+
+Note: the Red's node-count assertion expected the exhaustive 256 joint moves; alpha-beta visits 83 with the same answer, so the Green corrected the assertion to a bound.
+
 
 ## T011 - Opponent self-preservation pruning below the root
 
