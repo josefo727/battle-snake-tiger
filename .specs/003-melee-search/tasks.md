@@ -358,7 +358,7 @@ constitution-ref: Articles II, X
 ```yaml
 id: T012
 status: closed
-commits: { reconstructed: pending }
+commits: { reconstructed: a9d45810a9c0ca9e0f5e5894cdd66cc9b8a856a3 }
 source-commits: { red: d4a0ec4, green: 3c1d207, refactor: skipped }
 spec-ref: spec.md §Acceptance criteria 3
 contract-ref: n/a
@@ -389,8 +389,9 @@ Note: two Red expectations were wrong for a melee (an iteration of thousands of 
 
 ```yaml
 id: T013
-status: open
-commits: { red: null, green: null, refactor: null }
+status: closed
+commits: { reconstructed: pending }
+source-commits: { red: 480902f, green: 187efdf, refactor: skipped }
 spec-ref: spec.md §Acceptance criteria 1 and 5
 contract-ref: n/a
 constitution-ref: Articles II, IX
@@ -404,12 +405,15 @@ constitution-ref: Articles II, IX
 
 **G - Green:** Implement the selection.
 
-**F - Refactor:** Skipped - no smell expected.
+**F - Refactor:** Skipped - no smell detected; the selector is one if-else chain over the two kernels.
 
 **Files**
 
 - `engine/src/verdict/route.rs`
 - `engine/tests/verdict_route.rs`
+
+Note: the Red's one-snake test assumed the classifier certifies one snake; it does not (unsupported), so the Green removed that test and kept the safety route for states a kernel refuses.
+
 
 ## T014 - Decide melee moves under the allowance
 

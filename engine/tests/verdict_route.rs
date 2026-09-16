@@ -3,6 +3,7 @@ mod support;
 use proptest::prelude::*;
 use tiger_engine::arena::cellset::Cell;
 use tiger_engine::arena::duel::Side;
+use tiger_engine::arena::melee::Seat;
 use tiger_engine::rules_core::{Scope, classify};
 use tiger_engine::verdict::route::{Route, RouteSelector};
 
@@ -46,16 +47,29 @@ fn the_duel_route_carries_the_board_with_our_snake_first() {
 }
 
 #[test]
-fn three_or_four_snakes_in_a_supported_scope_use_the_safety_fallback() {
+fn three_or_four_snakes_in_a_supported_scope_go_to_the_melee_search() {
     for snakes in [3, 4] {
         let classified = scope("v1.2.3", snakes, 500, 0);
         let route = RouteSelector::select(&classified);
 
         assert!(
-            matches!(route, Route::SafetyFallback(_)),
+            matches!(route, Route::MeleeSearch { .. }),
             "{snakes}: {route:?}"
         );
     }
+}
+
+#[test]
+fn the_melee_route_carries_the_board_with_our_seat_first() {
+    // Snake 2 starts at (9, 9); when it is "you" it must be seat 0.
+    let classified = scope("v1.2.3", 4, 500, 2);
+    let route = RouteSelector::select(&classified);
+
+    let Route::MeleeSearch { board, .. } = route else {
+        panic!("expected the melee route, got {route:?}");
+    };
+    assert_eq!(board.serpent(Seat::US).head(), cell(9, 9));
+    assert_eq!(board.alive_count(), 4);
 }
 
 #[test]
@@ -108,8 +122,11 @@ fn every_route_borrows_the_data_of_the_scope_it_was_selected_from() {
     let Route::DuelSearch { state, .. } = RouteSelector::select(&duel) else {
         panic!("expected the duel route");
     };
-    let Route::SafetyFallback(melee_state) = RouteSelector::select(&melee) else {
-        panic!("expected the safety route");
+    let Route::MeleeSearch {
+        state: melee_state, ..
+    } = RouteSelector::select(&melee)
+    else {
+        panic!("expected the melee route");
     };
     let Route::UnsupportedFallback(context) = RouteSelector::select(&unsupported) else {
         panic!("expected the unsupported route");
@@ -135,13 +152,14 @@ fn expected(version: &str, snakes: usize, timeout: i64) -> &'static str {
     } else if snakes == 2 {
         "duel"
     } else {
-        "safety"
+        "melee"
     }
 }
 
 fn kind(route: &Route) -> &'static str {
     match route {
         Route::DuelSearch { .. } => "duel",
+        Route::MeleeSearch { .. } => "melee",
         Route::SafetyFallback(_) => "safety",
         Route::UnsupportedFallback(_) => "unsupported",
     }

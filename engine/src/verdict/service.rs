@@ -54,7 +54,9 @@ impl VerdictService {
         let scope = classify(request);
         match RouteSelector::select(&scope) {
             Route::DuelSearch { state, board } => self.duel(request, state, &board, arrived_at),
-            Route::SafetyFallback(state) => {
+            // Until the melee search is wired (T014) the melee route answers
+            // with the one-turn safety engine.
+            Route::MeleeSearch { state, .. } | Route::SafetyFallback(state) => {
                 let report = self.safety_decision(request, state, arrived_at);
                 VerdictReport::reused(
                     &report,

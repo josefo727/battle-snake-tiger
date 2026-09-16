@@ -1,7 +1,8 @@
 //! Which engine answers a classified request.
 
 use crate::arena::duel::DuelBoard;
-use crate::arena::ingest::ingest;
+use crate::arena::ingest::{ingest, ingest_melee};
+use crate::arena::melee::MeleeBoard;
 use crate::rules_core::{FallbackContext, Scope, TurnState};
 
 /// The engine a request is handed to, with exactly the data that engine needs,
@@ -15,8 +16,14 @@ pub enum Route<'scope> {
         state: &'scope TurnState,
         board: Box<DuelBoard>,
     },
-    /// Three or four snakes inside the certified scope: the reused one-turn
-    /// safety engine, unchanged.
+    /// Three or four snakes inside the certified scope: time-bounded paranoid
+    /// search over the ingested melee, with the same fallback as the duel.
+    MeleeSearch {
+        state: &'scope TurnState,
+        board: Box<MeleeBoard>,
+    },
+    /// A supported request neither kernel accepts (one snake): the reused
+    /// one-turn safety engine, unchanged.
     SafetyFallback(&'scope TurnState),
     /// Outside the certified scope: the reused best-effort fallback, unchanged.
     UnsupportedFallback(&'scope FallbackContext),
@@ -32,15 +39,24 @@ impl RouteSelector {
     pub fn select(scope: &Scope) -> Route<'_> {
         match scope {
             Scope::Unsupported(context) => Route::UnsupportedFallback(context),
-            // Ingest accepts exactly the duels, so three and four snakes land here
-            // as `NotADuel`, and so would a two-snake state the kernel refuses
-            // (the reused classifier rules those out, but the safety engine is
-            // the right answer for one either way).
+            // The duel kernel accepts exactly two snakes and the melee kernel
+            // three or four; a supported state neither takes (one snake, or a
+            // state a kernel refuses, which the reused classifier rules out)
+            // gets the safety engine.
             Scope::Supported(state) => {
-                ingest(state).map_or(Route::SafetyFallback(state), |board| Route::DuelSearch {
-                    state,
-                    board: Box::new(board),
-                })
+                if let Ok(board) = ingest(state) {
+                    Route::DuelSearch {
+                        state,
+                        board: Box::new(board),
+                    }
+                } else if let Ok(board) = ingest_melee(state) {
+                    Route::MeleeSearch {
+                        state,
+                        board: Box::new(board),
+                    }
+                } else {
+                    Route::SafetyFallback(state)
+                }
             }
         }
     }
