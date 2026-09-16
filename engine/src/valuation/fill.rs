@@ -24,6 +24,14 @@ impl Fill {
         }
     }
 
+    /// A fill with nowhere to go and nothing seen: the fill of an empty seat.
+    pub const fn exhausted() -> Self {
+        Self {
+            front: CellSet::EMPTY,
+            seen: CellSet::EMPTY,
+        }
+    }
+
     /// One turn: step into free unseen neighbours, and enter cells that freed
     /// this turn beside ground already reached (the serpent can dawdle there
     /// until they free). Returns the cells newly reached.

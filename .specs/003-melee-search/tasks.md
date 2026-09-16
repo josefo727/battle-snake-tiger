@@ -110,7 +110,7 @@ Note: the Red's dead-seat example was a head-to-head, not a neck collision; the 
 ```yaml
 id: T004
 status: closed
-commits: { reconstructed: pending }
+commits: { reconstructed: 12490ef5d5c2ed742bd7edafcf4c98af6dc490c4 }
 source-commits: { red: 5c68fe1, green: 8173cf3, refactor: skipped }
 spec-ref: spec.md §Acceptance criteria 1 and 5
 contract-ref: n/a
@@ -139,8 +139,9 @@ constitution-ref: Articles II, X
 
 ```yaml
 id: T005
-status: open
-commits: { red: null, green: null, refactor: null }
+status: closed
+commits: { reconstructed: pending }
+source-commits: { red: 93dcd67, green: 6dbe8e1, refactor: skipped }
 spec-ref: spec.md §Acceptance criteria 1
 contract-ref: n/a
 constitution-ref: Articles II, X, XII
@@ -157,13 +158,16 @@ constitution-ref: Articles II, X, XII
 
 **G - Green:** Implement the N-source fill on top of `Fill`.
 
-**F - Refactor:** Skipped unless the duel `Dominion` can share the settle step.
+**F - Refactor:** Skipped - the duel Dominion's settle step is a two-set special case of the per-seat contested union here; folding both would cost the duel fill a loop for no gain.
 
 **Files**
 
 - `engine/src/valuation/melee/territory.rs`
 - `engine/src/valuation/melee/mod.rs`
 - `engine/tests/valuation_melee_territory.rs`
+
+Note: the Red's hand example had the wrong food distance (1 instead of 4); corrected in the Green commit, the oracle property was right from the start.
+
 
 ## T006 - Length standing and head danger among several heads
 
