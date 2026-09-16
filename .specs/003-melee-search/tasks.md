@@ -519,7 +519,7 @@ Note: Green is the generator commit 29c047b plus the evidence commit 3bf2e19; th
 ```yaml
 id: T017
 status: closed
-commits: { reconstructed: pending }
+commits: { reconstructed: 8d43ca9d326f119d84ea69df9ad07927951375c2 }
 source-commits: { red: 35413eb, green: 9ba3fc7, refactor: skipped }
 spec-ref: spec.md §Acceptance criteria 2
 contract-ref: n/a
@@ -548,8 +548,9 @@ Note: the harness commit 35413eb is the Red/Green in one (the gate passed on the
 
 ```yaml
 id: T018
-status: open
-commits: { red: null, green: null, refactor: null }
+status: closed
+commits: { reconstructed: pending }
+source-commits: { red: n/a (gate run), green: d98aaf6, refactor: skipped }
 spec-ref: plan.md §Test strategy
 contract-ref: n/a
 constitution-ref: Article XII
@@ -563,11 +564,14 @@ constitution-ref: Article XII
 
 **G - Green:** Record the evidence.
 
-**F - Refactor:** Skipped.
+**F - Refactor:** Skipped - a measurement task.
 
 **Files**
 
 - `.specs/003-melee-search/evidence/coverage.md`
+
+Note: the first gate run failed in the container because the stop-command test needed python3 (absent from the slim image); the test was rewritten (commit abb90b8) and the second run passed: arena 95.00%, valuation 98.15%, lookahead 98.48%.
+
 
 ## T019 - Placements from a four-snake transcript
 
