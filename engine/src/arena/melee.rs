@@ -41,6 +41,11 @@ impl Seat {
 pub enum MeleeOutcome {
     /// We and at least one opponent are still alive.
     Continues(MeleeBoard),
+    /// We are the last serpent standing.
+    WeAlone,
+    /// We were eliminated with `rivals_left` opponents still alive (zero when
+    /// every serpent died in the same turn).
+    WeDown { rivals_left: u8 },
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -84,9 +89,54 @@ impl MeleeBoard {
     pub fn advance(&self, moves: &[Heading; MAX_SEATS]) -> MeleeOutcome {
         let mut next = *self;
         next.ply += 1;
-        let _reports = next.movement_phase(moves);
+        let reports = next.movement_phase(moves);
         next.feeding_phase();
-        MeleeOutcome::Continues(next)
+        next.elimination_phase(&reports);
+        match (next.is_alive(Seat::US), next.alive_count()) {
+            (true, 1) => MeleeOutcome::WeAlone,
+            (true, _) => MeleeOutcome::Continues(next),
+            (false, rivals_left) => MeleeOutcome::WeDown { rivals_left },
+        }
+    }
+
+    /// Phase 3: eliminations are judged on the post-move snapshot of every
+    /// living seat at once, so a seat that dies this turn still blocks and
+    /// still takes part in a head-to-head.
+    fn elimination_phase(&mut self, reports: &[MoveReport; MAX_SEATS]) {
+        let mut survivors = self.alive;
+        for seat in self.seats() {
+            if self.is_eliminated(seat, reports) {
+                survivors &= !(1 << seat.0);
+            }
+        }
+        self.alive = survivors;
+    }
+
+    fn is_eliminated(&self, seat: Seat, reports: &[MoveReport; MAX_SEATS]) -> bool {
+        let serpent = self.serpent(seat);
+        let own = &reports[seat.index()];
+        serpent.vigor() == 0
+            || own.off_board
+            || own.self_hit
+            || self
+                .seats()
+                .filter(|other| *other != seat)
+                .any(|other| reports[other.index()].segments.contains(serpent.head()))
+            || self.loses_head_to_head(seat, reports)
+    }
+
+    /// Several heads in one cell: only a strictly longest serpent survives, so a
+    /// seat loses when any other head there is at least as long. Lengths are
+    /// post-move and post-feeding; a seat that left the board has no head there.
+    fn loses_head_to_head(&self, seat: Seat, reports: &[MoveReport; MAX_SEATS]) -> bool {
+        if reports[seat.index()].off_board {
+            return false;
+        }
+        let own = self.serpent(seat);
+        self.seats()
+            .filter(|other| *other != seat && !reports[other.index()].off_board)
+            .map(|other| self.serpent(other))
+            .any(|rival| rival.head() == own.head() && rival.length() >= own.length())
     }
 
     /// Phase 1 of a turn: every living seat moves from the same starting board.

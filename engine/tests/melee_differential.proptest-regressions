@@ -1,0 +1,7 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 2ee3d4539c5e5a790cf16dca6bba037b01c49a8d5a82292c0be89503922d2b69 # shrinks to spec = MeleeSpec { snakes: [SnakeSpec { start: 0, turns: [], tail_stack: 0, health: 1 }, SnakeSpec { start: 0, turns: [], tail_stack: 0, health: 1 }, SnakeSpec { start: 0, turns: [], tail_stack: 0, health: 1 }], food: [], you: 0 }

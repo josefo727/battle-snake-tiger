@@ -43,7 +43,7 @@ constitution-ref: Articles II, IX, X
 ```yaml
 id: T002
 status: closed
-commits: { reconstructed: pending }
+commits: { reconstructed: 949619e56fb9fa2194ca5bb306fa32425b8e1688 }
 source-commits: { red: 4ccaf7a, green: 1eb500b, refactor: skipped }
 spec-ref: spec.md §Acceptance criteria 1
 contract-ref: n/a
@@ -75,8 +75,9 @@ constitution-ref: Articles II, IV, X
 
 ```yaml
 id: T003
-status: open
-commits: { red: null, green: null, refactor: null }
+status: closed
+commits: { reconstructed: pending }
+source-commits: { red: f93e286, green: ff1b4ed, refactor: skipped }
 spec-ref: spec.md §Acceptance criteria 1
 contract-ref: n/a
 constitution-ref: Articles II, IV, XII
@@ -93,13 +94,16 @@ constitution-ref: Articles II, IV, XII
 
 **G - Green:** Implement the elimination phase over all seats and the outcome.
 
-**F - Refactor:** Extract the head-to-head judgement so it reads as the rule.
+**F - Refactor:** Skipped - the head-to-head judgement is already its own function reading as the rule (any other head there at least as long).
 
 **Files**
 
 - `engine/src/arena/melee.rs`
 - `engine/tests/melee_differential.rs`
 - `engine/tests/melee_board.rs`
+
+Note: the Red's dead-seat example was a head-to-head, not a neck collision; the scenario was corrected in the Green commit.
+
 
 ## T004 - Make the valuation pipeline generic over the board and add attrition
 
