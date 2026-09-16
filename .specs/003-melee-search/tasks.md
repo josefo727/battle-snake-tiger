@@ -330,7 +330,7 @@ Note: the Red's node-count assertion expected the exhaustive 256 joint moves; al
 ```yaml
 id: T011
 status: closed
-commits: { reconstructed: pending }
+commits: { reconstructed: b8b21f115e8b7ddc249c3ac48718073c0ab7811c }
 source-commits: { red: f23c5ff, green: 17ca93e, refactor: skipped }
 spec-ref: spec.md §Acceptance criteria 1
 contract-ref: n/a
@@ -357,8 +357,9 @@ constitution-ref: Articles II, X
 
 ```yaml
 id: T012
-status: open
-commits: { red: null, green: null, refactor: null }
+status: closed
+commits: { reconstructed: pending }
+source-commits: { red: d4a0ec4, green: 3c1d207, refactor: skipped }
 spec-ref: spec.md §Acceptance criteria 3
 contract-ref: n/a
 constitution-ref: Articles II, X, XI
@@ -374,7 +375,9 @@ constitution-ref: Articles II, X, XI
 
 **G - Green:** Extract the driver behind the trait and implement the melee stop.
 
-**F - Refactor:** Skipped - the extraction is the Green.
+**F - Refactor:** Skipped - the extraction of the driver behind IterativeSearch was the Red's scaffold; the two wrappers are the minimal binding of a searcher to its board.
+
+Note: two Red expectations were wrong for a melee (an iteration of thousands of nodes polls the clock, and depth 2 finishes before the first poll); corrected in a follow-up test commit, the implementation unchanged.
 
 **Files**
 

@@ -3,16 +3,21 @@ mod support;
 use proptest::prelude::*;
 use tiger_engine::arena::duel::DuelBoard;
 use tiger_engine::arena::ingest::ingest;
+use tiger_engine::arena::ingest::ingest_melee;
 use tiger_engine::lookahead::allowance::{
     NeverStop, SEARCH_TAIL_MARGIN, SearchAllowance, StopSignal,
 };
-use tiger_engine::lookahead::deepening::{ITERATION_START_PERCENT, deepen};
+use tiger_engine::lookahead::deepening::{ITERATION_START_PERCENT, deepen, deepen_melee};
 use tiger_engine::lookahead::ledger::LookaheadReport;
 use tiger_engine::lookahead::minimax::Searcher;
 use tiger_engine::lookahead::ordering::NaturalOrder;
+use tiger_engine::lookahead::paranoid::MeleeSearcher;
 use tiger_engine::rules_core::{Clock, MonotonicInstant};
 use tiger_engine::valuation::finish::Finish;
 use tiger_engine::valuation::leverage::LengthAdvantage;
+use tiger_engine::valuation::melee::MeleeValuation;
+use tiger_engine::valuation::melee::finish::MeleeFinish;
+use tiger_engine::valuation::melee::weights::DEFAULT_MELEE_PROFILE;
 use tiger_engine::valuation::weights::DEFAULT_PROFILE;
 use tiger_engine::valuation::{AssessorSet, ValuationPipeline};
 
@@ -335,4 +340,105 @@ fn an_abandoned_search_leaves_the_searcher_fit_for_the_next_one() {
     let expected = fixed(&pipeline, &board, 4);
     assert_eq!(resumed.best, expected.best);
     assert_eq!(resumed.principal_score, expected.principal_score);
+}
+
+// ---- the same driver over a melee ----------------------------------------------
+
+fn melee_finish() -> MeleeFinish {
+    MeleeFinish::new(&DEFAULT_MELEE_PROFILE)
+}
+
+#[test]
+fn a_melee_deepens_to_the_limit_with_the_fixed_depth_answer() {
+    let board = ingest_melee(&turn_state(4, 0, &[(5, 6)])).expect("melee");
+    let valuation = MeleeValuation::standard();
+    let clock = ManualClock::at_micros(0);
+    let mut allowance = allowance_ending_at(&clock, 10_000_000_000);
+    let mut searcher = MeleeSearcher::new(&valuation, melee_finish());
+
+    let report = deepen_melee(&mut searcher, &board, &mut allowance, 3);
+
+    let expected =
+        MeleeSearcher::with_order(&valuation, melee_finish(), NaturalOrder).search_fixed(&board, 3);
+    assert_eq!(report.completed_depth, 3);
+    assert_eq!(report.best, expected.best);
+    assert_eq!(report.principal_score, expected.principal_score);
+    assert_eq!(report.nodes_explored, searcher.nodes_visited());
+    // Three boundary reads, plus one poll per 1024 nodes inside the iterations.
+    assert!(clock.reads() >= 3, "{}", clock.reads());
+}
+
+#[test]
+fn a_melee_iteration_cut_short_is_dropped_and_the_previous_depth_stands() {
+    let board = ingest_melee(&turn_state(4, 0, &[(5, 6)])).expect("melee");
+    let valuation = MeleeValuation::standard();
+    // Boundaries of depths 1 and 2 read 0; the poll inside depth 2 sees the expiry.
+    // Boundaries of depths 1, 2 and 3 read 0; the first poll inside depth 3
+    // (which visits thousands of nodes) sees the expiry.
+    let clock = ScriptedClock::expiring_after(3);
+    let mut allowance = allowance_ending_at(&clock, SEARCH_DEADLINE);
+    let mut searcher = MeleeSearcher::new(&valuation, melee_finish());
+
+    let report = deepen_melee(&mut searcher, &board, &mut allowance, 8);
+
+    let depth_two =
+        MeleeSearcher::with_order(&valuation, melee_finish(), NaturalOrder).search_fixed(&board, 2);
+    assert_eq!(report.completed_depth, 2);
+    assert_eq!(report.best, depth_two.best);
+    assert!(
+        report.nodes_explored > depth_two.nodes_explored,
+        "the abandoned iteration's nodes still count"
+    );
+}
+
+#[test]
+fn a_decided_melee_stops_at_the_depth_that_decides_it() {
+    // We starve this turn whatever we do.
+    let us: &[(i32, i32)] = &[(5, 5), (5, 4), (5, 3)];
+    let east: &[(i32, i32)] = &[(9, 9), (9, 8), (9, 7)];
+    let west: &[(i32, i32)] = &[(1, 9), (1, 8), (1, 7)];
+    let board = ingest_melee(&turn_state_from_bodies(
+        &[us, east, west],
+        &[1, 90, 90],
+        0,
+        &[],
+    ))
+    .expect("melee");
+    let valuation = MeleeValuation::standard();
+    let clock = ManualClock::at_micros(0);
+    let mut allowance = allowance_ending_at(&clock, 10_000_000_000);
+
+    let report = deepen_melee(
+        &mut MeleeSearcher::new(&valuation, melee_finish()),
+        &board,
+        &mut allowance,
+        6,
+    );
+
+    assert_eq!(report.completed_depth, 1);
+    assert!(
+        report
+            .principal_score
+            .is_some_and(|s| s < -melee_finish().finite_limit())
+    );
+    assert_eq!(clock.reads(), 1);
+}
+
+#[test]
+fn a_melee_with_no_time_completes_nothing() {
+    let board = ingest_melee(&turn_state(3, 0, &[])).expect("melee");
+    let valuation = MeleeValuation::standard();
+    let clock = ManualClock::at_micros(SEARCH_DEADLINE + 1);
+    let mut allowance = allowance_ending_at(&clock, SEARCH_DEADLINE);
+
+    let report = deepen_melee(
+        &mut MeleeSearcher::new(&valuation, melee_finish()),
+        &board,
+        &mut allowance,
+        6,
+    );
+
+    assert!(!report.has_result());
+    assert_eq!(report.completed_depth, 0);
+    assert_eq!(report.nodes_explored, 0);
 }
