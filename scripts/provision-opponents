@@ -78,13 +78,35 @@ SHAPESHIFTER_FULL='    { "id": "shapeshifter-full", "launch": {
 # Sansón, the operator's previous engine, as a black box from its local Docker image (003
 # research.md): the container outlives the docker client, so the launch carries a stop command.
 SANSON_IMAGE="${SANSON_IMAGE:-battle-snake:7212509}"
+# Every seat of the placement benchmark is pinned to its own two physical cores (sibling
+# pairs i and i+8 on this Ryzen): a Flood server searches on every core it can see, which
+# starves the time-bounded engines when they share the machine (003 evidence/placement.md).
 SANSON='    { "id": "sanson", "launch": {
       "program": "docker",
-      "args": ["run", "--rm", "--name", "sanson-{port}", "-p", "127.0.0.1:{port}:3000",
+      "args": ["run", "--rm", "--name", "sanson-{port}", "--cpuset-cpus", "2,3,10,11",
+               "-p", "127.0.0.1:{port}:3000",
                "-e", "SANSON_DEEP=1", "-e", "SANSON_REDUCE=1", "'"$SANSON_IMAGE"'"],
       "stop": { "program": "docker", "args": ["rm", "-f", "sanson-{port}"] } } }'
 flood_seat() {
-    printf '    { "id": "%s", "launch": {\n      "program": "%s/snork/target/release/server",\n      "args": ["--host", "127.0.0.1:{port}", "--config", "{\\"Flood\\":{}}"] } }' "$1" "$REF"
+    printf '    { "id": "%s", "launch": {\n      "program": "taskset",\n      "args": ["-c", "%s", "%s/snork/target/release/server", "--host", "127.0.0.1:{port}", "--config", "{\\"Flood\\":{}}"] } }' "$1" "$2" "$REF"
+}
+write_melee_roster() {
+    cat > "$REF/roster-melee.json" <<JSON
+{
+  "rules_cli_release": "v1.2.3",
+  "challenger": { "id": "tiger", "launch": {
+    "program": "taskset", "args": ["-c", "0,1,8,9", "$ROOT/target/release/tiger-engine"],
+    "env": { "BIND_ADDR": "127.0.0.1", "PORT": "{port}" } } },
+  "baseline": { "id": "baseline", "launch": {
+    "program": "taskset", "args": ["-c", "0,1,8,9", "$ROOT/target/baseline/release/battle-snake-rust"],
+    "env": { "BIND_ADDR": "127.0.0.1", "PORT": "{port}" } } },
+  "opponents": [
+$SANSON,
+$(flood_seat flood-a "4,5,12,13"),
+$(flood_seat flood-b "6,7,14,15")
+  ]
+}
+JSON
 }
 
 # The acceptance criterion's opponents, and the strongest Shapeshifter apart: its search
@@ -93,7 +115,5 @@ write_roster "$REF/roster.json" "$SHAPESHIFTER_DEFAULT,
 $FLOOD"
 write_roster "$REF/roster-strong.json" "$SHAPESHIFTER_FULL"
 # The four-snake placement benchmark (003 criterion 6): Sansón and two Flood seats.
-write_roster "$REF/roster-melee.json" "$SANSON,
-$(flood_seat flood-a),
-$(flood_seat flood-b)"
+write_melee_roster
 echo "==> rosters written to $REF/roster.json, $REF/roster-strong.json and $REF/roster-melee.json"

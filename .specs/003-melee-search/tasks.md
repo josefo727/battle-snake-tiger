@@ -700,7 +700,7 @@ constitution-ref: Articles II, XIV
 ```yaml
 id: T023
 status: closed
-commits: { reconstructed: pending }
+commits: { reconstructed: 16e265b7d790df60f71296a5ebcd2b9ff32ba943 }
 source-commits: { red: 8985c17, green: 8a618d7, refactor: skipped }
 spec-ref: spec.md §Acceptance criteria 6
 contract-ref: n/a
@@ -729,8 +729,9 @@ constitution-ref: Article XIV
 
 ```yaml
 id: T024
-status: open
-commits: { red: null, green: null, refactor: null }
+status: closed
+commits: { reconstructed: pending }
+source-commits: { red: n/a (measurement), green: 9981e18, refactor: skipped }
 spec-ref: spec.md §Acceptance criteria 6
 contract-ref: contracts/melee-report.schema.json
 constitution-ref: Articles XIV
@@ -745,10 +746,12 @@ constitution-ref: Articles XIV
 
 **G - Green:** The evidence file and any weight change it justifies.
 
-**F - Refactor:** Skipped.
+**F - Refactor:** Skipped - a measurement task.
 
 **Files**
 
 - `.specs/003-melee-search/evidence/placement.md`
 - `.specs/003-melee-search/evidence/melee-report.json`
 - `engine/src/valuation/melee/weights.rs`
+
+Note: criterion 6 met on the first run with the default profile (tiger 2.300, baseline 3.767, Sansón 3.267 in the tiger's games); the weights file was not changed. A first run with three games in flight was discarded as unfair (evidence/placement.md §Fairness measures); files also touched: scripts/provision-opponents, PROVENANCE.md.
