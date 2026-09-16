@@ -8,10 +8,10 @@ use std::path::PathBuf;
 use proptest::prelude::*;
 use serde_json::{Value, json};
 use tiger_sparring::ledger::{
-    EngineIdentity, EnvironmentIdentity, JsonFileSink, Matchup, Report, ReportError, ReportSink,
-    SinkError,
+    EngineIdentity, EnvironmentIdentity, JsonFileSink, Matchup, MeleeGameRecord, MeleeReport,
+    MeleeReportSink, Report, ReportError, ReportSink, SinkError,
 };
-use tiger_sparring::runner::GameResult;
+use tiger_sparring::runner::{BoutResult, GameResult};
 use tiger_sparring::statistics::{StatisticsError, Tally, summarize};
 use tiger_sparring::transcript::GameOutcome;
 
@@ -314,4 +314,129 @@ fn every_committed_sparring_report_validates_against_the_schema() {
         }
     }
     assert!(checked >= 1, "no committed sparring report to check");
+}
+
+// ---- the placement report ----------------------------------------------------------------------
+
+fn melee_contract() -> Value {
+    schema::load_contract_of("003-melee-search", "melee-report.schema.json")
+}
+
+fn a_melee_report() -> MeleeReport {
+    let names = ["tiger", "sanson", "flood-a", "flood-b"].map(str::to_owned);
+    let baseline_names = ["baseline", "sanson", "flood-a", "flood-b"].map(str::to_owned);
+    let games = vec![
+        MeleeGameRecord::from_bout(
+            &names,
+            &BoutResult {
+                seed: 1,
+                placements: vec![1.0, 2.0, 3.5, 3.5],
+                turns: 120,
+            },
+        ),
+        MeleeGameRecord::from_bout(
+            &baseline_names,
+            &BoutResult {
+                seed: 1,
+                placements: vec![4.0, 1.0, 2.0, 3.0],
+                turns: 60,
+            },
+        ),
+    ];
+    MeleeReport::assemble(
+        engine(),
+        environment(),
+        "tiger",
+        "baseline",
+        &["sanson", "flood-a", "flood-b"].map(str::to_owned),
+        games,
+    )
+    .expect("a report")
+}
+
+#[test]
+fn a_game_record_pairs_every_seat_with_its_placement() {
+    let names = ["tiger", "sanson", "flood-a", "flood-b"].map(str::to_owned);
+    let record = MeleeGameRecord::from_bout(
+        &names,
+        &BoutResult {
+            seed: 7,
+            placements: vec![2.0, 1.0, 3.5, 3.5],
+            turns: 80,
+        },
+    );
+
+    assert_eq!(record.seat_one, "tiger");
+    assert_eq!(record.seed, 7);
+    assert_eq!(record.placements[1], ("sanson".to_owned(), 1.0));
+    assert_eq!(record.placements[3], ("flood-b".to_owned(), 3.5));
+}
+
+#[test]
+fn a_melee_report_validates_against_its_contract_and_states_the_means() {
+    let report = a_melee_report();
+    let json = report.to_json();
+
+    assert_eq!(schema::validate(&melee_contract(), &json), Ok(()), "{json}");
+    assert_eq!(json["schema_version"], "1.0.0");
+    assert_eq!(json["summary"]["challenger_mean"], 1.0);
+    assert_eq!(json["summary"]["baseline_mean"], 4.0);
+    assert_eq!(json["summary"]["reference_mean_in_challenger_games"], 2.0);
+    assert_eq!(json["summary"]["criterion_met"], true);
+    assert_eq!(json["games"][0]["placements"][2]["place"], 3.5);
+}
+
+#[test]
+fn a_melee_report_needs_games_and_every_named_snake() {
+    let opponents = ["sanson", "flood-a", "flood-b"].map(str::to_owned);
+    assert_eq!(
+        MeleeReport::assemble(
+            engine(),
+            environment(),
+            "tiger",
+            "baseline",
+            &opponents,
+            Vec::new()
+        )
+        .unwrap_err(),
+        ReportError::NoMatchups
+    );
+    let only_tiger = vec![MeleeGameRecord::from_bout(
+        &["tiger", "sanson", "flood-a", "flood-b"].map(str::to_owned),
+        &BoutResult {
+            seed: 1,
+            placements: vec![1.0, 2.0, 3.0, 4.0],
+            turns: 1,
+        },
+    )];
+    assert_eq!(
+        MeleeReport::assemble(
+            engine(),
+            environment(),
+            "tiger",
+            "baseline",
+            &opponents,
+            only_tiger
+        )
+        .unwrap_err(),
+        ReportError::NoMatchups,
+        "the baseline never played"
+    );
+}
+
+#[test]
+fn the_json_file_sink_writes_a_melee_report_too() {
+    let dir = std::env::temp_dir().join(format!("tiger-melee-sink-{}", std::process::id()));
+    let path = dir.join("melee.json");
+    let sink = JsonFileSink::new(path.clone(), false);
+
+    sink.write_melee(&a_melee_report()).expect("written");
+
+    let written: Value = serde_json::from_str(&fs::read_to_string(&path).unwrap()).unwrap();
+    assert_eq!(written, a_melee_report().to_json());
+    assert!(matches!(
+        sink.write_melee(&a_melee_report()),
+        Err(SinkError::AlreadyExists(_))
+    ));
+    let _ = fs::remove_dir_all(&dir);
 }

@@ -634,7 +634,7 @@ constitution-ref: Articles II, XIV
 ```yaml
 id: T021
 status: closed
-commits: { reconstructed: pending }
+commits: { reconstructed: cf07866b909e064d9dbf27e32e3fea79d8bc31a6 }
 source-commits: { red: 7c0b021, green: ef04a05, refactor: skipped }
 spec-ref: spec.md §Acceptance criteria 6
 contract-ref: contracts/opponent-roster.yaml
@@ -668,8 +668,9 @@ Note: the contract file lives at .specs/001-duel-search/contracts/opponent-roste
 
 ```yaml
 id: T022
-status: open
-commits: { red: null, green: null, refactor: null }
+status: closed
+commits: { reconstructed: pending }
+source-commits: { red: cfc6fda, green: d4f7dda, refactor: d4f7dda }
 spec-ref: spec.md §Acceptance criteria 6
 contract-ref: contracts/melee-report.schema.json
 constitution-ref: Articles II, XIV
@@ -684,7 +685,7 @@ constitution-ref: Articles II, XIV
 
 **G - Green:** Implement it.
 
-**F - Refactor:** Share the launch step with the duel benchmark.
+**F - Refactor:** Done in the Green: launch_all and play_in_order serve both the duel and the placement benchmark.
 
 **Files**
 

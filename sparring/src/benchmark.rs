@@ -7,10 +7,13 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::thread;
 
 use crate::ledger::{
-    EngineIdentity, EnvironmentIdentity, Matchup, Report, ReportError, ReportSink, SinkError,
+    EngineIdentity, EnvironmentIdentity, Matchup, MeleeGameRecord, MeleeReport, MeleeReportSink,
+    Report, ReportError, ReportSink, SinkError,
 };
 use crate::roster::{Entry, Roster};
-use crate::runner::{Contestant, Duel, GameResult, RunnerError, SparringRunner};
+use crate::runner::{
+    Bout, BoutResult, Contestant, Duel, GameResult, MeleeRunner, RunnerError, SparringRunner,
+};
 
 /// A launched server: its URL, and a guard that stops it when dropped.
 pub struct RunningServer {
@@ -91,31 +94,8 @@ where
     L: Launcher,
     S: ReportSink,
 {
-    // Servers are stopped when `servers` drops, on success and on every early return.
-    let mut servers: Vec<Contestant> = Vec::new();
-    let mut guards = Vec::new();
-    for entry in [&roster.challenger, &roster.baseline]
-        .into_iter()
-        .chain(&roster.opponents)
-    {
-        let server = launcher
-            .start(entry)
-            .map_err(|reason| BenchmarkError::Launch {
-                id: entry.id.clone(),
-                reason,
-            })?;
-        servers.push(Contestant {
-            name: entry.id.clone(),
-            url: server.url.clone(),
-        });
-        guards.push(server);
-    }
-    for contestant in &servers {
-        runner
-            .check_alive(contestant)
-            .map_err(BenchmarkError::Runner)?;
-    }
-
+    // Servers are stopped when the guards drop, on success and on every early return.
+    let (servers, _guards) = launch_all(roster, runner, launcher)?;
     let (challenger, baseline) = (&servers[0], &servers[1]);
     let mut matchups = Vec::new();
     for opponent in &servers[2..] {
@@ -143,6 +123,117 @@ where
     Ok(BenchmarkOutcome { matchups, verdicts })
 }
 
+/// The placement benchmark's outcome: the report written, and whether criterion 6 held.
+#[derive(Debug, PartialEq)]
+pub struct MeleeOutcome {
+    pub report: MeleeReport,
+}
+
+impl MeleeOutcome {
+    #[must_use]
+    pub const fn criterion_met(&self) -> bool {
+        self.report.summary.criterion_met
+    }
+}
+
+/// Runs the four-snake placement benchmark of `roster` (its opponents are the
+/// other seats, the first being the reference) and writes the report: every
+/// seed with the challenger in seat one, then every seed with the baseline there.
+///
+/// # Errors
+///
+/// Fails like [`run_benchmark`].
+pub fn run_melee_benchmark<R, L, S>(
+    roster: &Roster,
+    plan: &Plan,
+    runner: &R,
+    launcher: &L,
+    sink: &S,
+    engine: EngineIdentity,
+    environment: EnvironmentIdentity,
+) -> Result<MeleeOutcome, BenchmarkError>
+where
+    R: SparringRunner + MeleeRunner + Sync,
+    L: Launcher,
+    S: MeleeReportSink,
+{
+    let (servers, _guards) = launch_all(roster, runner, launcher)?;
+    let (challenger, baseline, opponents) = (&servers[0], &servers[1], &servers[2..]);
+    let mut games = Vec::new();
+    for seat_one in [challenger, baseline] {
+        let seats: Vec<Contestant> = std::iter::once(seat_one.clone())
+            .chain(opponents.iter().cloned())
+            .collect();
+        let names: Vec<String> = seats.iter().map(|s| s.name.clone()).collect();
+        let results = play_bouts(runner, &seats, plan)?;
+        games.extend(
+            results
+                .iter()
+                .map(|result| MeleeGameRecord::from_bout(&names, result)),
+        );
+    }
+    let opponent_ids: Vec<String> = opponents.iter().map(|o| o.name.clone()).collect();
+    let report = MeleeReport::assemble(
+        engine,
+        environment,
+        &challenger.name,
+        &baseline.name,
+        &opponent_ids,
+        games,
+    )
+    .map_err(BenchmarkError::Report)?;
+    sink.write_melee(&report).map_err(BenchmarkError::Sink)?;
+    Ok(MeleeOutcome { report })
+}
+
+/// Starts every roster entry (challenger, baseline, opponents in order) and
+/// proves each alive; the guards stop the servers when dropped.
+fn launch_all<R: SparringRunner, L: Launcher>(
+    roster: &Roster,
+    runner: &R,
+    launcher: &L,
+) -> Result<(Vec<Contestant>, Vec<RunningServer>), BenchmarkError> {
+    let mut servers: Vec<Contestant> = Vec::new();
+    let mut guards = Vec::new();
+    for entry in [&roster.challenger, &roster.baseline]
+        .into_iter()
+        .chain(&roster.opponents)
+    {
+        let server = launcher
+            .start(entry)
+            .map_err(|reason| BenchmarkError::Launch {
+                id: entry.id.clone(),
+                reason,
+            })?;
+        servers.push(Contestant {
+            name: entry.id.clone(),
+            url: server.url.clone(),
+        });
+        guards.push(server);
+    }
+    for contestant in &servers {
+        runner
+            .check_alive(contestant)
+            .map_err(BenchmarkError::Runner)?;
+    }
+    Ok((servers, guards))
+}
+
+/// Plays every seed of `plan` with `seats`, `plan.workers` games at a time, in
+/// seed order.
+fn play_bouts<R: MeleeRunner + Sync>(
+    runner: &R,
+    seats: &[Contestant],
+    plan: &Plan,
+) -> Result<Vec<BoutResult>, BenchmarkError> {
+    play_in_order(plan, |seed| {
+        runner.play_bout(&Bout {
+            seats: seats.to_vec(),
+            seed,
+        })
+    })
+}
+
 /// Plays every seed of `plan` for one pairing, `plan.workers` games at a time, and
 /// returns the results in seed order; a failed game is reported by the lowest seed.
 fn play_seeds<R: SparringRunner + Sync>(
@@ -151,13 +242,21 @@ fn play_seeds<R: SparringRunner + Sync>(
     opponent: &Contestant,
     plan: &Plan,
 ) -> Result<Vec<GameResult>, BenchmarkError> {
-    let play = |seed: u64| {
+    play_in_order(plan, |seed| {
         runner.play(&Duel {
             challenger: challenger.clone(),
             opponent: opponent.clone(),
             seed,
         })
-    };
+    })
+}
+
+/// Runs `play` for every seed of `plan`, `plan.workers` at a time, and returns
+/// the results in seed order; a failed game is reported by the lowest seed.
+fn play_in_order<T: Send>(
+    plan: &Plan,
+    play: impl Fn(u64) -> Result<T, RunnerError> + Sync,
+) -> Result<Vec<T>, BenchmarkError> {
     if plan.workers <= 1 {
         return plan
             .seeds
@@ -166,7 +265,7 @@ fn play_seeds<R: SparringRunner + Sync>(
             .collect();
     }
     let next = AtomicUsize::new(0);
-    let outcomes: Mutex<Vec<(usize, Result<GameResult, RunnerError>)>> = Mutex::new(Vec::new());
+    let outcomes: Mutex<Vec<(usize, Result<T, RunnerError>)>> = Mutex::new(Vec::new());
     thread::scope(|scope| {
         for _ in 0..plan.workers {
             scope.spawn(|| {

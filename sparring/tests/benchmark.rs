@@ -5,10 +5,17 @@ mod schema;
 use std::sync::Mutex;
 
 use serde_json::Value;
-use tiger_sparring::benchmark::{BenchmarkError, Launcher, Plan, RunningServer, run_benchmark};
-use tiger_sparring::ledger::{EngineIdentity, EnvironmentIdentity, Report, ReportSink, SinkError};
+use tiger_sparring::benchmark::{
+    BenchmarkError, Launcher, Plan, RunningServer, run_benchmark, run_melee_benchmark,
+};
+use tiger_sparring::ledger::{
+    EngineIdentity, EnvironmentIdentity, MeleeReport, MeleeReportSink, Report, ReportSink,
+    SinkError,
+};
 use tiger_sparring::roster::{Entry, Launch, Roster};
-use tiger_sparring::runner::{Contestant, Duel, GameResult, RunnerError, SparringRunner};
+use tiger_sparring::runner::{
+    Bout, BoutResult, Contestant, Duel, GameResult, MeleeRunner, RunnerError, SparringRunner,
+};
 use tiger_sparring::transcript::GameOutcome;
 
 fn entry(id: &str) -> Entry {
@@ -375,4 +382,190 @@ fn every_launched_server_is_stopped_when_the_benchmark_ends() {
     .unwrap();
 
     assert_eq!(*launcher.live.lock().unwrap(), 0);
+}
+
+// ---- the placement benchmark ---------------------------------------------------------------------
+
+fn melee_roster() -> Roster {
+    Roster {
+        rules_cli_release: "v1.2.3".to_owned(),
+        challenger: entry("tiger"),
+        baseline: entry("baseline"),
+        opponents: vec![entry("sanson"), entry("flood-a"), entry("flood-b")],
+    }
+}
+
+/// Plays canned four-snake games: with the tiger in seat one, the tiger comes
+/// 1st on odd seeds and 2nd on even ones (Sansón the other way round); with the
+/// baseline in seat one, the baseline comes 4th and Sansón 1st; the Floods take
+/// the rest and share a place on every third seed.
+struct FakeMeleeRunner {
+    calls: Mutex<Vec<String>>,
+}
+
+impl SparringRunner for FakeMeleeRunner {
+    fn check_alive(&self, contestant: &Contestant) -> Result<(), RunnerError> {
+        self.calls
+            .lock()
+            .unwrap()
+            .push(format!("alive {}", contestant.name));
+        Ok(())
+    }
+
+    fn play(&self, _duel: &Duel) -> Result<GameResult, RunnerError> {
+        panic!("the placement benchmark plays bouts, not duels")
+    }
+}
+
+impl MeleeRunner for FakeMeleeRunner {
+    fn play_bout(&self, bout: &Bout) -> Result<BoutResult, RunnerError> {
+        let names: Vec<&str> = bout.seats.iter().map(|s| s.name.as_str()).collect();
+        self.calls
+            .lock()
+            .unwrap()
+            .push(format!("bout {} {}", names.join(","), bout.seed));
+        assert_eq!(&names[1..], ["sanson", "flood-a", "flood-b"]);
+        let (first, second) = if bout.seed % 2 == 1 {
+            (1.0, 2.0)
+        } else {
+            (2.0, 1.0)
+        };
+        let floods = if bout.seed.is_multiple_of(3) {
+            (3.5, 3.5)
+        } else {
+            (3.0, 4.0)
+        };
+        let placements = if names[0] == "tiger" {
+            vec![first, second, floods.0, floods.1]
+        } else {
+            vec![4.0, 1.0, 2.0, 3.0]
+        };
+        Ok(BoutResult {
+            seed: bout.seed,
+            placements,
+            turns: 100,
+        })
+    }
+}
+
+#[derive(Default)]
+struct MeleeMemorySink {
+    reports: Mutex<Vec<Value>>,
+}
+
+impl MeleeReportSink for MeleeMemorySink {
+    fn write_melee(&self, report: &MeleeReport) -> Result<(), SinkError> {
+        self.reports.lock().unwrap().push(report.to_json());
+        Ok(())
+    }
+}
+
+#[test]
+fn the_placement_benchmark_plays_every_seed_in_both_seatings_and_reports_the_means() {
+    let runner = FakeMeleeRunner {
+        calls: Mutex::new(Vec::new()),
+    };
+    let launcher = FakeLauncher::new();
+    let sink = MeleeMemorySink::default();
+
+    let outcome = run_melee_benchmark(
+        &melee_roster(),
+        &plan(1),
+        &runner,
+        &launcher,
+        &sink,
+        engine(),
+        environment(),
+    )
+    .expect("the benchmark runs");
+
+    let summary = &outcome.report.summary;
+    assert_eq!(outcome.report.games.len(), 60);
+    assert_eq!(summary.challenger, "tiger");
+    assert_eq!(summary.baseline, "baseline");
+    assert_eq!(summary.reference_opponent, "sanson");
+    assert!((summary.challenger_mean - 1.5).abs() < 1e-9, "{summary:?}");
+    assert!((summary.baseline_mean - 4.0).abs() < 1e-9, "{summary:?}");
+    assert!((summary.reference_mean_in_challenger_games - 1.5).abs() < 1e-9);
+    assert_eq!(summary.opponents.len(), 3);
+    assert!((summary.opponents[0].mean_with_baseline - 1.0).abs() < 1e-9);
+    assert!(summary.criterion_met, "1.5 < 4.0 and 1.5 <= 1.5");
+    let calls = runner.calls.lock().unwrap().clone();
+    assert_eq!(calls.iter().filter(|c| c.starts_with("alive")).count(), 5);
+    assert_eq!(
+        calls
+            .iter()
+            .filter(|c| c.starts_with("bout tiger,"))
+            .count(),
+        30
+    );
+    assert_eq!(
+        calls
+            .iter()
+            .filter(|c| c.starts_with("bout baseline,"))
+            .count(),
+        30
+    );
+    assert_eq!(sink.reports.lock().unwrap().len(), 1);
+    assert_eq!(
+        *launcher.live.lock().unwrap(),
+        0,
+        "every server was stopped"
+    );
+}
+
+#[test]
+fn the_criterion_fails_when_the_challenger_places_worse_than_the_reference_or_not_better_than_the_baseline()
+ {
+    use tiger_sparring::ledger::MeleeGameRecord;
+    let game = |seat_one: &str, seed, places: [f64; 4]| MeleeGameRecord {
+        seat_one: seat_one.to_owned(),
+        seed,
+        turns: 10,
+        placements: ["tiger", "sanson", "flood-a", "flood-b"]
+            .iter()
+            .map(|s| {
+                if *s == "tiger" {
+                    seat_one.to_owned()
+                } else {
+                    (*s).to_owned()
+                }
+            })
+            .zip(places)
+            .collect(),
+    };
+    let opponents = ["sanson", "flood-a", "flood-b"].map(str::to_owned);
+    let assemble = |games| {
+        MeleeReport::assemble(
+            engine(),
+            environment(),
+            "tiger",
+            "baseline",
+            &opponents,
+            games,
+        )
+        .expect("assembles")
+    };
+
+    // Worse than Sansón in the same games: tiger 2nd, Sansón 1st.
+    let worse = assemble(vec![
+        game("tiger", 1, [2.0, 1.0, 3.0, 4.0]),
+        game("baseline", 1, [4.0, 1.0, 2.0, 3.0]),
+    ]);
+    assert!(!worse.summary.criterion_met);
+    // Not better than the baseline: both 1st.
+    let equal = assemble(vec![
+        game("tiger", 1, [1.0, 2.0, 3.0, 4.0]),
+        game("baseline", 1, [1.0, 2.0, 3.0, 4.0]),
+    ]);
+    assert!(!equal.summary.criterion_met);
+    // Equal to Sansón's mean and better than the baseline: met.
+    let met = assemble(vec![
+        game("tiger", 1, [1.0, 2.0, 3.0, 4.0]),
+        game("tiger", 2, [2.0, 1.0, 3.0, 4.0]),
+        game("baseline", 1, [3.0, 1.0, 2.0, 4.0]),
+        game("baseline", 2, [3.0, 1.0, 2.0, 4.0]),
+    ]);
+    assert!(met.summary.criterion_met);
+    assert!((met.summary.opponents[1].mean_with_challenger - 3.0).abs() < 1e-9);
 }
