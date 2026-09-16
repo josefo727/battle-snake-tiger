@@ -111,6 +111,8 @@ fn settle(fresh_ours: CellSet, fresh_theirs: CellSet, tie_winner: Ordering) -> (
 }
 
 impl Assessor for Dominion {
+    type Board = DuelBoard;
+
     const NAME: &'static str = "dominion";
     const MAX_RAW: i32 = 121;
 

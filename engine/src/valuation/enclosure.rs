@@ -91,6 +91,8 @@ fn static_region(board: &DuelBoard, head: Cell) -> CellSet {
 }
 
 impl Assessor for Enclosure {
+    type Board = DuelBoard;
+
     const NAME: &'static str = "enclosure";
     const MAX_RAW: i32 = 121;
 

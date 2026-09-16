@@ -12,6 +12,7 @@ use support::{realize, state_spec, turn_state};
 struct Constant(i32);
 
 impl Assessor for Constant {
+    type Board = DuelBoard;
     const NAME: &'static str = "constant";
     const MAX_RAW: i32 = 1_000;
 
@@ -23,6 +24,7 @@ impl Assessor for Constant {
 struct OurLength;
 
 impl Assessor for OurLength {
+    type Board = DuelBoard;
     const NAME: &'static str = "our_length";
     const MAX_RAW: i32 = 121;
 

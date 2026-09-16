@@ -76,7 +76,7 @@ constitution-ref: Articles II, IV, X
 ```yaml
 id: T003
 status: closed
-commits: { reconstructed: pending }
+commits: { reconstructed: 05b88f5cb9703e9e462e29f11c9149a92a3f3eee }
 source-commits: { red: f93e286, green: ff1b4ed, refactor: skipped }
 spec-ref: spec.md §Acceptance criteria 1
 contract-ref: n/a
@@ -109,8 +109,9 @@ Note: the Red's dead-seat example was a head-to-head, not a neck collision; the 
 
 ```yaml
 id: T004
-status: open
-commits: { red: null, green: null, refactor: null }
+status: closed
+commits: { reconstructed: pending }
+source-commits: { red: 5c68fe1, green: 8173cf3, refactor: skipped }
 spec-ref: spec.md §Acceptance criteria 1 and 5
 contract-ref: n/a
 constitution-ref: Articles II, X
@@ -125,7 +126,7 @@ constitution-ref: Articles II, X
 
 **G - Green:** Implement the count.
 
-**F - Refactor:** Skipped unless the tuple impls can lose a bound.
+**F - Refactor:** Skipped - the worst-case bound moved to its own Bounded trait in the Red, which is what let the tuple impls drop the board parameter; nothing else to tidy.
 
 **Files**
 

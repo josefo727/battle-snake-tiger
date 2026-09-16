@@ -28,6 +28,8 @@ fn pressure(vigor: u8, distance_to_food: Option<u16>) -> i32 {
 }
 
 impl Assessor for Sustenance {
+    type Board = DuelBoard;
+
     const NAME: &'static str = "sustenance";
     const MAX_RAW: i32 = MAX_PRESSURE;
 

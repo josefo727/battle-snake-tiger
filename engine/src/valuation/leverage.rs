@@ -11,6 +11,8 @@ use crate::arena::duel::{DuelBoard, Side};
 pub struct LengthAdvantage;
 
 impl Assessor for LengthAdvantage {
+    type Board = DuelBoard;
+
     const NAME: &'static str = "length_advantage";
     const MAX_RAW: i32 = 120;
 
@@ -26,6 +28,8 @@ impl Assessor for LengthAdvantage {
 pub struct HeadPressure;
 
 impl Assessor for HeadPressure {
+    type Board = DuelBoard;
+
     const NAME: &'static str = "head_pressure";
     const MAX_RAW: i32 = 4;
 
