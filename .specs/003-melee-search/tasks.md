@@ -140,7 +140,7 @@ constitution-ref: Articles II, X
 ```yaml
 id: T005
 status: closed
-commits: { reconstructed: pending }
+commits: { reconstructed: 9aa018963dc8ccd207b8cb301b2cd7cddc83f962 }
 source-commits: { red: 93dcd67, green: 6dbe8e1, refactor: skipped }
 spec-ref: spec.md §Acceptance criteria 1
 contract-ref: n/a
@@ -173,8 +173,9 @@ Note: the Red's hand example had the wrong food distance (1 instead of 4); corre
 
 ```yaml
 id: T006
-status: open
-commits: { red: null, green: null, refactor: null }
+status: closed
+commits: { reconstructed: pending }
+source-commits: { red: 735e1a1, green: 7805b21, refactor: skipped }
 spec-ref: spec.md §Acceptance criteria 1
 contract-ref: n/a
 constitution-ref: Articles II, X
@@ -189,7 +190,7 @@ constitution-ref: Articles II, X
 
 **G - Green:** Implement both.
 
-**F - Refactor:** Share the "enterable cells" helper with `HeadPressure` if it is the same expression.
+**F - Refactor:** Skipped - the enterable-cells helper is three lines over N seats; sharing it with the two-serpent HeadPressure would make the duel term depend on the melee module.
 
 **Files**
 
