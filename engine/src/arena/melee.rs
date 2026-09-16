@@ -3,7 +3,7 @@
 //! board, so search copies positions instead of undoing moves.
 
 use super::cellset::CellSet;
-use super::duel::{BoardError, DuelBoard, MoveReport, check_invariants, move_serpent};
+use super::duel::{BoardError, DuelBoard, MoveReport, Side, check_invariants, move_serpent};
 use super::heading::Heading;
 use super::serpent::Serpent;
 
@@ -46,6 +46,13 @@ pub enum MeleeOutcome {
     /// We were eliminated with `rivals_left` opponents still alive (zero when
     /// every serpent died in the same turn).
     WeDown { rivals_left: u8 },
+}
+
+impl From<Side> for Seat {
+    /// The duel's sides as seats: `Us` is seat 0 and `Them` seat 1.
+    fn from(side: Side) -> Self {
+        Self(side.index() as u8)
+    }
 }
 
 #[derive(Clone, Copy, Debug)]

@@ -6,15 +6,17 @@
 
 use std::cmp::Reverse;
 
-use crate::arena::duel::Side;
 use crate::arena::heading::Heading;
+use crate::arena::melee::{MAX_SEATS, Seat};
 
+/// Seats are the key of every table: a duel `Side` converts to one (`Us` is
+/// seat 0, `Them` seat 1), so the duel search calls these with sides.
 pub trait HeadingOrder {
-    /// The four headings for `side` at search ply `ply`, best guess first.
-    fn arrange(&self, side: Side, ply: u16) -> [Heading; 4];
+    /// The four headings for `seat` at search ply `ply`, best guess first.
+    fn arrange(&self, seat: impl Into<Seat>, ply: u16) -> [Heading; 4];
 
-    /// `heading` produced a cutoff for `side` at `ply` with `depth` plies left.
-    fn note_cutoff(&mut self, side: Side, ply: u16, heading: Heading, depth: u16);
+    /// `heading` produced a cutoff for `seat` at `ply` with `depth` plies left.
+    fn note_cutoff(&mut self, seat: impl Into<Seat>, ply: u16, heading: Heading, depth: u16);
 
     /// A completed search chose `heading` at the root.
     fn note_root_best(&mut self, heading: Heading);
@@ -26,11 +28,11 @@ pub trait HeadingOrder {
 pub struct NaturalOrder;
 
 impl HeadingOrder for NaturalOrder {
-    fn arrange(&self, _side: Side, _ply: u16) -> [Heading; 4] {
+    fn arrange(&self, _seat: impl Into<Seat>, _ply: u16) -> [Heading; 4] {
         Heading::ALL
     }
 
-    fn note_cutoff(&mut self, _side: Side, _ply: u16, _heading: Heading, _depth: u16) {}
+    fn note_cutoff(&mut self, _seat: impl Into<Seat>, _ply: u16, _heading: Heading, _depth: u16) {}
 
     fn note_root_best(&mut self, _heading: Heading) {}
 }
@@ -43,15 +45,15 @@ const KILLERS_PER_SLOT: usize = 2;
 ///
 /// - The previous best is the root heading of the last completed search; it leads
 ///   only our root layer, where deepening makes it the strongest guess.
-/// - A killer is a heading that recently produced a cutoff for the same side at
+/// - A killer is a heading that recently produced a cutoff for the same seat at
 ///   the same ply; the two most recent are kept.
-/// - History adds `depth * depth` per cutoff, by side and heading, so cutoffs with
+/// - History adds `depth * depth` per cutoff, by seat and heading, so cutoffs with
 ///   more plies left weigh more; ties fall back to the fixed heading order.
 #[derive(Clone, Debug)]
 pub struct LearnedOrder {
     previous_best: Option<Heading>,
-    killers: [[[Option<Heading>; KILLERS_PER_SLOT]; 2]; TRACKED_PLIES],
-    history: [[u32; 4]; 2],
+    killers: [[[Option<Heading>; KILLERS_PER_SLOT]; MAX_SEATS]; TRACKED_PLIES],
+    history: [[u32; 4]; MAX_SEATS],
 }
 
 impl LearnedOrder {
@@ -59,8 +61,8 @@ impl LearnedOrder {
     pub const fn new() -> Self {
         Self {
             previous_best: None,
-            killers: [[[None; KILLERS_PER_SLOT]; 2]; TRACKED_PLIES],
-            history: [[0; 4]; 2],
+            killers: [[[None; KILLERS_PER_SLOT]; MAX_SEATS]; TRACKED_PLIES],
+            history: [[0; 4]; MAX_SEATS],
         }
     }
 
@@ -76,31 +78,33 @@ impl Default for LearnedOrder {
 }
 
 impl HeadingOrder for LearnedOrder {
-    fn arrange(&self, side: Side, ply: u16) -> [Heading; 4] {
+    fn arrange(&self, seat: impl Into<Seat>, ply: u16) -> [Heading; 4] {
+        let seat = seat.into();
         let mut lineup = Lineup::default();
-        if side == Side::Us && ply == 0 {
+        if seat == Seat::US && ply == 0 {
             lineup.push_all(self.previous_best);
         }
         lineup.push_all(
-            self.killers[Self::slot(ply)][side.index()]
+            self.killers[Self::slot(ply)][seat.index()]
                 .into_iter()
                 .flatten(),
         );
-        let history = &self.history[side.index()];
+        let history = &self.history[seat.index()];
         let mut by_history = Heading::ALL;
         by_history.sort_unstable_by_key(|h| (Reverse(history[h.index()]), h.index()));
         lineup.push_all(by_history);
         lineup.headings
     }
 
-    fn note_cutoff(&mut self, side: Side, ply: u16, heading: Heading, depth: u16) {
-        let killers = &mut self.killers[Self::slot(ply)][side.index()];
+    fn note_cutoff(&mut self, seat: impl Into<Seat>, ply: u16, heading: Heading, depth: u16) {
+        let seat = seat.into();
+        let killers = &mut self.killers[Self::slot(ply)][seat.index()];
         if killers[0] != Some(heading) {
             killers[1] = killers[0];
             killers[0] = Some(heading);
         }
         let weight = u32::from(depth) * u32::from(depth);
-        let score = &mut self.history[side.index()][heading.index()];
+        let score = &mut self.history[seat.index()][heading.index()];
         *score = score.saturating_add(weight);
     }
 

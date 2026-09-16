@@ -234,7 +234,7 @@ constitution-ref: Articles II, X
 ```yaml
 id: T008
 status: closed
-commits: { reconstructed: pending }
+commits: { reconstructed: 23c106886e3e34cc2f7d6a9a267976e1c5a8cbdd }
 source-commits: { red: 4c4d6d8, green: 0b1f9d8, refactor: skipped }
 spec-ref: spec.md §Acceptance criteria 1
 contract-ref: n/a
@@ -266,8 +266,9 @@ Note: the Red's starving example put the pellet where a rival owned it (pressure
 
 ```yaml
 id: T009
-status: open
-commits: { red: null, green: null, refactor: null }
+status: closed
+commits: { reconstructed: pending }
+source-commits: { red: 892a9db, green: 25efe8f, refactor: skipped }
 spec-ref: spec.md §Acceptance criteria 1 and 5
 contract-ref: n/a
 constitution-ref: Articles II, X
@@ -282,7 +283,7 @@ constitution-ref: Articles II, X
 
 **G - Green:** Widen the tables and the trait.
 
-**F - Refactor:** Skipped - no smell expected.
+**F - Refactor:** Skipped - no smell detected; the trait takes any seat-convertible key and the duel call sites are untouched.
 
 **Files**
 

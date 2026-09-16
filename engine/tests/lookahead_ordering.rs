@@ -4,6 +4,7 @@ use proptest::prelude::*;
 use tiger_engine::arena::duel::{DuelBoard, Side};
 use tiger_engine::arena::heading::Heading::{self, East, North, South, West};
 use tiger_engine::arena::ingest::ingest;
+use tiger_engine::arena::melee::Seat;
 use tiger_engine::lookahead::minimax::Searcher;
 use tiger_engine::lookahead::ordering::{HeadingOrder, LearnedOrder, NaturalOrder};
 use tiger_engine::valuation::finish::Finish;
@@ -20,6 +21,23 @@ fn finish() -> Finish {
 }
 
 // ---- the learned order itself ----------------------------------------------
+
+#[test]
+fn killers_and_history_are_kept_per_seat_for_all_four_seats() {
+    let mut order = LearnedOrder::new();
+    order.note_cutoff(Seat::ALL[3], 2, West, 3);
+    order.note_cutoff(Seat::ALL[2], 2, South, 1);
+
+    assert_eq!(order.arrange(Seat::ALL[3], 2), [West, North, East, South]);
+    assert_eq!(order.arrange(Seat::ALL[2], 2), [South, North, East, West]);
+    assert_eq!(order.arrange(Seat::ALL[1], 2), NATURAL);
+    // History: seat 3's cutoff weighs 9 at every other ply; seat 2's weighs 1.
+    assert_eq!(order.arrange(Seat::ALL[3], 7), [West, North, East, South]);
+    assert_eq!(order.arrange(Seat::ALL[2], 7), [South, North, East, West]);
+    // Sides are seats 0 and 1, so the duel bookkeeping is the same tables.
+    order.note_cutoff(Side::Them, 2, East, 5);
+    assert_eq!(order.arrange(Seat::ALL[1], 2), [East, North, South, West]);
+}
 
 #[test]
 fn an_untrained_order_is_the_fixed_heading_order() {
@@ -183,10 +201,10 @@ proptest! {
 struct Fixed([Heading; 4]);
 
 impl HeadingOrder for Fixed {
-    fn arrange(&self, _side: Side, _ply: u16) -> [Heading; 4] {
+    fn arrange(&self, _seat: impl Into<Seat>, _ply: u16) -> [Heading; 4] {
         self.0
     }
-    fn note_cutoff(&mut self, _side: Side, _ply: u16, _heading: Heading, _depth: u16) {}
+    fn note_cutoff(&mut self, _seat: impl Into<Seat>, _ply: u16, _heading: Heading, _depth: u16) {}
     fn note_root_best(&mut self, _heading: Heading) {}
 }
 
