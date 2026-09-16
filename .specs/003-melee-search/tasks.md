@@ -549,7 +549,7 @@ Note: the harness commit 35413eb is the Red/Green in one (the gate passed on the
 ```yaml
 id: T018
 status: closed
-commits: { reconstructed: pending }
+commits: { reconstructed: cb94aa1fbded58061a5d81636f2188987ebd81d1 }
 source-commits: { red: n/a (gate run), green: d98aaf6, refactor: skipped }
 spec-ref: plan.md §Test strategy
 contract-ref: n/a
@@ -577,8 +577,9 @@ Note: the first gate run failed in the container because the stop-command test n
 
 ```yaml
 id: T019
-status: open
-commits: { red: null, green: null, refactor: null }
+status: closed
+commits: { reconstructed: pending }
+source-commits: { red: 2e250a3, green: 5d0b0ea, refactor: 7c79609 }
 spec-ref: spec.md §Acceptance criteria 6
 contract-ref: contracts/melee-report.schema.json
 constitution-ref: Articles II, XIV
@@ -593,7 +594,7 @@ constitution-ref: Articles II, XIV
 
 **G - Green:** Implement it.
 
-**F - Refactor:** Share the line walk with `parse_transcript`.
+**F - Refactor:** Done: parse_transcript now reads its lines through the same read_lines as parse_melee.
 
 **Files**
 

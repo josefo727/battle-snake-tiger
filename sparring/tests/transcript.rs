@@ -1,4 +1,6 @@
-use tiger_sparring::transcript::{GameOutcome, ParsedGame, TranscriptError, parse_transcript};
+use tiger_sparring::transcript::{
+    GameOutcome, MeleeGame, ParsedGame, TranscriptError, parse_melee, parse_transcript,
+};
 
 const RESULT_WIN: &str = r#"{"winnerId":"id-tiger","winnerName":"tiger","isDraw":false}"#;
 const RESULT_LOSS: &str = r#"{"winnerId":"id-base","winnerName":"base","isDraw":false}"#;
@@ -97,6 +99,109 @@ fn a_winner_that_is_neither_snake_is_an_error() {
 
     assert_eq!(
         parse(&transcript(4, Some(stranger))),
+        Err(TranscriptError::UnknownWinner("someone-else".to_owned()))
+    );
+}
+
+// ---- several snakes -----------------------------------------------------------------
+
+/// A transcript whose turn `t` lists the snakes of `alive[t]`, then `result`.
+fn melee_transcript(alive: &[&[&str]], result: Option<&str>) -> String {
+    let mut lines = vec![
+        r#"{"id":"game-4","ruleset":{"name":"standard","version":"cli"},"timeout":500}"#.to_owned(),
+    ];
+    for (turn, names) in alive.iter().enumerate() {
+        let snakes: Vec<String> = names
+            .iter()
+            .map(|n| format!(r#"{{"id":"id-{n}","name":"{n}"}}"#))
+            .collect();
+        lines.push(format!(
+            r#"{{"game":{{"id":"game-4"}},"turn":{turn},"board":{{"snakes":[{}]}}}}"#,
+            snakes.join(",")
+        ));
+    }
+    lines.extend(result.map(str::to_owned));
+    lines.join("\n")
+}
+
+const FOUR: [&str; 4] = ["a", "b", "c", "d"];
+
+#[test]
+fn placements_follow_the_elimination_order_and_share_a_turn() {
+    // b and d fall on turn 10, c on turn 20, a wins.
+    let mut alive: Vec<&[&str]> = Vec::new();
+    alive.extend(std::iter::repeat_n(&["a", "b", "c", "d"][..], 10));
+    alive.extend(std::iter::repeat_n(&["a", "c"][..], 10));
+    alive.push(&["a"][..]);
+    let result = r#"{"winnerId":"id-a","winnerName":"a","isDraw":false}"#;
+
+    let game = parse_melee(&melee_transcript(&alive, Some(result)), &FOUR).expect("well-formed");
+
+    assert_eq!(
+        game,
+        MeleeGame {
+            placements: vec![1.0, 3.5, 2.0, 3.5],
+            turns: 21
+        }
+    );
+}
+
+#[test]
+fn placements_are_reported_in_the_order_the_names_were_given() {
+    let alive: Vec<&[&str]> = vec![&["a", "b", "c", "d"], &["b", "c", "d"], &["c"]];
+    let result = r#"{"winnerId":"id-c","winnerName":"c","isDraw":false}"#;
+
+    let game = parse_melee(
+        &melee_transcript(&alive, Some(result)),
+        &["d", "c", "b", "a"],
+    )
+    .unwrap();
+
+    assert_eq!(game.placements, vec![2.5, 1.0, 2.5, 4.0]);
+    assert_eq!(game.turns, 3);
+}
+
+#[test]
+fn a_draw_at_the_end_shares_first_place_among_the_last_survivors() {
+    let alive: Vec<&[&str]> = vec![&["a", "b", "c", "d"], &["a", "b", "c"], &["a", "b"]];
+    let result = r#"{"winnerId":"","winnerName":"","isDraw":true}"#;
+
+    let game = parse_melee(&melee_transcript(&alive, Some(result)), &FOUR).unwrap();
+
+    assert_eq!(game.placements, vec![1.5, 1.5, 3.0, 4.0]);
+}
+
+#[test]
+fn a_snake_that_is_not_a_named_seat_or_a_seat_never_seen_is_an_error() {
+    let alive: Vec<&[&str]> = vec![&["a", "b", "c", "x"], &["a"]];
+    let result = r#"{"winnerId":"id-a","winnerName":"a","isDraw":false}"#;
+    let text = melee_transcript(&alive, Some(result));
+
+    assert_eq!(
+        parse_melee(&text, &FOUR),
+        Err(TranscriptError::UnknownSnake("x".to_owned()))
+    );
+    assert_eq!(
+        parse_melee(&text, &["a", "b", "c", "x", "e"]),
+        Err(TranscriptError::UnknownSnake("e".to_owned()))
+    );
+}
+
+#[test]
+fn the_melee_parser_shares_the_duel_parsers_errors() {
+    assert_eq!(parse_melee("", &FOUR), Err(TranscriptError::Empty));
+    assert_eq!(
+        parse_melee("garbage", &FOUR),
+        Err(TranscriptError::NotJson { line: 1 })
+    );
+    let alive: Vec<&[&str]> = vec![&["a", "b", "c", "d"]];
+    assert_eq!(
+        parse_melee(&melee_transcript(&alive, None), &FOUR),
+        Err(TranscriptError::MissingResult)
+    );
+    let stranger = r#"{"winnerId":"id-x","winnerName":"someone-else","isDraw":false}"#;
+    assert_eq!(
+        parse_melee(&melee_transcript(&alive, Some(stranger)), &FOUR),
         Err(TranscriptError::UnknownWinner("someone-else".to_owned()))
     );
 }
