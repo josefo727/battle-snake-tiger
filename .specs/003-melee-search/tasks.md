@@ -203,7 +203,7 @@ constitution-ref: Articles II, X
 ```yaml
 id: T007
 status: closed
-commits: { reconstructed: pending }
+commits: { reconstructed: 49478e960931d335488063bfbc5752c1570386b7 }
 source-commits: { red: cbac800, green: 3e91e3d, refactor: skipped }
 spec-ref: spec.md §Acceptance criteria 1 and 3
 contract-ref: n/a
@@ -233,8 +233,9 @@ constitution-ref: Articles II, X
 
 ```yaml
 id: T008
-status: open
-commits: { red: null, green: null, refactor: null }
+status: closed
+commits: { reconstructed: pending }
+source-commits: { red: 4c4d6d8, green: 0b1f9d8, refactor: skipped }
 spec-ref: spec.md §Acceptance criteria 1
 contract-ref: n/a
 constitution-ref: Articles II, X, XII
@@ -250,7 +251,9 @@ constitution-ref: Articles II, X, XII
 
 **G - Green:** Implement both.
 
-**F - Refactor:** Skipped unless the pressure helper should move out of `sustenance`.
+**F - Refactor:** Skipped - the pressure formula stays in sustenance and is reused as a public function; nothing duplicated.
+
+Note: the Red's starving example put the pellet where a rival owned it (pressure 60, not 32); the example was corrected after the Green in a follow-up test commit, the implementation unchanged.
 
 **Files**
 

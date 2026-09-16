@@ -21,7 +21,8 @@ pub struct Sustenance;
 /// `max(0, COMFORT_MARGIN - (health - distance))`: it grows as the margin
 /// between a serpent's health and the turns to its nearest owned pellet shrinks
 /// (and is largest once it cannot reach food before starving).
-fn pressure(vigor: u8, distance_to_food: Option<u16>) -> i32 {
+#[must_use]
+pub fn pressure(vigor: u8, distance_to_food: Option<u16>) -> i32 {
     let distance = distance_to_food.map_or(NO_FOOD_DISTANCE, i32::from);
     let margin = i32::from(vigor) - distance;
     (COMFORT_MARGIN - margin).clamp(0, MAX_PRESSURE)

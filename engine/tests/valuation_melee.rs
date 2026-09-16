@@ -1,13 +1,20 @@
 mod support;
 
+use proptest::prelude::*;
 use tiger_engine::arena::heading::Heading;
 use tiger_engine::arena::ingest::ingest_melee;
 use tiger_engine::arena::melee::{MAX_SEATS, MeleeBoard, MeleeOutcome};
+use tiger_engine::valuation::StandardPipeline;
+use tiger_engine::valuation::melee::MeleeValuation;
 use tiger_engine::valuation::melee::attrition::Attrition;
+use tiger_engine::valuation::melee::finish::MeleeFinish;
+use tiger_engine::valuation::melee::hunger::Hunger;
 use tiger_engine::valuation::melee::standing::{HeadDanger, Standing};
+use tiger_engine::valuation::melee::territory::Territory;
+use tiger_engine::valuation::melee::weights::DEFAULT_MELEE_PROFILE;
 use tiger_engine::valuation::{Assessor, ValuationPipeline};
 
-use support::{turn_state, turn_state_from_bodies};
+use support::{melee_spec, realize_melee, turn_state, turn_state_from_bodies};
 
 fn melee(snakes: usize) -> MeleeBoard {
     ingest_melee(&turn_state(snakes, 0, &[])).expect("the test state is a melee")
@@ -102,4 +109,91 @@ fn head_danger_counts_the_cells_we_share_with_stronger_and_weaker_heads() {
     let mixed = board_of(&[US, longer_west, shorter]);
     // Longer west reaches (5,6),(4,5); shorter east reaches (5,6),(6,5): -2 + 1.
     assert_eq!(HeadDanger.assess(&mixed), -1);
+}
+
+#[test]
+fn hunger_is_our_pressure_alone_and_grows_as_food_slips_away() {
+    let us_far: &[(i32, i32)] = &[(5, 5), (5, 4), (5, 3)];
+    let comfortable = ingest_melee(&turn_state_from_bodies(
+        &[us_far, FAR, shorter_at(0, 10)],
+        &[90, 90, 90],
+        0,
+        &[(5, 6)],
+    ))
+    .unwrap();
+    let starving = ingest_melee(&turn_state_from_bodies(
+        &[us_far, FAR, shorter_at(0, 10)],
+        &[3, 90, 90],
+        0,
+        &[(5, 10)],
+    ))
+    .unwrap();
+    let no_food = ingest_melee(&turn_state_from_bodies(
+        &[us_far, FAR, shorter_at(0, 10)],
+        &[30, 1, 1],
+        0,
+        &[],
+    ))
+    .unwrap();
+
+    assert_eq!(Hunger.assess(&comfortable), 0);
+    // (5,10) is 5 from us and 5 from the shorter seat, so ours; with health 3
+    // the margin is -2 and the pressure 25 + 2 = 27.
+    assert_eq!(Hunger.assess(&starving), -27);
+    // No pellet: distance 40 assumed, margin -10, pressure 35 (the rivals' hunger counts for nothing).
+    assert_eq!(Hunger.assess(&no_food), -35);
+}
+
+#[test]
+fn the_composed_valuation_uses_the_melee_terms_or_the_duel_terms_by_seat_count() {
+    let valuation = MeleeValuation::standard();
+    let three = melee(3);
+    let two = MeleeBoard::try_new(
+        &[
+            *three.serpent(tiger_engine::arena::melee::Seat::US),
+            *three.serpent(tiger_engine::arena::melee::Seat::ALL[1]),
+        ],
+        three.pellets(),
+    )
+    .unwrap();
+
+    let duel_score = StandardPipeline::standard().score(&two.as_duel());
+    assert_eq!(
+        valuation.score(&two),
+        duel_score + 2 * DEFAULT_MELEE_PROFILE.attrition_seat
+    );
+    assert_ne!(valuation.score(&three), 0);
+    assert_eq!(
+        valuation.score(&three),
+        DEFAULT_MELEE_PROFILE.attrition_seat
+            + 100 * (Territory.assess(&three))
+            + 200 * Hunger.assess(&three)
+            + 250 * Standing.assess(&three)
+            + 300 * HeadDanger.assess(&three)
+    );
+}
+
+#[test]
+fn the_standard_melee_valuation_stays_inside_the_finish_limits() {
+    let worst = MeleeValuation::standard().worst_case_magnitude();
+    let limit = MeleeFinish::new(&DEFAULT_MELEE_PROFILE).finite_limit();
+
+    assert!(worst > 0);
+    assert!(
+        worst < limit,
+        "worst case {worst} must stay below the finite limit {limit}"
+    );
+}
+
+proptest! {
+    #![proptest_config(ProptestConfig::with_cases(100))]
+
+    #[test]
+    fn the_melee_score_is_deterministic_and_bounded(spec in melee_spec()) {
+        let board = ingest_melee(&realize_melee(&spec)).unwrap();
+        let valuation = MeleeValuation::standard();
+        let score = valuation.score(&board);
+        prop_assert_eq!(score, valuation.score(&board));
+        prop_assert!(score.abs() <= valuation.worst_case_magnitude());
+    }
 }
