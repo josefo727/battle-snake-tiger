@@ -487,7 +487,7 @@ Note: also updated the process smoke and the CLI end-to-end expectations (files 
 ```yaml
 id: T016
 status: closed
-commits: { reconstructed: pending }
+commits: { reconstructed: c586be140e01453ac8e3988905ac62b16bd5a814 }
 source-commits: { red: c4afc0a, green: 29c047b, refactor: skipped }
 spec-ref: spec.md §Acceptance criteria 1; plan.md §Risks
 contract-ref: n/a
@@ -518,8 +518,9 @@ Note: Green is the generator commit 29c047b plus the evidence commit 3bf2e19; th
 
 ```yaml
 id: T017
-status: open
-commits: { red: null, green: null, refactor: null }
+status: closed
+commits: { reconstructed: pending }
+source-commits: { red: 35413eb, green: 9ba3fc7, refactor: skipped }
 spec-ref: spec.md §Acceptance criteria 2
 contract-ref: n/a
 constitution-ref: Articles XI, XIV
@@ -533,12 +534,15 @@ constitution-ref: Articles XI, XIV
 
 **G - Green:** Record the evidence.
 
-**F - Refactor:** Skipped.
+**F - Refactor:** Skipped - the harness gained one expectation type; no smell.
 
 **Files**
 
 - `engine/tests/latency.rs`
 - `.specs/003-melee-search/evidence/latency-melee.md`
+
+Note: the harness commit 35413eb is the Red/Green in one (the gate passed on the first run, so no failing observation exists); the evidence commit 9ba3fc7 records p99 375.2 ms and depths 3 to 6. Files also touched: scripts/run-latency, engine/tests/support/melee_suite.rs.
+
 
 ## T018 - Branch coverage of the new modules
 

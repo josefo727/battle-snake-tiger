@@ -9,8 +9,16 @@
 mod support;
 
 use support::env_number;
+use support::melee_suite::{
+    MELEE_SUITE_SEED, MELEE_SUITE_SIZE, generate_melee_suite, melee_board_to_request_json,
+};
 use support::server::Server;
 use support::suite::{SUITE_SEED, board_to_request_json, generate_suite};
+use tiger_engine::arena::melee::MeleeBoard;
+use tiger_engine::lookahead::paranoid::MeleeSearcher;
+use tiger_engine::valuation::melee::MeleeValuation;
+use tiger_engine::valuation::melee::finish::MeleeFinish;
+use tiger_engine::valuation::melee::weights::DEFAULT_MELEE_PROFILE;
 
 use std::collections::BTreeMap;
 use std::io::{Read, Write};
@@ -35,6 +43,25 @@ const CONCURRENCY: usize = 16;
 const DECLARED_TIMEOUT_MS: u64 = 500;
 const RESPONSE_RESERVE_MS: u64 = 120;
 const MINIMUM_DUEL_DEPTH: u32 = 2;
+/// A melee decision under sixteen concurrent searches must at least complete
+/// its first depth; the histogram reports how many reach two or more.
+const MINIMUM_MELEE_DEPTH: u32 = 1;
+
+/// Which engine path a phase's decisions must take and how deep they must go.
+#[derive(Clone, Copy)]
+struct Expectation {
+    path: &'static str,
+    minimum_depth: u32,
+}
+
+const DUEL: Expectation = Expectation {
+    path: "duel_search",
+    minimum_depth: MINIMUM_DUEL_DEPTH,
+};
+const MELEE: Expectation = Expectation {
+    path: "melee_search",
+    minimum_depth: MINIMUM_MELEE_DEPTH,
+};
 
 // ---- the sampler ---------------------------------------------------------------------------
 
@@ -191,6 +218,10 @@ fn deadline() -> Duration {
 
 /// What is wrong with a phase against the deadline gate; empty when nothing is.
 fn problems(phase: &PhaseReport) -> Vec<String> {
+    problems_for(phase, DUEL)
+}
+
+fn problems_for(phase: &PhaseReport, expected: Expectation) -> Vec<String> {
     let mut found = Vec::new();
     if phase.p99 > deadline() {
         found.push(format!(
@@ -212,21 +243,23 @@ fn problems(phase: &PhaseReport) -> Vec<String> {
     let shallow = phase
         .decisions
         .iter()
-        .filter(|d| d.search_depth < MINIMUM_DUEL_DEPTH)
+        .filter(|d| d.search_depth < expected.minimum_depth)
         .count();
     if shallow > 0 {
         found.push(format!(
-            "depth: {shallow} decisions completed fewer than {MINIMUM_DUEL_DEPTH} plies"
+            "depth: {shallow} decisions completed fewer than {} plies",
+            expected.minimum_depth
         ));
     }
     let fell_back = phase
         .decisions
         .iter()
-        .filter(|d| d.engine_path != "duel_search")
+        .filter(|d| d.engine_path != expected.path)
         .count();
     if fell_back > 0 {
         found.push(format!(
-            "path: {fell_back} duel decisions were not made by the search"
+            "path: {fell_back} decisions were not made by {}",
+            expected.path
         ));
     }
     if phase.decisions.len() != phase.requests {
@@ -689,6 +722,75 @@ fn worst_case_duels_meet_the_p99_deadline_on_loopback() {
         Vec::<String>::new(),
         "sequential phase"
     );
+}
+
+/// Sixteen evenly spaced four-snake suite positions the search cannot settle
+/// within three plies, so each decision uses its whole allowance.
+fn worst_case_melee_bodies(suite: &[MeleeBoard]) -> Vec<Vec<u8>> {
+    let valuation = MeleeValuation::standard();
+    let unsettled: Vec<&MeleeBoard> = suite
+        .iter()
+        .filter(|board| {
+            let mut searcher =
+                MeleeSearcher::new(&valuation, MeleeFinish::new(&DEFAULT_MELEE_PROFILE));
+            let report = searcher.search_fixed(board, 3);
+            !report
+                .principal_score
+                .is_some_and(|s| searcher.is_decisive(s))
+        })
+        .collect();
+    let stride = (unsettled.len() / 16).max(1);
+    unsettled
+        .into_iter()
+        .step_by(stride)
+        .take(16)
+        .map(|board| melee_board_to_request_json(board).into_bytes())
+        .collect()
+}
+
+/// Run by `scripts/run-latency melee` against the release binary with
+/// four-snake requests (003 T017, criterion 2).
+#[test]
+#[ignore = "release-mode loopback run, driven by scripts/run-latency melee"]
+fn worst_case_melees_meet_the_p99_deadline_on_loopback() {
+    let warmup = env_number("LATENCY_WARMUP", WARMUP_REQUESTS);
+    let requests = env_number("LATENCY_REQUESTS", CONCURRENT_REQUESTS);
+    let sequential_requests = env_number("LATENCY_SEQUENTIAL", SEQUENTIAL_REQUESTS);
+
+    let suite = generate_melee_suite(MELEE_SUITE_SEED, 4, MELEE_SUITE_SIZE);
+    let bodies = Arc::new(worst_case_melee_bodies(&suite));
+    let server = Server::start();
+
+    measure_phase(&server, &bodies, warmup, CONCURRENCY);
+    let concurrent = measure_phase(&server, &bodies, requests, CONCURRENCY);
+    let sequential = measure_phase(&server, &bodies, sequential_requests, 1);
+
+    println!("{}", render(bodies.len(), warmup, &concurrent, &sequential));
+
+    assert_eq!(
+        problems_for(&concurrent, MELEE),
+        Vec::<String>::new(),
+        "concurrent phase"
+    );
+    assert_eq!(
+        problems_for(&sequential, MELEE),
+        Vec::<String>::new(),
+        "sequential phase"
+    );
+}
+
+#[test]
+fn the_melee_expectation_asks_for_the_melee_path_and_a_completed_depth() {
+    let mut phase = healthy_phase();
+    for decision in &mut phase.decisions {
+        decision.engine_path = "melee_search".to_owned();
+        decision.search_depth = 1;
+    }
+
+    assert_eq!(problems_for(&phase, MELEE), Vec::<String>::new());
+    assert_eq!(problems_for(&phase, DUEL).len(), 2);
+    phase.decisions[3].search_depth = 0;
+    assert!(problems_for(&phase, MELEE)[0].contains("depth"));
 }
 
 #[test]
