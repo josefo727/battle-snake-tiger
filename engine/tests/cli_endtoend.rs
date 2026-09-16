@@ -184,7 +184,7 @@ fn expected_path(alive: usize) -> &'static str {
     match alive {
         0 | 1 => "unsupported_fallback",
         2 => "duel_search",
-        _ => "safety_fallback",
+        _ => "melee_search",
     }
 }
 
@@ -470,8 +470,8 @@ fn only_move_decision_lines_are_decisions() {
 
 #[test]
 fn the_engine_path_follows_the_number_of_snakes_alive() {
-    assert_eq!(expected_path(3), "safety_fallback");
-    assert_eq!(expected_path(4), "safety_fallback");
+    assert_eq!(expected_path(3), "melee_search");
+    assert_eq!(expected_path(4), "melee_search");
     assert_eq!(expected_path(2), "duel_search");
     assert_eq!(expected_path(1), "unsupported_fallback");
 }
@@ -542,8 +542,8 @@ fn a_three_snake_game_is_checked_against_the_three_way_routing() {
     ))
     .unwrap();
     let decisions = [
-        decision(0, "safety_fallback"),
-        decision(1, "safety_fallback"),
+        decision(0, "melee_search"),
+        decision(1, "melee_search"),
         decision(2, "duel_search"),
         decision(3, "unsupported_fallback"),
     ];
@@ -750,7 +750,7 @@ fn duel_games_against_the_sibling_baseline_use_the_search_almost_always() {
 
 #[test]
 #[ignore = "plays a real game through the rules CLI; run scripts/run-endtoend"]
-fn a_three_snake_game_completes_with_the_safety_fallback() {
+fn a_three_snake_game_completes_with_the_melee_search() {
     let oracle = pinned_oracle();
     let baseline = ExternalServer::start(&baseline_binary());
     let ours = Server::start();
@@ -773,12 +773,12 @@ fn a_three_snake_game_completes_with_the_safety_fallback() {
         .collect();
 
     println!(
-        "three-snake game: {} turns, winner {}, {} safety_fallback / {} duel_search / {} unsupported_fallback decisions",
+        "three-snake game: {} turns, winner {}, {} melee_search / {} duel_search / {} unsupported_fallback decisions",
         game.transcript.alive.len(),
         game.transcript.winner.as_deref().unwrap_or("draw"),
         decisions
             .iter()
-            .filter(|d| d.engine_path == "safety_fallback")
+            .filter(|d| d.engine_path == "melee_search")
             .count(),
         decisions
             .iter()
@@ -795,7 +795,7 @@ fn a_three_snake_game_completes_with_the_safety_fallback() {
     );
     assert_eq!(cli_problems(&game.cli_output), Vec::<String>::new());
     assert!(
-        decisions.iter().any(|d| d.engine_path == "safety_fallback"),
-        "no decision was made by the safety fallback while three snakes were alive"
+        decisions.iter().any(|d| d.engine_path == "melee_search"),
+        "no decision was made by the melee search while three snakes were alive"
     );
 }

@@ -4,8 +4,15 @@ use serde_json::Value;
 
 /// The contract schema file at `.specs/001-duel-search/contracts/<name>`.
 pub fn load_contract(name: &str) -> Value {
+    load_contract_of("001-duel-search", name)
+}
+
+/// The contract schema file at `.specs/<feature>/contracts/<name>`.
+pub fn load_contract_of(feature: &str, name: &str) -> Value {
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../.specs/001-duel-search/contracts")
+        .join("../.specs")
+        .join(feature)
+        .join("contracts")
         .join(name);
     let text = std::fs::read_to_string(&path)
         .unwrap_or_else(|error| panic!("cannot read {}: {error}", path.display()));

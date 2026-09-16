@@ -1,7 +1,7 @@
 //! The diagnostics port: one `move_decision` event per decision.
 //!
 //! The event is the flat shape of `contracts/decision-diagnostic.schema.json`
-//! (schema 2.0.0). It carries the game id and turn and the numbers that describe
+//! (schema 2.1.0: 2.0.0 plus the `melee_search` engine path). It carries the game id and turn and the numbers that describe
 //! how the decision was reached, and never a board, a body, a name or a shout.
 
 use serde::Serialize;
@@ -9,7 +9,7 @@ use serde::Serialize;
 use crate::rules_core::direction_to_wire;
 use crate::verdict::report::{Diagnostic, EnginePath, SelectionReason, VerdictReport};
 
-pub const SCHEMA_VERSION: &str = "2.0.0";
+pub const SCHEMA_VERSION: &str = "2.1.0";
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct DecisionEvent {
@@ -68,7 +68,7 @@ impl DecisionEvent {
 const fn engine_path_name(path: EnginePath) -> &'static str {
     match path {
         EnginePath::DuelSearch => "duel_search",
-        EnginePath::MeleeSearch => "safety_fallback",
+        EnginePath::MeleeSearch => "melee_search",
         EnginePath::SafetyFallback => "safety_fallback",
         EnginePath::UnsupportedFallback => "unsupported_fallback",
     }

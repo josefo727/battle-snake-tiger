@@ -11,11 +11,11 @@ use tiger_engine::verdict::service::VerdictService;
 
 use support::capture::json_lines;
 use support::clock::ManualClock;
-use support::schema::{load_contract, validate};
+use support::schema::{load_contract_of, validate};
 use support::{request_from_bodies, request_with};
 
 fn schema() -> Value {
-    load_contract("decision-diagnostic.schema.json")
+    load_contract_of("003-melee-search", "decision-diagnostic.schema.json")
 }
 
 fn report() -> VerdictReport {
@@ -57,7 +57,7 @@ fn the_event_names_the_game_and_turn_and_the_fixed_identity_fields() {
     assert_eq!(event.target, "move_decision");
     assert_eq!(event.event, "move_decision");
     assert_eq!(event.schema_version, SCHEMA_VERSION);
-    assert_eq!(SCHEMA_VERSION, "2.0.0");
+    assert_eq!(SCHEMA_VERSION, "2.1.0");
 }
 
 #[test]
@@ -348,7 +348,7 @@ fn a_duel_a_melee_and_an_unsupported_game_each_produce_a_valid_event() {
 
     for (label, request, path) in [
         ("duel", duel, "duel_search"),
-        ("melee", melee, "safety_fallback"),
+        ("melee", melee, "melee_search"),
         ("unsupported", unsupported, "unsupported_fallback"),
     ] {
         let event = decide_event(&request);

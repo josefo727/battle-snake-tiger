@@ -105,7 +105,7 @@ fn every_kind_of_move_request_is_answered_and_logged_by_the_real_process() {
         (
             "melee",
             request_json_with("v1.2.3", 3, 500, 0, &[]),
-            "safety_fallback",
+            "melee_search",
         ),
         (
             "unsupported",

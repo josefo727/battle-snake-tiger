@@ -201,7 +201,12 @@ async fn a_duel_a_melee_and_an_unsupported_game_each_get_a_move_and_one_diagnost
         (
             "melee",
             request_json_with("v1.2.3", 3, 500, 0, &[]),
-            "safety_fallback",
+            "melee_search",
+        ),
+        (
+            "four snakes",
+            request_json_with("v1.2.3", 4, 500, 2, &[(5, 6)]),
+            "melee_search",
         ),
         (
             "unsupported",

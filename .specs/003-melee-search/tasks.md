@@ -420,7 +420,7 @@ Note: the Red's one-snake test assumed the classifier certifies one snake; it do
 ```yaml
 id: T014
 status: closed
-commits: { reconstructed: pending }
+commits: { reconstructed: 92f55fc5897f0d29063aead979c91f0a859fb872 }
 source-commits: { red: 7250221, green: 25ba92d, refactor: 25ba92d }
 spec-ref: spec.md §Acceptance criteria 1, 3 and 4
 contract-ref: contracts/decision-diagnostic.schema.json
@@ -452,8 +452,9 @@ Note: the Red's no-time example declared 131 ms (one millisecond of search the m
 
 ```yaml
 id: T015
-status: open
-commits: { red: null, green: null, refactor: null }
+status: closed
+commits: { reconstructed: pending }
+source-commits: { red: 93cd3f2, green: 153eba4, refactor: skipped }
 spec-ref: spec.md §Acceptance criteria 4 and 5
 contract-ref: contracts/decision-diagnostic.schema.json
 constitution-ref: Articles II, VII
@@ -468,7 +469,7 @@ constitution-ref: Articles II, VII
 
 **G - Green:** Bump the beacon and add the contract file.
 
-**F - Refactor:** Skipped - no smell expected.
+**F - Refactor:** Skipped - no smell detected; one constant and one enum entry.
 
 **Files**
 
@@ -477,6 +478,9 @@ constitution-ref: Articles II, VII
 - `engine/tests/support/schema.rs`
 - `engine/tests/gateway_beacon.rs`
 - `engine/tests/gateway_http.rs`
+
+Note: also updated the process smoke and the CLI end-to-end expectations (files not in the plan: engine/tests/process_smoke.rs, engine/tests/cli_endtoend.rs).
+
 
 ## T016 - Profile the melee search
 
