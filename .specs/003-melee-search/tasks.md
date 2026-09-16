@@ -296,7 +296,7 @@ constitution-ref: Articles II, X
 ```yaml
 id: T010
 status: closed
-commits: { reconstructed: pending }
+commits: { reconstructed: 661bfec627a07603f4b8d512f12c6c573b90921c }
 source-commits: { red: e2c391f, green: 8adf307, refactor: skipped }
 spec-ref: spec.md §Acceptance criteria 1 and 3
 contract-ref: n/a
@@ -329,8 +329,9 @@ Note: the Red's node-count assertion expected the exhaustive 256 joint moves; al
 
 ```yaml
 id: T011
-status: open
-commits: { red: null, green: null, refactor: null }
+status: closed
+commits: { reconstructed: pending }
+source-commits: { red: f23c5ff, green: 17ca93e, refactor: skipped }
 spec-ref: spec.md §Acceptance criteria 1
 contract-ref: n/a
 constitution-ref: Articles II, X
@@ -345,7 +346,7 @@ constitution-ref: Articles II, X
 
 **G - Green:** Implement the filter in the opponent layers.
 
-**F - Refactor:** Skipped unless the filter duplicates `HeadDanger`'s enterable cells.
+**F - Refactor:** Skipped - the enterable-cells helper repeats HeadDanger's three lines; sharing it would make the search import a valuation detail (Article X allows it, but the coupling buys nothing).
 
 **Files**
 

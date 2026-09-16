@@ -11,6 +11,7 @@ use super::allowance::{NeverStop, StopSignal};
 use super::ledger::LookaheadReport;
 use super::minimax::{Interrupted, Window};
 use super::ordering::{HeadingOrder, LearnedOrder};
+use crate::arena::cellset::CellSet;
 use crate::arena::heading::Heading;
 use crate::arena::melee::{MAX_SEATS, MeleeBoard, MeleeOutcome, Seat};
 use crate::valuation::melee::MeleeValuation;
@@ -21,6 +22,7 @@ pub struct MeleeSearcher<'valuation, O = LearnedOrder> {
     finish: MeleeFinish,
     order: O,
     nodes: u64,
+    prune_opponents: bool,
 }
 
 impl<'valuation> MeleeSearcher<'valuation> {
@@ -43,7 +45,16 @@ impl<'valuation, O: HeadingOrder> MeleeSearcher<'valuation, O> {
             finish,
             order,
             nodes: 0,
+            prune_opponents: true,
         }
+    }
+
+    /// Below the root, opponents normally try only the headings that do not
+    /// kill them outright; this keeps all four everywhere (for measurements).
+    #[must_use]
+    pub const fn without_opponent_pruning(mut self) -> Self {
+        self.prune_opponents = false;
+        self
     }
 
     /// Searches exactly `depth` plies (each a full joint move of every living
@@ -148,7 +159,11 @@ impl<'valuation, O: HeadingOrder> MeleeSearcher<'valuation, O> {
         };
         let Window { alpha, mut beta } = window;
         let mut best = self.finish.sentinel();
+        let considered = self.replies_of(board, seat, ply);
         for theirs in self.order.arrange(seat, ply) {
+            if !considered.contains(&theirs) {
+                continue;
+            }
             chosen[seat.index()] = theirs;
             let inner = Window { alpha, beta };
             let score = self.minimize(board, chosen, seat.index() + 1, depth, ply, inner, stop)?;
@@ -160,6 +175,27 @@ impl<'valuation, O: HeadingOrder> MeleeSearcher<'valuation, O> {
             }
         }
         Ok(best)
+    }
+
+    /// The headings an opponent tries: all four at the root or without pruning;
+    /// below the root only those that do not kill it outright (off the board or
+    /// into a body cell that stays), unless it has none, when it keeps all four.
+    fn replies_of(&self, board: &MeleeBoard, seat: Seat, ply: u16) -> HeadingSet {
+        if !self.prune_opponents || ply == 0 {
+            return HeadingSet::ALL;
+        }
+        let head = board.serpent(seat).head();
+        let enterable = enterable_cells(board);
+        let safe = HeadingSet::of(|heading| {
+            heading
+                .step(head)
+                .is_some_and(|cell| enterable.contains(cell))
+        });
+        if safe.is_empty() {
+            HeadingSet::ALL
+        } else {
+            safe
+        }
     }
 
     /// One joint move: the finished melee's terminal score, the leaf value, or
@@ -198,4 +234,38 @@ impl<'valuation, O: HeadingOrder> MeleeSearcher<'valuation, O> {
     pub const fn is_decisive(&self, score: i32) -> bool {
         score.abs() >= self.finish.finite_limit()
     }
+}
+
+/// A subset of the four headings, as a bit per [`Heading::index`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct HeadingSet(u8);
+
+impl HeadingSet {
+    const ALL: Self = Self(0b1111);
+
+    fn of(mut keep: impl FnMut(Heading) -> bool) -> Self {
+        Self(Heading::ALL.into_iter().fold(0, |bits, heading| {
+            bits | (u8::from(keep(heading)) << heading.index())
+        }))
+    }
+
+    const fn contains(self, heading: &Heading) -> bool {
+        self.0 >> heading.index() & 1 == 1
+    }
+
+    const fn is_empty(self) -> bool {
+        self.0 == 0
+    }
+}
+
+/// Free cells plus the tail cells that vacate this turn.
+fn enterable_cells(board: &MeleeBoard) -> CellSet {
+    board
+        .seats()
+        .fold(board.occupied().complement(), |cells, seat| {
+            board
+                .serpent(seat)
+                .cell_released_on_turn(1)
+                .map_or(cells, |cell| cells.with(cell))
+        })
 }

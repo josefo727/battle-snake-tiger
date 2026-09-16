@@ -1,6 +1,7 @@
 mod support;
 
 use proptest::prelude::*;
+use tiger_engine::arena::cellset::CellSet;
 use tiger_engine::arena::heading::Heading;
 use tiger_engine::arena::ingest::ingest_melee;
 use tiger_engine::arena::melee::{MAX_SEATS, MeleeBoard, MeleeOutcome, Seat};
@@ -38,12 +39,47 @@ fn joint_replies(board: &MeleeBoard, ours: Heading) -> Vec<[Heading; MAX_SEATS]>
 struct Reference<'v> {
     valuation: &'v MeleeValuation,
     finish: MeleeFinish,
+    /// Below the root, drop the opponent replies that kill their own serpent
+    /// outright (unless a seat has no other), like the searcher's pruning.
+    filtered: bool,
+}
+
+/// Cells a head can step into without dying on the spot: free cells and the
+/// tails that vacate this turn.
+fn enterable(board: &MeleeBoard) -> CellSet {
+    board
+        .seats()
+        .fold(board.occupied().complement(), |cells, seat| {
+            board
+                .serpent(seat)
+                .cell_released_on_turn(1)
+                .map_or(cells, |cell| cells.with(cell))
+        })
+}
+
+fn is_self_preserving(board: &MeleeBoard, seat: Seat, heading: Heading) -> bool {
+    heading
+        .step(board.serpent(seat).head())
+        .is_some_and(|cell| enterable(board).contains(cell))
 }
 
 impl Reference<'_> {
+    fn allowed(&self, board: &MeleeBoard, moves: &[Heading; MAX_SEATS], ply: u16) -> bool {
+        if !self.filtered || ply == 0 {
+            return true;
+        }
+        board.seats().filter(|s| *s != Seat::US).all(|seat| {
+            let has_safe = Heading::ALL
+                .into_iter()
+                .any(|h| is_self_preserving(board, seat, h));
+            !has_safe || is_self_preserving(board, seat, moves[seat.index()])
+        })
+    }
+
     fn value_of_heading(&self, board: &MeleeBoard, ours: Heading, depth: u16, ply: u16) -> i32 {
         joint_replies(board, ours)
             .into_iter()
+            .filter(|moves| self.allowed(board, moves, ply))
             .map(|moves| match board.advance(&moves) {
                 MeleeOutcome::Continues(next) if depth == 1 => self.valuation.score(&next),
                 MeleeOutcome::Continues(next) => self.value(&next, depth - 1, ply + 1),
@@ -76,6 +112,7 @@ fn assert_matches_reference(board: &MeleeBoard, depth: u16) {
     let reference = Reference {
         valuation: &valuation,
         finish: finish(),
+        filtered: true,
     };
     let values = reference.root_values(board, depth);
     let mut searcher = MeleeSearcher::new(&valuation, finish());
@@ -139,6 +176,44 @@ fn a_certain_win_and_a_certain_loss_are_decisive_scores() {
     assert!(searcher.is_decisive(score), "{score}");
     assert!(score < 0, "{score}");
     assert_matches_reference(&board, 1);
+}
+
+#[test]
+fn pruning_the_opponents_suicides_below_the_root_saves_work_and_keeps_the_value() {
+    let board = ingest_melee(&turn_state(4, 0, &[(5, 6)])).expect("melee");
+    let valuation = MeleeValuation::standard();
+    let mut pruned = MeleeSearcher::new(&valuation, finish());
+    let mut unpruned = MeleeSearcher::new(&valuation, finish()).without_opponent_pruning();
+
+    let with = pruned.search_fixed(&board, 2);
+    let without = unpruned.search_fixed(&board, 2);
+
+    assert!(
+        with.nodes_explored < without.nodes_explored,
+        "pruned {} vs unpruned {}",
+        with.nodes_explored,
+        without.nodes_explored
+    );
+    assert_eq!(with.best, without.best);
+    assert_matches_reference(&board, 2);
+}
+
+#[test]
+fn an_opponent_with_no_safe_heading_keeps_all_four_headings() {
+    // The corner rival is boxed in by walls, its own body and a stacked tail
+    // that does not vacate this turn: it dies whatever it does.
+    let us: &[(i32, i32)] = &[(4, 0), (3, 0), (2, 0)];
+    let boxed: &[(i32, i32)] = &[(10, 0), (10, 1), (9, 1), (9, 0), (9, 0)];
+    let far: &[(i32, i32)] = &[(9, 9), (9, 8), (9, 7)];
+    let state = turn_state_from_bodies(&[us, boxed, far], &[90, 90, 90], 0, &[]);
+    let board = ingest_melee(&state).expect("melee");
+
+    assert!(
+        !Heading::ALL
+            .into_iter()
+            .any(|h| is_self_preserving(&board, Seat::ALL[1], h))
+    );
+    assert_matches_reference(&board, 2);
 }
 
 /// Whether `ours` keeps us alive against every joint reply.
