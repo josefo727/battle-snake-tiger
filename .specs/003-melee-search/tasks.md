@@ -606,7 +606,7 @@ constitution-ref: Articles II, XIV
 ```yaml
 id: T020
 status: closed
-commits: { reconstructed: pending }
+commits: { reconstructed: 05ad186d3ebef9fd57dfb9392de29baf3875c9a6 }
 source-commits: { red: d60f972, green: 303ef5a, refactor: skipped }
 spec-ref: spec.md §Acceptance criteria 6
 contract-ref: contracts/opponent-roster.yaml
@@ -633,8 +633,9 @@ constitution-ref: Articles II, XIV
 
 ```yaml
 id: T021
-status: open
-commits: { red: null, green: null, refactor: null }
+status: closed
+commits: { reconstructed: pending }
+source-commits: { red: 7c0b021, green: ef04a05, refactor: skipped }
 spec-ref: spec.md §Acceptance criteria 6
 contract-ref: contracts/opponent-roster.yaml
 constitution-ref: Articles II, VIII
@@ -650,7 +651,7 @@ constitution-ref: Articles II, VIII
 
 **G - Green:** Parse it and run it on drop.
 
-**F - Refactor:** Skipped - no smell expected.
+**F - Refactor:** Skipped - no smell detected; the stop command is one optional field carried from the roster to the guard.
 
 **Files**
 
@@ -659,6 +660,9 @@ constitution-ref: Articles II, VIII
 - `sparring/tests/roster.rs`
 - `sparring/tests/launcher.rs`
 - `scripts/provision-opponents`
+
+Note: the contract file lives at .specs/001-duel-search/contracts/opponent-roster.yaml (not contracts/ at the root as the task said).
+
 
 ## T022 - The placement benchmark and its report
 

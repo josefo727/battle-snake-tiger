@@ -1,11 +1,11 @@
 # contract: opponent-roster
-# version: 1.1.0
-# captured: 2026-09-18
-# source: research.md §snork agents and PROVENANCE.md
+# version: 1.2.0
+# captured: 2026-09-19
+# source: research.md §snork agents, ../003-melee-search/research.md §Sansón as a black-box opponent, and PROVENANCE.md
 contract:
   name: opponent-roster
-  version: 1.1.0
-  captured: 2026-09-18
+  version: 1.2.0
+  captured: 2026-09-19
   ownership:
     provider: each named third-party project (black-box HTTP process)
     consumer: offline sparring runner (crate tiger-sparring)
@@ -19,8 +19,11 @@ protocol:
   transport: loopback_http
   routes: [GET /, POST /start, POST /move, POST /end]
   game_runner: official BattlesnakeOfficial/rules CLI v1.2.3 `battlesnake play`
-  board: standard 11x11, two snakes, timeout 500 ms
+  board: standard 11x11, two snakes (duel benchmark) or four snakes (placement benchmark), timeout 500 ms
   seeds: 1..=30
+  launch_stop: >-
+    a launch may carry a `stop` command (program and args, `{port}` filled in) that the runner executes
+    after killing the launched process, for servers that outlive their client process (containers)
 opponents:
   - id: shapeshifter
     project: https://github.com/JonathanArns/shapeshifter
@@ -42,6 +45,14 @@ opponents:
     launch: "reference/snork/target/release/server --host 127.0.0.1:<free port> --config '{\"Flood\":{}}'"
     launch_note: the server's default agent is Mobility, so the config must name Flood (README, Running the Server)
     move_path: /move
+  - id: sanson
+    project: the operator's previous engine (image battle-snake:7212509, the same image id as battle-snake:current on the VPS)
+    license: the operator's own work, run as a black box; no source read (PROVENANCE.md)
+    provisioning: local Docker image, no build
+    launch: "docker run --rm --name sanson-<free port> -p 127.0.0.1:<free port>:3000 -e SANSON_DEEP=1 -e SANSON_REDUCE=1 battle-snake:7212509"
+    stop: "docker rm -f sanson-<free port>"
+    move_path: /move
+    role: placement benchmark seat (003-melee-search criterion 6), two Flood seats beside it
 baselines:
   - id: sibling-one-turn
     project: ../rules-core
@@ -53,6 +64,11 @@ comparison:
     For each opponent, the challenger's win rate over seeds 1..=30 must exceed
     the baseline's win rate over the same seeds against that same opponent.
   reported_fields: [wins, losses, draws, win_rate, win_rate_wilson95, mean_turns]
+  placement_rule: >-
+    In the four-snake benchmark (roster-melee.json: sanson, flood-a, flood-b as the opponents),
+    each seed is played with the challenger in seat one and again with the baseline there; the
+    challenger's mean placement must be strictly below the baseline's and not above Sansón's mean
+    placement in the challenger's games (../../003-melee-search/contracts/melee-report.schema.json).
 failures:
   opponent_unreachable: fail_before_first_game
   cli_nonzero_exit: fail

@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 use std::fs;
 
-use tiger_sparring::roster::{Roster, RosterError};
+use tiger_sparring::roster::{Roster, RosterError, Stop};
 
 const ROSTER: &str = r##"{
   "rules_cli_release": "v1.2.3",
@@ -17,9 +17,34 @@ const ROSTER: &str = r##"{
         "args": ["--host", "127.0.0.1:{port}", "--config", "{\"Flood\":{}}"] } },
     { "id": "shapeshifter", "launch": {
         "program": "/repo/reference/ss/release/shapeshifter",
-        "env": { "PORT": "{port}" } } }
+        "env": { "PORT": "{port}" } } },
+    { "id": "sanson", "launch": {
+        "program": "docker",
+        "args": ["run", "--rm", "--name", "sanson-{port}", "-p", "127.0.0.1:{port}:3000", "battle-snake:7212509"],
+        "stop": { "program": "docker", "args": ["rm", "-f", "sanson-{port}"] } } }
   ]
 }"##;
+
+#[test]
+fn a_launch_may_carry_a_stop_command_with_the_port_filled_in() {
+    let roster = Roster::from_json(ROSTER).unwrap();
+
+    let sanson = roster.opponents[2].launch.command(4500);
+    let flood = roster.opponents[0].launch.command(4501);
+
+    assert_eq!(
+        sanson.stop,
+        Some(Stop {
+            program: "docker".to_owned(),
+            args: vec!["rm".to_owned(), "-f".to_owned(), "sanson-4500".to_owned()],
+        })
+    );
+    assert!(sanson.args.contains(&"sanson-4500".to_owned()));
+    assert_eq!(
+        flood.stop, None,
+        "a launch without a stop command stops by killing the process"
+    );
+}
 
 #[test]
 fn a_roster_names_the_challenger_the_baseline_and_the_opponents_in_order() {
@@ -29,7 +54,7 @@ fn a_roster_names_the_challenger_the_baseline_and_the_opponents_in_order() {
     assert_eq!(roster.challenger.id, "tiger");
     assert_eq!(roster.baseline.id, "baseline");
     let ids: Vec<&str> = roster.opponents.iter().map(|o| o.id.as_str()).collect();
-    assert_eq!(ids, ["flood", "shapeshifter"]);
+    assert_eq!(ids, ["flood", "shapeshifter", "sanson"]);
 }
 
 #[test]
@@ -128,6 +153,6 @@ fn a_roster_file_is_loaded_and_a_missing_one_is_an_error() {
     let missing = Roster::load(&dir.join("absent.json"));
     let _ = fs::remove_dir_all(&dir);
 
-    assert_eq!(loaded.unwrap().opponents.len(), 2);
+    assert_eq!(loaded.unwrap().opponents.len(), 3);
     assert!(matches!(missing, Err(RosterError::Unreadable(_))));
 }

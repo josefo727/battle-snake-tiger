@@ -6,15 +6,27 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use crate::benchmark::{Launcher, RunningServer};
-use crate::roster::Entry;
+use crate::roster::{Entry, Stop};
 
-/// Stops its process when dropped, so no server outlives a benchmark.
-struct ChildGuard(Child);
+/// Stops its process when dropped, then runs the launch's stop command if it
+/// has one, so no server (nor a container behind it) outlives a benchmark.
+struct ChildGuard {
+    child: Child,
+    stop: Option<Stop>,
+}
 
 impl Drop for ChildGuard {
     fn drop(&mut self) {
-        let _ = self.0.kill();
-        let _ = self.0.wait();
+        let _ = self.child.kill();
+        let _ = self.child.wait();
+        if let Some(stop) = &self.stop {
+            let _ = Command::new(&stop.program)
+                .args(&stop.args)
+                .stdin(Stdio::null())
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .status();
+        }
     }
 }
 
@@ -48,7 +60,10 @@ impl Launcher for ProcessLauncher {
             .stderr(Stdio::null())
             .spawn()
             .map_err(|error| format!("cannot start {}: {error}", command.program))?;
-        let mut guard = ChildGuard(child);
+        let mut guard = ChildGuard {
+            child,
+            stop: command.stop.clone(),
+        };
 
         let address = SocketAddr::from(([127, 0, 0, 1], port));
         let deadline = Instant::now() + self.patience;
@@ -61,7 +76,7 @@ impl Launcher for ProcessLauncher {
                     Box::new(guard),
                 ));
             }
-            if let Ok(Some(status)) = guard.0.try_wait() {
+            if let Ok(Some(status)) = guard.child.try_wait() {
                 return Err(format!("{} exited early with {status}", command.program));
             }
             if Instant::now() >= deadline {

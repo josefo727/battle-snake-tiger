@@ -7,12 +7,22 @@ use std::path::Path;
 use serde_json::Value;
 
 /// How to start one server: a program, its arguments and environment, where the
-/// text `{port}` is replaced by the port chosen for this run.
+/// text `{port}` is replaced by the port chosen for this run; and, when killing
+/// the program is not enough (a container outlives its `docker run` client),
+/// the command that stops the server.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Launch {
     pub program: String,
     pub args: Vec<String>,
     pub env: BTreeMap<String, String>,
+    pub stop: Option<Stop>,
+}
+
+/// A command run after the server's process is killed, with `{port}` filled in.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Stop {
+    pub program: String,
+    pub args: Vec<String>,
 }
 
 /// A launch with the port filled in.
@@ -21,6 +31,8 @@ pub struct Command {
     pub program: String,
     pub args: Vec<String>,
     pub env: BTreeMap<String, String>,
+    /// The stop command for this port, if the launch has one.
+    pub stop: Option<Stop>,
 }
 
 impl Launch {
@@ -33,6 +45,10 @@ impl Launch {
             program: fill(&self.program),
             args: self.args.iter().map(|a| fill(a)).collect(),
             env: self.env.iter().map(|(k, v)| (k.clone(), fill(v))).collect(),
+            stop: self.stop.as_ref().map(|stop| Stop {
+                program: fill(&stop.program),
+                args: stop.args.iter().map(|a| fill(a)).collect(),
+            }),
         }
     }
 }
@@ -138,8 +154,27 @@ fn parse_entry(value: Option<&Value>, section: &'static str) -> Result<Entry, Ro
                 .collect()
         })
         .unwrap_or_default();
+    let stop = value["launch"]["stop"]
+        .as_object()
+        .map(|stop| Stop {
+            program: stop["program"].as_str().unwrap_or_default().to_owned(),
+            args: stop["args"]
+                .as_array()
+                .map(|list| {
+                    list.iter()
+                        .filter_map(|a| a.as_str().map(str::to_owned))
+                        .collect()
+                })
+                .unwrap_or_default(),
+        })
+        .filter(|stop| !stop.program.is_empty());
     Ok(Entry {
         id,
-        launch: Launch { program, args, env },
+        launch: Launch {
+            program,
+            args,
+            env,
+            stop,
+        },
     })
 }

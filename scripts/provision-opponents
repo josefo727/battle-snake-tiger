@@ -75,9 +75,25 @@ SHAPESHIFTER_FULL='    { "id": "shapeshifter-full", "launch": {
       "program": "'"$REF"'/shapeshifter-full/release/shapeshifter",
       "env": { "PORT": "{port}" } } }'
 
+# Sansón, the operator's previous engine, as a black box from its local Docker image (003
+# research.md): the container outlives the docker client, so the launch carries a stop command.
+SANSON_IMAGE="${SANSON_IMAGE:-battle-snake:7212509}"
+SANSON='    { "id": "sanson", "launch": {
+      "program": "docker",
+      "args": ["run", "--rm", "--name", "sanson-{port}", "-p", "127.0.0.1:{port}:3000",
+               "-e", "SANSON_DEEP=1", "-e", "SANSON_REDUCE=1", "'"$SANSON_IMAGE"'"],
+      "stop": { "program": "docker", "args": ["rm", "-f", "sanson-{port}"] } } }'
+flood_seat() {
+    printf '    { "id": "%s", "launch": {\n      "program": "%s/snork/target/release/server",\n      "args": ["--host", "127.0.0.1:{port}", "--config", "{\\"Flood\\":{}}"] } }' "$1" "$REF"
+}
+
 # The acceptance criterion's opponents, and the strongest Shapeshifter apart: its search
 # uses many threads, so it is benchmarked with fewer games in flight at a time.
 write_roster "$REF/roster.json" "$SHAPESHIFTER_DEFAULT,
 $FLOOD"
 write_roster "$REF/roster-strong.json" "$SHAPESHIFTER_FULL"
-echo "==> rosters written to $REF/roster.json and $REF/roster-strong.json"
+# The four-snake placement benchmark (003 criterion 6): Sansón and two Flood seats.
+write_roster "$REF/roster-melee.json" "$SANSON,
+$(flood_seat flood-a),
+$(flood_seat flood-b)"
+echo "==> rosters written to $REF/roster.json, $REF/roster-strong.json and $REF/roster-melee.json"

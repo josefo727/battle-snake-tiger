@@ -2,7 +2,7 @@ use std::time::{Duration, Instant};
 
 use tiger_sparring::benchmark::Launcher;
 use tiger_sparring::launcher::ProcessLauncher;
-use tiger_sparring::roster::{Entry, Launch};
+use tiger_sparring::roster::{Entry, Launch, Stop};
 
 fn entry(program: &str, args: &[&str]) -> Entry {
     Entry {
@@ -11,8 +11,46 @@ fn entry(program: &str, args: &[&str]) -> Entry {
             program: program.to_owned(),
             args: args.iter().map(|a| (*a).to_owned()).collect(),
             env: Default::default(),
+            stop: None,
         },
     }
+}
+
+#[test]
+fn the_stop_command_runs_when_the_launched_server_is_dropped() {
+    // A launch that exits at once is dropped by the launcher itself; the stop
+    // command must still run (the container behind a docker client would still
+    // be there), with `{port}` filled in like the launch arguments.
+    let dir = std::env::temp_dir().join(format!("tiger-launcher-stop-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let marker = dir.join("stopped");
+    let mut entry = entry("/bin/sh", &["-c", "exit 0"]);
+    entry.launch.stop = Some(Stop {
+        program: "sh".to_owned(),
+        args: vec![
+            "-c".to_owned(),
+            format!("echo stopped-{{port}} > '{}'", marker.display()),
+        ],
+    });
+
+    // Normally the launch fails (exited early) and the launcher drops the guard
+    // itself; now and then a concurrent test's connect attempt meets ours in a
+    // simultaneous open and the launch "succeeds", in which case dropping the
+    // server here must run the stop command all the same.
+    let started = ProcessLauncher::new(Duration::from_secs(5)).start(&entry);
+    if let Err(error) = &started {
+        assert!(error.contains("exited early"), "{error}");
+    }
+    drop(started);
+
+    let written = std::fs::read_to_string(&marker).expect("the stop command ran");
+    let port: u16 = written
+        .trim()
+        .strip_prefix("stopped-")
+        .and_then(|p| p.parse().ok())
+        .expect("the port was filled in");
+    assert!(port > 0);
+    let _ = std::fs::remove_dir_all(&dir);
 }
 
 #[test]

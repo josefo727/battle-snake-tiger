@@ -18,6 +18,7 @@ fn entry(id: &str) -> Entry {
             program: format!("/bin/{id}"),
             args: Vec::new(),
             env: Default::default(),
+            stop: None,
         },
     }
 }
