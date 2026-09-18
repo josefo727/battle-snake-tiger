@@ -5,7 +5,7 @@
 use std::process::{Command, ExitCode};
 use std::time::Duration;
 
-use tiger_sparring::benchmark::{Plan, run_benchmark, run_melee_benchmark};
+use tiger_sparring::benchmark::{Plan, Seating, run_benchmark, run_melee_benchmark};
 use tiger_sparring::launcher::ProcessLauncher;
 use tiger_sparring::ledger::{EngineIdentity, EnvironmentIdentity, JsonFileSink};
 use tiger_sparring::options::Options;
@@ -19,7 +19,7 @@ fn main() -> ExitCode {
         Ok(options) => options,
         Err(error) => {
             eprintln!(
-                "spar: {error:?}\nusage: spar --output REPORT.json [--melee] [--roster PATH] [--oracle PATH] [--seeds 1-30] [--workers N] [--overwrite] [--commit SHA] [--scratch DIR]"
+                "spar: {error:?}\nusage: spar --output REPORT.json [--melee] [--challenger-only] [--roster PATH] [--oracle PATH] [--seeds 1-30] [--workers N] [--overwrite] [--commit SHA] [--scratch DIR]"
             );
             return ExitCode::FAILURE;
         }
@@ -140,14 +140,27 @@ fn melee(
     environment: EnvironmentIdentity,
     options: &Options,
 ) -> ExitCode {
-    let outcome =
-        match run_melee_benchmark(roster, plan, runner, launcher, sink, engine, environment) {
-            Ok(outcome) => outcome,
-            Err(error) => {
-                eprintln!("spar: the benchmark failed: {error:?}");
-                return ExitCode::FAILURE;
-            }
-        };
+    let seating = if options.challenger_only {
+        Seating::ChallengerOnly
+    } else {
+        Seating::Both
+    };
+    let outcome = match run_melee_benchmark(
+        roster,
+        plan,
+        seating,
+        runner,
+        launcher,
+        sink,
+        engine,
+        environment,
+    ) {
+        Ok(outcome) => outcome,
+        Err(error) => {
+            eprintln!("spar: the benchmark failed: {error:?}");
+            return ExitCode::FAILURE;
+        }
+    };
     println!("seat one | seed | turns | placements");
     for game in &outcome.report.games {
         let places: Vec<String> = game
@@ -164,28 +177,59 @@ fn melee(
         );
     }
     let summary = &outcome.report.summary;
+    let baseline_text = match (&summary.baseline, summary.baseline_mean) {
+        (Some(name), Some(mean)) => format!("{name} {mean:.3}"),
+        _ => "baseline not played".to_owned(),
+    };
     println!(
-        "mean placement: {} {:.3} | {} {:.3} | {} (in the {}'s games) {:.3}",
+        "mean placement: {} {:.3} | {} | {} (in the {}'s games) {:.3}",
         summary.challenger,
         summary.challenger_mean,
-        summary.baseline,
-        summary.baseline_mean,
+        baseline_text,
         summary.reference_opponent,
         summary.challenger,
         summary.reference_mean_in_challenger_games
     );
     for opponent in &summary.opponents {
         println!(
-            "{}: {:.3} beside the challenger, {:.3} beside the baseline",
-            opponent.id, opponent.mean_with_challenger, opponent.mean_with_baseline
+            "{}: {:.3} beside the challenger{}",
+            opponent.id,
+            opponent.mean_with_challenger,
+            opponent
+                .mean_with_baseline
+                .map_or(String::new(), |m| format!(", {m:.3} beside the baseline"))
         );
     }
+    let wins = |seat: &str| {
+        outcome
+            .report
+            .games
+            .iter()
+            .filter(|g| g.seat_one == seat)
+            .filter(|g| g.placements.iter().any(|(s, p)| s == seat && *p == 1.0))
+            .count()
+    };
+    let played = |seat: &str| {
+        outcome
+            .report
+            .games
+            .iter()
+            .filter(|g| g.seat_one == seat)
+            .count()
+    };
+    println!(
+        "{}: {} won, {} lost of {}",
+        summary.challenger,
+        wins(&summary.challenger),
+        played(&summary.challenger) - wins(&summary.challenger),
+        played(&summary.challenger)
+    );
     println!("report written to {}", options.output.display());
     if outcome.criterion_met() {
-        println!("criterion 6: MET");
+        println!("verdict: MET (not worse than the reference opponent)");
         ExitCode::SUCCESS
     } else {
-        println!("criterion 6: NOT MET");
+        println!("verdict: NOT MET");
         ExitCode::from(2)
     }
 }

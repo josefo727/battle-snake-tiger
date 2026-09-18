@@ -33,6 +33,20 @@ fn the_melee_flag_selects_the_placement_benchmark_and_its_roster() {
     assert_eq!(melee.roster, PathBuf::from("reference/roster-melee.json"));
     assert!(own_roster.melee);
     assert_eq!(own_roster.roster, PathBuf::from("r.json"));
+    assert!(!melee.challenger_only);
+}
+
+#[test]
+fn the_challenger_only_flag_skips_the_baseline_seating() {
+    let only = Options::parse(&args(&[
+        "--output",
+        "m.json",
+        "--melee",
+        "--challenger-only",
+    ]))
+    .expect("valid");
+
+    assert!(only.melee && only.challenger_only);
 }
 
 #[test]

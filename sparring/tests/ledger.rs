@@ -347,7 +347,7 @@ fn a_melee_report() -> MeleeReport {
         engine(),
         environment(),
         "tiger",
-        "baseline",
+        Some("baseline"),
         &["sanson", "flood-a", "flood-b"].map(str::to_owned),
         games,
     )
@@ -378,7 +378,7 @@ fn a_melee_report_validates_against_its_contract_and_states_the_means() {
     let json = report.to_json();
 
     assert_eq!(schema::validate(&melee_contract(), &json), Ok(()), "{json}");
-    assert_eq!(json["schema_version"], "1.0.0");
+    assert_eq!(json["schema_version"], "1.1.0");
     assert_eq!(json["summary"]["challenger_mean"], 1.0);
     assert_eq!(json["summary"]["baseline_mean"], 4.0);
     assert_eq!(json["summary"]["reference_mean_in_challenger_games"], 2.0);
@@ -394,7 +394,7 @@ fn a_melee_report_needs_games_and_every_named_snake() {
             engine(),
             environment(),
             "tiger",
-            "baseline",
+            Some("baseline"),
             &opponents,
             Vec::new()
         )
@@ -414,7 +414,7 @@ fn a_melee_report_needs_games_and_every_named_snake() {
             engine(),
             environment(),
             "tiger",
-            "baseline",
+            Some("baseline"),
             &opponents,
             only_tiger
         )

@@ -13,7 +13,7 @@ use crate::transcript::GameOutcome;
 
 pub const SCHEMA_VERSION: &str = "1.0.0";
 /// The version of `melee-report.schema.json` this module writes.
-pub const MELEE_SCHEMA_VERSION: &str = "1.0.0";
+pub const MELEE_SCHEMA_VERSION: &str = "1.1.0";
 
 /// The engine under test, by name and source revision.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -193,18 +193,20 @@ impl MeleeGameRecord {
 pub struct OpponentMeans {
     pub id: String,
     pub mean_with_challenger: f64,
-    pub mean_with_baseline: f64,
+    /// `None` when the baseline seating was not played.
+    pub mean_with_baseline: Option<f64>,
 }
 
 /// The placement benchmark's summary: the means criterion 6 compares.
 #[derive(Clone, Debug, PartialEq)]
 pub struct MeleeSummary {
     pub challenger: String,
-    pub baseline: String,
-    /// The roster's first opponent (Sansón).
+    /// `None` when the baseline seating was not played.
+    pub baseline: Option<String>,
+    /// The roster's first opponent (Sansón, or Shapeshifter).
     pub reference_opponent: String,
     pub challenger_mean: f64,
-    pub baseline_mean: f64,
+    pub baseline_mean: Option<f64>,
     pub reference_mean_in_challenger_games: f64,
     pub opponents: Vec<OpponentMeans>,
     pub criterion_met: bool,
@@ -220,10 +222,11 @@ pub struct MeleeReport {
 }
 
 impl MeleeReport {
-    /// Summarizes `games` (both seatings of every seed) for `challenger`, `baseline`
-    /// and `opponents` (the first being the reference), and applies criterion 6:
-    /// the challenger's mean placement is strictly below the baseline's and not
-    /// above the reference opponent's mean in the challenger's games.
+    /// Summarizes `games` for `challenger`, `baseline` (if its seating was played)
+    /// and `opponents` (the first being the reference), and applies the verdict:
+    /// the challenger's mean placement is not above the reference opponent's mean
+    /// in the challenger's games and, when the baseline played, strictly below
+    /// the baseline's.
     ///
     /// # Errors
     ///
@@ -233,7 +236,7 @@ impl MeleeReport {
         engine: EngineIdentity,
         environment: EnvironmentIdentity,
         challenger: &str,
-        baseline: &str,
+        baseline: Option<&str>,
         opponents: &[String],
         games: Vec<MeleeGameRecord>,
     ) -> Result<Self, ReportError> {
@@ -249,7 +252,10 @@ impl MeleeReport {
             (!places.is_empty()).then(|| places.iter().sum::<f64>() / places.len() as f64)
         };
         let challenger_mean = mean_of(challenger, challenger).ok_or(ReportError::NoMatchups)?;
-        let baseline_mean = mean_of(baseline, baseline).ok_or(ReportError::NoMatchups)?;
+        let baseline_mean = match baseline {
+            Some(baseline) => Some(mean_of(baseline, baseline).ok_or(ReportError::NoMatchups)?),
+            None => None,
+        };
         let reference = opponents.first().ok_or(ReportError::NoMatchups)?;
         let reference_mean_in_challenger_games =
             mean_of(reference, challenger).ok_or(ReportError::NoMatchups)?;
@@ -259,19 +265,24 @@ impl MeleeReport {
                 Ok(OpponentMeans {
                     id: id.clone(),
                     mean_with_challenger: mean_of(id, challenger).ok_or(ReportError::NoMatchups)?,
-                    mean_with_baseline: mean_of(id, baseline).ok_or(ReportError::NoMatchups)?,
+                    mean_with_baseline: match baseline {
+                        Some(baseline) => {
+                            Some(mean_of(id, baseline).ok_or(ReportError::NoMatchups)?)
+                        }
+                        None => None,
+                    },
                 })
             })
             .collect::<Result<Vec<_>, ReportError>>()?;
-        let criterion_met = challenger_mean < baseline_mean
-            && challenger_mean <= reference_mean_in_challenger_games;
+        let criterion_met = challenger_mean <= reference_mean_in_challenger_games
+            && baseline_mean.is_none_or(|baseline_mean| challenger_mean < baseline_mean);
         Ok(Self {
             engine,
             environment,
             games,
             summary: MeleeSummary {
                 challenger: challenger.to_owned(),
-                baseline: baseline.to_owned(),
+                baseline: baseline.map(str::to_owned),
                 reference_opponent: reference.clone(),
                 challenger_mean,
                 baseline_mean,

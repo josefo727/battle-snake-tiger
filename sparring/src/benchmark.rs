@@ -123,6 +123,15 @@ where
     Ok(BenchmarkOutcome { matchups, verdicts })
 }
 
+/// Which seatings of the placement benchmark are played.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Seating {
+    /// Every seed with the challenger in seat one, then with the baseline there.
+    Both,
+    /// Only the challenger's games; the verdict is against the reference opponent alone.
+    ChallengerOnly,
+}
+
 /// The placement benchmark's outcome: the report written, and whether criterion 6 held.
 #[derive(Debug, PartialEq)]
 pub struct MeleeOutcome {
@@ -143,9 +152,11 @@ impl MeleeOutcome {
 /// # Errors
 ///
 /// Fails like [`run_benchmark`].
+#[allow(clippy::too_many_arguments)]
 pub fn run_melee_benchmark<R, L, S>(
     roster: &Roster,
     plan: &Plan,
+    seating: Seating,
     runner: &R,
     launcher: &L,
     sink: &S,
@@ -159,8 +170,12 @@ where
 {
     let (servers, _guards) = launch_all(roster, runner, launcher)?;
     let (challenger, baseline, opponents) = (&servers[0], &servers[1], &servers[2..]);
+    let seat_ones: &[&Contestant] = match seating {
+        Seating::Both => &[challenger, baseline],
+        Seating::ChallengerOnly => &[challenger],
+    };
     let mut games = Vec::new();
-    for seat_one in [challenger, baseline] {
+    for &seat_one in seat_ones {
         let seats: Vec<Contestant> = std::iter::once(seat_one.clone())
             .chain(opponents.iter().cloned())
             .collect();
@@ -177,7 +192,7 @@ where
         engine,
         environment,
         &challenger.name,
-        &baseline.name,
+        (seating == Seating::Both).then_some(baseline.name.as_str()),
         &opponent_ids,
         games,
     )

@@ -15,6 +15,9 @@ pub struct Options {
     /// Run the four-snake placement benchmark instead of the duel one; the
     /// roster then defaults to `reference/roster-melee.json`.
     pub melee: bool,
+    /// Play only the challenger's seating of the placement benchmark (no
+    /// baseline games); the verdict is then against the reference opponent alone.
+    pub challenger_only: bool,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -41,6 +44,7 @@ impl Options {
             commit: None,
             scratch: PathBuf::from("target/sparring"),
             melee: false,
+            challenger_only: false,
         };
         let mut output = None;
         let mut roster_given = false;
@@ -52,6 +56,10 @@ impl Options {
             }
             if flag == "--melee" {
                 options.melee = true;
+                continue;
+            }
+            if flag == "--challenger-only" {
+                options.challenger_only = true;
                 continue;
             }
             let known = [

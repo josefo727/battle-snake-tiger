@@ -6,7 +6,7 @@ use std::sync::Mutex;
 
 use serde_json::Value;
 use tiger_sparring::benchmark::{
-    BenchmarkError, Launcher, Plan, RunningServer, run_benchmark, run_melee_benchmark,
+    BenchmarkError, Launcher, Plan, RunningServer, Seating, run_benchmark, run_melee_benchmark,
 };
 use tiger_sparring::ledger::{
     EngineIdentity, EnvironmentIdentity, MeleeReport, MeleeReportSink, Report, ReportSink,
@@ -471,6 +471,7 @@ fn the_placement_benchmark_plays_every_seed_in_both_seatings_and_reports_the_mea
     let outcome = run_melee_benchmark(
         &melee_roster(),
         &plan(1),
+        Seating::Both,
         &runner,
         &launcher,
         &sink,
@@ -482,13 +483,16 @@ fn the_placement_benchmark_plays_every_seed_in_both_seatings_and_reports_the_mea
     let summary = &outcome.report.summary;
     assert_eq!(outcome.report.games.len(), 60);
     assert_eq!(summary.challenger, "tiger");
-    assert_eq!(summary.baseline, "baseline");
+    assert_eq!(summary.baseline.as_deref(), Some("baseline"));
     assert_eq!(summary.reference_opponent, "sanson");
     assert!((summary.challenger_mean - 1.5).abs() < 1e-9, "{summary:?}");
-    assert!((summary.baseline_mean - 4.0).abs() < 1e-9, "{summary:?}");
+    assert!(
+        (summary.baseline_mean.unwrap() - 4.0).abs() < 1e-9,
+        "{summary:?}"
+    );
     assert!((summary.reference_mean_in_challenger_games - 1.5).abs() < 1e-9);
     assert_eq!(summary.opponents.len(), 3);
-    assert!((summary.opponents[0].mean_with_baseline - 1.0).abs() < 1e-9);
+    assert!((summary.opponents[0].mean_with_baseline.unwrap() - 1.0).abs() < 1e-9);
     assert!(summary.criterion_met, "1.5 < 4.0 and 1.5 <= 1.5");
     let calls = runner.calls.lock().unwrap().clone();
     assert_eq!(calls.iter().filter(|c| c.starts_with("alive")).count(), 5);
@@ -540,7 +544,7 @@ fn the_criterion_fails_when_the_challenger_places_worse_than_the_reference_or_no
             engine(),
             environment(),
             "tiger",
-            "baseline",
+            Some("baseline"),
             &opponents,
             games,
         )
@@ -568,4 +572,48 @@ fn the_criterion_fails_when_the_challenger_places_worse_than_the_reference_or_no
     ]);
     assert!(met.summary.criterion_met);
     assert!((met.summary.opponents[1].mean_with_challenger - 3.0).abs() < 1e-9);
+}
+
+#[test]
+fn the_challenger_only_seating_plays_no_baseline_game_and_judges_against_the_reference() {
+    let runner = FakeMeleeRunner {
+        calls: Mutex::new(Vec::new()),
+    };
+    let launcher = FakeLauncher::new();
+    let sink = MeleeMemorySink::default();
+
+    let outcome = run_melee_benchmark(
+        &melee_roster(),
+        &plan(1),
+        Seating::ChallengerOnly,
+        &runner,
+        &launcher,
+        &sink,
+        engine(),
+        environment(),
+    )
+    .expect("the benchmark runs");
+
+    let summary = &outcome.report.summary;
+    assert_eq!(outcome.report.games.len(), 30);
+    assert_eq!(summary.baseline, None);
+    assert_eq!(summary.baseline_mean, None);
+    assert!(
+        summary
+            .opponents
+            .iter()
+            .all(|o| o.mean_with_baseline.is_none())
+    );
+    assert!((summary.challenger_mean - 1.5).abs() < 1e-9);
+    assert!(summary.criterion_met, "1.5 <= 1.5 against the reference");
+    let calls = runner.calls.lock().unwrap().clone();
+    assert_eq!(
+        calls
+            .iter()
+            .filter(|c| c.starts_with("bout baseline,"))
+            .count(),
+        0
+    );
+    let json = &sink.reports.lock().unwrap()[0];
+    assert_eq!(json["summary"]["baseline_mean"], serde_json::Value::Null);
 }
