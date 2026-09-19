@@ -6,9 +6,11 @@ use tiger_engine::arena::ingest::ingest_melee;
 use tiger_engine::arena::melee::{MAX_SEATS, MeleeBoard, MeleeOutcome};
 use tiger_engine::valuation::StandardPipeline;
 use tiger_engine::valuation::melee::MeleeValuation;
+use tiger_engine::valuation::melee::appetite::{Appetite, REACH};
 use tiger_engine::valuation::melee::attrition::Attrition;
 use tiger_engine::valuation::melee::finish::MeleeFinish;
 use tiger_engine::valuation::melee::hunger::Hunger;
+use tiger_engine::valuation::melee::larder::Larder;
 use tiger_engine::valuation::melee::standing::{HeadDanger, Standing};
 use tiger_engine::valuation::melee::territory::Territory;
 use tiger_engine::valuation::melee::weights::DEFAULT_MELEE_PROFILE;
@@ -196,4 +198,75 @@ proptest! {
         prop_assert_eq!(score, valuation.score(&board));
         prop_assert!(score.abs() <= valuation.worst_case_magnitude());
     }
+}
+
+#[test]
+fn appetite_pulls_toward_the_nearest_pellet_we_reach_first_whatever_our_health() {
+    let us: &[(i32, i32)] = &[(5, 5), (5, 4), (5, 3)];
+    // A pellet three steps up, ours by distance; health is full, so hunger says nothing.
+    let owned = ingest_melee(&turn_state_from_bodies(
+        &[us, FAR, shorter_at(0, 10)],
+        &[100, 90, 90],
+        0,
+        &[(5, 8)],
+    ))
+    .unwrap();
+    // The only pellet sits beside the far rival's head: theirs, no pull.
+    let theirs = ingest_melee(&turn_state_from_bodies(
+        &[us, FAR, shorter_at(0, 10)],
+        &[100, 90, 90],
+        0,
+        &[(10, 0)],
+    ))
+    .unwrap();
+    let none = ingest_melee(&turn_state_from_bodies(
+        &[us, FAR, shorter_at(0, 10)],
+        &[100, 90, 90],
+        0,
+        &[],
+    ))
+    .unwrap();
+
+    assert_eq!(REACH, 12);
+    assert_eq!(Appetite.assess(&owned), REACH - 3);
+    assert_eq!(Appetite.assess(&theirs), 0);
+    assert_eq!(Appetite.assess(&none), 0);
+    assert_eq!(
+        Hunger.assess(&owned),
+        0,
+        "hunger is silent at full health; appetite is not"
+    );
+}
+
+#[test]
+#[allow(clippy::assertions_on_constants)]
+fn eating_always_beats_hovering_beside_the_food() {
+    // The whole appetite range must be worth less than one segment of standing.
+    // Eating a pellet loses its larder value and the whole appetite range at most,
+    // and gains one segment: the segment must be worth more.
+    assert!(
+        DEFAULT_MELEE_PROFILE.appetite_step * REACH + DEFAULT_MELEE_PROFILE.larder_pellet
+            < DEFAULT_MELEE_PROFILE.standing_segment,
+        "appetite {} x {} plus a larder pellet {} must stay below a segment {}",
+        DEFAULT_MELEE_PROFILE.appetite_step,
+        REACH,
+        DEFAULT_MELEE_PROFILE.larder_pellet,
+        DEFAULT_MELEE_PROFILE.standing_segment
+    );
+}
+
+#[test]
+fn the_larder_counts_the_pellets_we_reach_before_every_rival() {
+    let us: &[(i32, i32)] = &[(5, 5), (5, 4), (5, 3)];
+    // Two pellets beside us (ours), one beside the far rival, one at (2,8) the
+    // short rival at (0,10) reaches first: two in the larder.
+    let board = ingest_melee(&turn_state_from_bodies(
+        &[us, FAR, shorter_at(0, 10)],
+        &[90, 90, 90],
+        0,
+        &[(5, 7), (4, 5), (9, 3), (2, 8)],
+    ))
+    .unwrap();
+
+    assert_eq!(Larder.assess(&board), 2);
 }

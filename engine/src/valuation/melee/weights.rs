@@ -16,6 +16,11 @@ pub struct MeleeWeights {
     pub standing_segment: i32,
     /// Strength of the pull toward food as our health margin shrinks.
     pub hunger_urgency: i32,
+    /// Value of each turn of nearness to the nearest pellet we reach first,
+    /// whatever our health (growth iteration 2).
+    pub appetite_step: i32,
+    /// Value of each pellet we reach before every rival (growth iteration 6).
+    pub larder_pellet: i32,
     /// Value of each next cell we would win or lose a head-to-head on.
     pub head_danger: i32,
     /// Value of each seat already eliminated.
@@ -30,8 +35,10 @@ pub const DEFAULT_MELEE_PROFILE: MeleeWeights = MeleeWeights {
     ply_penalty: 100,
     placement_step: 20_000,
     territory_cell: 100,
-    standing_segment: 250,
+    standing_segment: 1_000,
     hunger_urgency: 200,
+    appetite_step: 40,
+    larder_pellet: 400,
     head_danger: 300,
     attrition_seat: 5_000,
 };

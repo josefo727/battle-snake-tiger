@@ -1,15 +1,19 @@
 //! Position assessment for three and four serpents: assessors over a
 //! `MeleeBoard`, combined by the same pipeline as the duel terms.
 
+pub mod appetite;
 pub mod attrition;
 pub mod finish;
 pub mod hunger;
+pub mod larder;
 pub mod standing;
 pub mod territory;
 pub mod weights;
 
+use self::appetite::Appetite;
 use self::attrition::Attrition;
 use self::hunger::Hunger;
+use self::larder::Larder;
 use self::standing::{HeadDanger, Standing};
 use self::territory::Territory;
 use self::weights::{DEFAULT_MELEE_PROFILE, MeleeWeights};
@@ -17,12 +21,18 @@ use super::weights::{DEFAULT_PROFILE, WeightSheet};
 use super::{StandardPipeline, ValuationPipeline, Weighted};
 use crate::arena::melee::MeleeBoard;
 
-/// The five positional terms of the melee valuation, in ledger order.
+/// The seven positional terms of the melee valuation, in ledger order.
 pub type MeleeTerms = (
     (
         (
-            (((), Weighted<Territory>), Weighted<Standing>),
-            Weighted<Hunger>,
+            (
+                (
+                    (((), Weighted<Territory>), Weighted<Standing>),
+                    Weighted<Hunger>,
+                ),
+                Weighted<Appetite>,
+            ),
+            Weighted<Larder>,
         ),
         Weighted<HeadDanger>,
     ),
@@ -56,6 +66,8 @@ impl MeleeValuation {
                 .with(Territory, melee.territory_cell)
                 .with(Standing, melee.standing_segment)
                 .with(Hunger, melee.hunger_urgency)
+                .with(Appetite, melee.appetite_step)
+                .with(Larder, melee.larder_pellet)
                 .with(HeadDanger, melee.head_danger)
                 .with(Attrition, melee.attrition_seat),
             duel: StandardPipeline::with_profile(duel),

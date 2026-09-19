@@ -385,8 +385,15 @@ fn a_melee_iteration_cut_short_is_dropped_and_the_previous_depth_stands() {
         MeleeSearcher::with_order(&valuation, melee_finish(), NaturalOrder).search_fixed(&board, 2);
     assert_eq!(report.completed_depth, 2);
     assert_eq!(report.best, depth_two.best);
+    // The same run with the expiry at the third boundary never starts depth 3, so
+    // the difference is exactly the abandoned iteration's nodes, which still count.
+    let clock = ScriptedClock::expiring_after(2);
+    let mut allowance = allowance_ending_at(&clock, SEARCH_DEADLINE);
+    let mut searcher = MeleeSearcher::new(&valuation, melee_finish());
+    let without_third = deepen_melee(&mut searcher, &board, &mut allowance, 8);
+    assert_eq!(without_third.completed_depth, 2);
     assert!(
-        report.nodes_explored > depth_two.nodes_explored,
+        report.nodes_explored > without_third.nodes_explored,
         "the abandoned iteration's nodes still count"
     );
 }
