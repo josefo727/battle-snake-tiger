@@ -1,6 +1,7 @@
 //! Territory among several serpents: which cells each seat reaches strictly
 //! before every other, as bodies move away.
 
+use super::Surveyed;
 use crate::arena::cellset::CellSet;
 use crate::arena::melee::{MAX_SEATS, MeleeBoard, Seat};
 use crate::arena::serpent::Serpent;
@@ -93,16 +94,17 @@ impl Territory {
 }
 
 impl Assessor for Territory {
-    type Board = MeleeBoard;
+    type Board = Surveyed;
 
     const NAME: &'static str = "territory";
     const MAX_RAW: i32 = 121;
 
     /// Our cells minus the most cells any living opponent owns.
-    fn assess(&self, board: &MeleeBoard) -> i32 {
-        let survey = self.survey(board);
+    fn assess(&self, position: &Surveyed) -> i32 {
+        let survey = &position.survey;
         let ours = survey.owned[Seat::US.index()].len().cast_signed();
-        let best_rival = board
+        let best_rival = position
+            .board
             .seats()
             .filter(|seat| *seat != Seat::US)
             .map(|seat| survey.owned[seat.index()].len().cast_signed())

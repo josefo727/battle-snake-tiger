@@ -8,6 +8,7 @@ use tiger_engine::arena::ingest::ingest_melee;
 use tiger_engine::arena::melee::{MAX_SEATS, MeleeBoard, Seat};
 use tiger_engine::rules_core::TurnState;
 use tiger_engine::valuation::Assessor;
+use tiger_engine::valuation::melee::Surveyed;
 use tiger_engine::valuation::melee::territory::{MeleeSurvey, Territory};
 
 use support::{melee_spec, realize_melee, seat_ids, turn_state_from_bodies};
@@ -46,7 +47,7 @@ fn three_serpents_in_three_corners_split_the_board_by_arrival_and_length() {
     assert_eq!(survey.food[0], Some(4));
     assert_eq!(survey.owned[3], CellSet::EMPTY);
     assert_eq!(survey.food[3], None);
-    assert!(Territory.assess(&board) > 0);
+    assert!(Territory.assess(&Surveyed::new(&board)) > 0);
 }
 
 #[test]

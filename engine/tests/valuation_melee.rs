@@ -6,6 +6,7 @@ use tiger_engine::arena::ingest::ingest_melee;
 use tiger_engine::arena::melee::{MAX_SEATS, MeleeBoard, MeleeOutcome};
 use tiger_engine::valuation::StandardPipeline;
 use tiger_engine::valuation::melee::MeleeValuation;
+use tiger_engine::valuation::melee::Surveyed;
 use tiger_engine::valuation::melee::appetite::{Appetite, REACH};
 use tiger_engine::valuation::melee::attrition::Attrition;
 use tiger_engine::valuation::melee::finish::MeleeFinish;
@@ -33,8 +34,8 @@ fn continued(board: &MeleeBoard, by_seat: &[Heading]) -> MeleeBoard {
 
 #[test]
 fn attrition_counts_the_seats_already_gone() {
-    assert_eq!(Attrition.assess(&melee(4)), 0);
-    assert_eq!(Attrition.assess(&melee(3)), 1);
+    assert_eq!(Attrition.assess(&Surveyed::new(&melee(4))), 0);
+    assert_eq!(Attrition.assess(&Surveyed::new(&melee(3))), 1);
 
     let us: &[(i32, i32)] = &[(5, 5), (5, 4), (5, 3)];
     let wall: &[(i32, i32)] = &[(6, 5), (7, 5), (8, 5)];
@@ -44,16 +45,16 @@ fn attrition_counts_the_seats_already_gone() {
         &ingest_melee(&state).expect("melee"),
         &[Heading::North, Heading::West, Heading::North],
     );
-    assert_eq!(Attrition.assess(&after_a_death), 2);
+    assert_eq!(Attrition.assess(&Surveyed::new(&after_a_death)), 2);
 }
 
 #[test]
 fn a_melee_pipeline_weighs_its_terms_like_the_duel_one() {
     let pipeline = ValuationPipeline::empty().with(Attrition, 5_000);
 
-    assert_eq!(pipeline.score(&melee(3)), 5_000);
+    assert_eq!(pipeline.score(&Surveyed::new(&melee(3))), 5_000);
     assert_eq!(pipeline.worst_case_magnitude(), 15_000);
-    let valuation = pipeline.assess(&melee(3));
+    let valuation = pipeline.assess(&Surveyed::new(&melee(3)));
     assert_eq!(valuation.ledger.entries()[0].name, "attrition");
     assert_eq!(valuation.ledger.entries()[0].raw, 1);
 }
@@ -71,10 +72,16 @@ fn standing_compares_us_with_the_longest_living_rival() {
     let longer: &[(i32, i32)] = &[(1, 9), (1, 8), (1, 7), (1, 6), (1, 5)];
     let shorter: &[(i32, i32)] = &[(9, 9), (9, 8)];
 
-    assert_eq!(Standing.assess(&board_of(&[US, longer, shorter])), -2);
-    assert_eq!(Standing.assess(&board_of(&[US, shorter, FAR])), 0);
     assert_eq!(
-        Standing.assess(&board_of(&[US, shorter, shorter_at(1, 0)])),
+        Standing.assess(&Surveyed::new(&board_of(&[US, longer, shorter]))),
+        -2
+    );
+    assert_eq!(
+        Standing.assess(&Surveyed::new(&board_of(&[US, shorter, FAR]))),
+        0
+    );
+    assert_eq!(
+        Standing.assess(&Surveyed::new(&board_of(&[US, shorter, shorter_at(1, 0)]))),
         1
     );
 }
@@ -93,24 +100,24 @@ fn head_danger_counts_the_cells_we_share_with_stronger_and_weaker_heads() {
     let threatened = board_of(&[US, west, east]);
     // (4,6) is reached by west, (6,6) by east, (5,6) by neither; our (4,5), (6,5) by neither.
     // Cells we can enter: (4,5), (6,5), (5,6). West reaches (4,6),(3,7),(5,7); none of ours.
-    assert_eq!(HeadDanger.assess(&threatened), 0);
+    assert_eq!(HeadDanger.assess(&Surveyed::new(&threatened)), 0);
 
     // A longer head right beside our next cells threatens two of them.
     let longer: &[(i32, i32)] = &[(6, 6), (7, 6), (8, 6), (9, 6)];
     let danger = board_of(&[US, longer, FAR]);
     // Longer reaches (5,6), (6,5), (6,7): two of our three cells.
-    assert_eq!(HeadDanger.assess(&danger), -2);
+    assert_eq!(HeadDanger.assess(&Surveyed::new(&danger)), -2);
 
     // A shorter head there instead is a chance on the same two cells.
     let shorter: &[(i32, i32)] = &[(6, 6), (7, 6)];
     let chance = board_of(&[US, shorter, FAR]);
-    assert_eq!(HeadDanger.assess(&chance), 2);
+    assert_eq!(HeadDanger.assess(&Surveyed::new(&chance)), 2);
 
     // Both a longer and a shorter head reaching (5,6): the danger wins the cell.
     let longer_west: &[(i32, i32)] = &[(4, 6), (3, 6), (2, 6), (1, 6)];
     let mixed = board_of(&[US, longer_west, shorter]);
     // Longer west reaches (5,6),(4,5); shorter east reaches (5,6),(6,5): -2 + 1.
-    assert_eq!(HeadDanger.assess(&mixed), -1);
+    assert_eq!(HeadDanger.assess(&Surveyed::new(&mixed)), -1);
 }
 
 #[test]
@@ -138,12 +145,12 @@ fn hunger_is_our_pressure_alone_and_grows_as_food_slips_away() {
     ))
     .unwrap();
 
-    assert_eq!(Hunger.assess(&comfortable), 0);
+    assert_eq!(Hunger.assess(&Surveyed::new(&comfortable)), 0);
     // (5,10) is 5 from us and 5 from the shorter seat, so ours; with health 3
     // the margin is -2 and the pressure 25 + 2 = 27.
-    assert_eq!(Hunger.assess(&starving), -27);
+    assert_eq!(Hunger.assess(&Surveyed::new(&starving)), -27);
     // No pellet: distance 40 assumed, margin -10, pressure 35 (the rivals' hunger counts for nothing).
-    assert_eq!(Hunger.assess(&no_food), -35);
+    assert_eq!(Hunger.assess(&Surveyed::new(&no_food)), -35);
 }
 
 #[test]
@@ -168,10 +175,10 @@ fn the_composed_valuation_uses_the_melee_terms_or_the_duel_terms_by_seat_count()
     assert_eq!(
         valuation.score(&three),
         DEFAULT_MELEE_PROFILE.attrition_seat
-            + 100 * (Territory.assess(&three))
-            + 200 * Hunger.assess(&three)
-            + 250 * Standing.assess(&three)
-            + 300 * HeadDanger.assess(&three)
+            + 100 * (Territory.assess(&Surveyed::new(&three)))
+            + 200 * Hunger.assess(&Surveyed::new(&three))
+            + 250 * Standing.assess(&Surveyed::new(&three))
+            + 300 * HeadDanger.assess(&Surveyed::new(&three))
     );
 }
 
@@ -228,11 +235,11 @@ fn appetite_pulls_toward_the_nearest_pellet_we_reach_first_whatever_our_health()
     .unwrap();
 
     assert_eq!(REACH, 12);
-    assert_eq!(Appetite.assess(&owned), REACH - 3);
-    assert_eq!(Appetite.assess(&theirs), 0);
-    assert_eq!(Appetite.assess(&none), 0);
+    assert_eq!(Appetite.assess(&Surveyed::new(&owned)), REACH - 3);
+    assert_eq!(Appetite.assess(&Surveyed::new(&theirs)), 0);
+    assert_eq!(Appetite.assess(&Surveyed::new(&none)), 0);
     assert_eq!(
-        Hunger.assess(&owned),
+        Hunger.assess(&Surveyed::new(&owned)),
         0,
         "hunger is silent at full health; appetite is not"
     );
@@ -268,5 +275,5 @@ fn the_larder_counts_the_pellets_we_reach_before_every_rival() {
     ))
     .unwrap();
 
-    assert_eq!(Larder.assess(&board), 2);
+    assert_eq!(Larder.assess(&Surveyed::new(&board)), 2);
 }

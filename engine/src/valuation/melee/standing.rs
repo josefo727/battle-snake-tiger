@@ -1,6 +1,7 @@
 //! Standing among several serpents: our length against the longest rival, and
 //! the head-to-head threats and chances on the cells we can enter next.
 
+use super::Surveyed;
 use crate::arena::cellset::CellSet;
 use crate::arena::melee::{MeleeBoard, Seat};
 use crate::valuation::Assessor;
@@ -10,12 +11,13 @@ use crate::valuation::Assessor;
 pub struct Standing;
 
 impl Assessor for Standing {
-    type Board = MeleeBoard;
+    type Board = Surveyed;
 
     const NAME: &'static str = "standing";
     const MAX_RAW: i32 = 120;
 
-    fn assess(&self, board: &MeleeBoard) -> i32 {
+    fn assess(&self, position: &Surveyed) -> i32 {
+        let board = &position.board;
         let longest_rival = board
             .seats()
             .filter(|seat| *seat != Seat::US)
@@ -33,12 +35,13 @@ impl Assessor for Standing {
 pub struct HeadDanger;
 
 impl Assessor for HeadDanger {
-    type Board = MeleeBoard;
+    type Board = Surveyed;
 
     const NAME: &'static str = "head_danger";
     const MAX_RAW: i32 = 4;
 
-    fn assess(&self, board: &MeleeBoard) -> i32 {
+    fn assess(&self, position: &Surveyed) -> i32 {
+        let board = &position.board;
         let enterable = enterable_cells(board);
         let reach = |seat: Seat| {
             CellSet::single(board.serpent(seat).head())

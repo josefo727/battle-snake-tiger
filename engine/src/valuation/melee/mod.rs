@@ -15,11 +15,29 @@ use self::attrition::Attrition;
 use self::hunger::Hunger;
 use self::larder::Larder;
 use self::standing::{HeadDanger, Standing};
-use self::territory::Territory;
+use self::territory::{MeleeSurvey, Territory};
 use self::weights::{DEFAULT_MELEE_PROFILE, MeleeWeights};
 use super::weights::{DEFAULT_PROFILE, WeightSheet};
 use super::{StandardPipeline, ValuationPipeline, Weighted};
 use crate::arena::melee::MeleeBoard;
+
+/// A melee position with its territory survey computed once, so every term
+/// that needs the four-source fill reads the same one (growth iteration 8).
+#[derive(Clone, Copy, Debug)]
+pub struct Surveyed {
+    pub board: MeleeBoard,
+    pub survey: MeleeSurvey,
+}
+
+impl Surveyed {
+    #[must_use]
+    pub fn new(board: &MeleeBoard) -> Self {
+        Self {
+            board: *board,
+            survey: Territory.survey(board),
+        }
+    }
+}
 
 /// The seven positional terms of the melee valuation, in ledger order.
 pub type MeleeTerms = (
@@ -81,7 +99,7 @@ impl MeleeValuation {
         if board.alive_count() == 2 {
             self.duel.score(&board.as_duel()) + 2 * self.attrition_seat
         } else {
-            self.melee.score(board)
+            self.melee.score(&Surveyed::new(board))
         }
     }
 

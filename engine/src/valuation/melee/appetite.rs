@@ -2,8 +2,8 @@
 //! our health, so the engine goes for the food it wins the race to instead of
 //! waiting to be hungry.
 
-use super::territory::Territory;
-use crate::arena::melee::{MeleeBoard, Seat};
+use super::Surveyed;
+use crate::arena::melee::Seat;
 use crate::valuation::Assessor;
 
 /// Pellets farther than this (in turns) pull nothing.
@@ -13,15 +13,15 @@ pub const REACH: i32 = 12;
 pub struct Appetite;
 
 impl Assessor for Appetite {
-    type Board = MeleeBoard;
+    type Board = Surveyed;
 
     const NAME: &'static str = "appetite";
     const MAX_RAW: i32 = REACH;
 
     /// `REACH - distance` to the nearest pellet we own, at least zero; zero when
     /// we own no pellet.
-    fn assess(&self, board: &MeleeBoard) -> i32 {
-        let survey = Territory.survey(board);
-        survey.food[Seat::US.index()].map_or(0, |distance| (REACH - i32::from(distance)).max(0))
+    fn assess(&self, position: &Surveyed) -> i32 {
+        position.survey.food[Seat::US.index()]
+            .map_or(0, |distance| (REACH - i32::from(distance)).max(0))
     }
 }

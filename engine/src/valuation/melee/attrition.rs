@@ -1,6 +1,7 @@
 //! Attrition: how many seats have already been eliminated.
 
-use crate::arena::melee::{MAX_SEATS, MeleeBoard};
+use super::Surveyed;
+use crate::arena::melee::MAX_SEATS;
 use crate::valuation::Assessor;
 
 /// One point per seat no longer alive, out of the four a melee can hold.
@@ -8,12 +9,12 @@ use crate::valuation::Assessor;
 pub struct Attrition;
 
 impl Assessor for Attrition {
-    type Board = MeleeBoard;
+    type Board = Surveyed;
 
     const NAME: &'static str = "attrition";
     const MAX_RAW: i32 = 3;
 
-    fn assess(&self, board: &MeleeBoard) -> i32 {
-        MAX_SEATS as i32 - i32::from(board.alive_count())
+    fn assess(&self, position: &Surveyed) -> i32 {
+        MAX_SEATS as i32 - i32::from(position.board.alive_count())
     }
 }

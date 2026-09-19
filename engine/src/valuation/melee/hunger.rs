@@ -1,7 +1,7 @@
 //! Hunger: how close we are to starving before the nearest pellet we own.
 
-use super::territory::Territory;
-use crate::arena::melee::{MeleeBoard, Seat};
+use super::Surveyed;
+use crate::arena::melee::Seat;
 use crate::valuation::Assessor;
 use crate::valuation::sustenance::{MAX_PRESSURE, pressure};
 
@@ -11,16 +11,15 @@ use crate::valuation::sustenance::{MAX_PRESSURE, pressure};
 pub struct Hunger;
 
 impl Assessor for Hunger {
-    type Board = MeleeBoard;
+    type Board = Surveyed;
 
     const NAME: &'static str = "hunger";
     const MAX_RAW: i32 = MAX_PRESSURE;
 
-    fn assess(&self, board: &MeleeBoard) -> i32 {
-        let survey = Territory.survey(board);
+    fn assess(&self, position: &Surveyed) -> i32 {
         -pressure(
-            board.serpent(Seat::US).vigor(),
-            survey.food[Seat::US.index()],
+            position.board.serpent(Seat::US).vigor(),
+            position.survey.food[Seat::US.index()],
         )
     }
 }
