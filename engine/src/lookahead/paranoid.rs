@@ -11,7 +11,7 @@ use super::allowance::{NeverStop, StopSignal};
 use super::ledger::LookaheadReport;
 use super::minimax::{Interrupted, Window};
 use super::ordering::{HeadingOrder, LearnedOrder};
-use crate::arena::cellset::CellSet;
+use crate::arena::cellset::{Cell, CellSet};
 use crate::arena::heading::Heading;
 use crate::arena::melee::{MAX_SEATS, MeleeBoard, MeleeOutcome, Seat};
 use crate::valuation::melee::MeleeValuation;
@@ -116,9 +116,11 @@ impl<'valuation, O: HeadingOrder> MeleeSearcher<'valuation, O> {
             let wins_ties = root && ours.index() < best.0.index();
             let floor = if wins_ties { alpha - 1 } else { alpha };
             let mut chosen = [ours; MAX_SEATS];
+            let our_target = ours.step(board.serpent(Seat::US).head());
             let score = self.minimize(
                 board,
                 &mut chosen,
+                our_target,
                 1,
                 depth,
                 ply,
@@ -145,6 +147,7 @@ impl<'valuation, O: HeadingOrder> MeleeSearcher<'valuation, O> {
         &mut self,
         board: &MeleeBoard,
         chosen: &mut [Heading; MAX_SEATS],
+        our_target: Option<Cell>,
         from: usize,
         depth: u16,
         ply: u16,
@@ -159,14 +162,23 @@ impl<'valuation, O: HeadingOrder> MeleeSearcher<'valuation, O> {
         };
         let Window { alpha, mut beta } = window;
         let mut best = self.finish.sentinel();
-        let considered = self.replies_of(board, seat, ply);
+        let considered = self.replies_of(board, seat, ply, our_target);
         for theirs in self.order.arrange(seat, ply) {
             if !considered.contains(&theirs) {
                 continue;
             }
             chosen[seat.index()] = theirs;
             let inner = Window { alpha, beta };
-            let score = self.minimize(board, chosen, seat.index() + 1, depth, ply, inner, stop)?;
+            let score = self.minimize(
+                board,
+                chosen,
+                our_target,
+                seat.index() + 1,
+                depth,
+                ply,
+                inner,
+                stop,
+            )?;
             best = best.min(score);
             beta = beta.min(best);
             if best <= alpha {
@@ -177,24 +189,50 @@ impl<'valuation, O: HeadingOrder> MeleeSearcher<'valuation, O> {
         Ok(best)
     }
 
-    /// The headings an opponent tries: all four at the root or without pruning;
-    /// below the root only those that do not kill it outright (off the board or
-    /// into a body cell that stays), unless it has none, when it keeps all four.
-    fn replies_of(&self, board: &MeleeBoard, seat: Seat, ply: u16) -> HeadingSet {
-        if !self.prune_opponents || ply == 0 {
+    /// The headings an opponent tries (the opponent model, ADR 0007):
+    /// - without pruning, or at the root, every heading; below the root only
+    ///   those that do not kill it outright (off the board or into a body cell
+    ///   that stays), unless it has none, when it keeps all four;
+    /// - at every ply, a rival no longer than us is not assumed to trade heads
+    ///   with us (step into `our_target`, its own certain death for ours), unless
+    ///   that would leave it nothing else. A strictly longer rival keeps the threat.
+    fn replies_of(
+        &self,
+        board: &MeleeBoard,
+        seat: Seat,
+        ply: u16,
+        our_target: Option<Cell>,
+    ) -> HeadingSet {
+        if !self.prune_opponents {
             return HeadingSet::ALL;
         }
         let head = board.serpent(seat).head();
-        let enterable = enterable_cells(board);
-        let safe = HeadingSet::of(|heading| {
-            heading
-                .step(head)
-                .is_some_and(|cell| enterable.contains(cell))
-        });
-        if safe.is_empty() {
+        let preserving = if ply == 0 {
             HeadingSet::ALL
         } else {
-            safe
+            let enterable = enterable_cells(board);
+            let safe = HeadingSet::of(|heading| {
+                heading
+                    .step(head)
+                    .is_some_and(|cell| enterable.contains(cell))
+            });
+            if safe.is_empty() {
+                HeadingSet::ALL
+            } else {
+                safe
+            }
+        };
+        let no_longer_than_us = board.serpent(seat).length() <= board.serpent(Seat::US).length();
+        let Some(target) = our_target.filter(|_| no_longer_than_us) else {
+            return preserving;
+        };
+        let untraded = HeadingSet::of(|heading| {
+            preserving.contains(&heading) && heading.step(head) != Some(target)
+        });
+        if untraded.is_empty() {
+            preserving
+        } else {
+            untraded
         }
     }
 

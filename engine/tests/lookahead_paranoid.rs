@@ -64,15 +64,28 @@ fn is_self_preserving(board: &MeleeBoard, seat: Seat, heading: Heading) -> bool 
 }
 
 impl Reference<'_> {
+    /// The searcher's opponent model, restated: below the root a rival keeps only
+    /// its self-preserving headings (all four when it has none); at every ply a
+    /// rival no longer than us does not trade heads with us (step into the cell
+    /// our head enters), unless that would leave it nothing else.
     fn allowed(&self, board: &MeleeBoard, moves: &[Heading; MAX_SEATS], ply: u16) -> bool {
-        if !self.filtered || ply == 0 {
+        if !self.filtered {
             return true;
         }
+        let our_target = moves[0].step(board.serpent(Seat::US).head());
+        let our_length = board.serpent(Seat::US).length();
         board.seats().filter(|s| *s != Seat::US).all(|seat| {
-            let has_safe = Heading::ALL
-                .into_iter()
-                .any(|h| is_self_preserving(board, seat, h));
-            !has_safe || is_self_preserving(board, seat, moves[seat.index()])
+            let preserving = |h: Heading| ply == 0 || is_self_preserving(board, seat, h);
+            let has_safe = Heading::ALL.into_iter().any(preserving);
+            let base = |h: Heading| !has_safe || preserving(h);
+            let trades = |h: Heading| {
+                board.serpent(seat).length() <= our_length
+                    && our_target.is_some()
+                    && h.step(board.serpent(seat).head()) == our_target
+            };
+            let has_untraded = Heading::ALL.into_iter().any(|h| base(h) && !trades(h));
+            let mine = moves[seat.index()];
+            base(mine) && (!has_untraded || !trades(mine))
         })
     }
 
@@ -216,10 +229,55 @@ fn an_opponent_with_no_safe_heading_keeps_all_four_headings() {
     assert_matches_reference(&board, 2);
 }
 
-/// Whether `ours` keeps us alive against every joint reply.
+#[test]
+fn an_equal_rival_is_not_assumed_to_trade_heads_so_contested_food_is_taken() {
+    // Our head at (5,5) facing north, a pellet at (5,6), and an equal-length rival
+    // at (5,7) facing us: a paranoid rival would meet us on the pellet and die
+    // with us; the model assumes it will not, so north is the move.
+    let us: &[(i32, i32)] = &[(5, 5), (5, 4), (5, 3)];
+    let rival: &[(i32, i32)] = &[(5, 7), (5, 8), (5, 9)];
+    let far: &[(i32, i32)] = &[(9, 0), (9, 1), (9, 2)];
+    let state = turn_state_from_bodies(&[us, rival, far], &[90, 90, 90], 0, &[(5, 6)]);
+    let board = ingest_melee(&state).expect("melee");
+    let valuation = MeleeValuation::standard();
+    let mut searcher = MeleeSearcher::new(&valuation, finish());
+
+    let report = searcher.search_fixed(&board, 1);
+
+    assert_eq!(report.best, Some(Heading::North), "{report:?}");
+    assert!(report.principal_score.unwrap() > -finish().finite_limit());
+    assert_matches_reference(&board, 1);
+    assert_matches_reference(&board, 2);
+}
+
+#[test]
+fn a_longer_rival_still_threatens_the_contested_cell() {
+    let us: &[(i32, i32)] = &[(5, 5), (5, 4), (5, 3)];
+    let longer: &[(i32, i32)] = &[(5, 7), (5, 8), (5, 9), (5, 10)];
+    let far: &[(i32, i32)] = &[(9, 0), (9, 1), (9, 2)];
+    let state = turn_state_from_bodies(&[us, longer, far], &[90, 90, 90], 0, &[(5, 6)]);
+    let board = ingest_melee(&state).expect("melee");
+    let valuation = MeleeValuation::standard();
+    let mut searcher = MeleeSearcher::new(&valuation, finish());
+
+    let report = searcher.search_fixed(&board, 1);
+
+    assert_ne!(report.best, Some(Heading::North), "{report:?}");
+    assert_matches_reference(&board, 1);
+}
+
+/// Whether `ours` keeps us alive against every joint reply the rival model
+/// considers at the root (a rival no longer than us does not trade heads).
 fn survives_every_reply(board: &MeleeBoard, ours: Heading) -> bool {
+    let valuation = MeleeValuation::standard();
+    let model = Reference {
+        valuation: &valuation,
+        finish: finish(),
+        filtered: true,
+    };
     joint_replies(board, ours)
         .into_iter()
+        .filter(|moves| model.allowed(board, moves, 0))
         .all(|moves| !matches!(board.advance(&moves), MeleeOutcome::WeDown { .. }))
 }
 
