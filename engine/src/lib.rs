@@ -25,6 +25,16 @@ pub fn build_service(
     beacon: Arc<dyn DecisionBeacon>,
     lifecycle: Arc<dyn LifecycleBeacon>,
 ) -> Router {
-    let service = VerdictService::new(clock.clone());
+    build_service_with_threads(clock, beacon, lifecycle, 1)
+}
+
+/// [`build_service`] with the melee search split over `threads` threads.
+pub fn build_service_with_threads(
+    clock: Arc<dyn Clock>,
+    beacon: Arc<dyn DecisionBeacon>,
+    lifecycle: Arc<dyn LifecycleBeacon>,
+    threads: usize,
+) -> Router {
+    let service = VerdictService::new(clock.clone()).with_threads(threads);
     gateway::http::router(clock, service, beacon, lifecycle)
 }

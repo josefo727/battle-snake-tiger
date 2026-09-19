@@ -11,7 +11,8 @@ use tiger_engine::arena::ingest::ingest_melee;
 use tiger_engine::arena::melee::MeleeBoard;
 use tiger_engine::gateway::clock::SystemClock;
 use tiger_engine::lookahead::allowance::SearchAllowance;
-use tiger_engine::lookahead::deepening::{DEPTH_CEILING, deepen_melee};
+use tiger_engine::lookahead::deepening::{DEPTH_CEILING, deepen_melee, drive};
+use tiger_engine::lookahead::parallel::RootSplit;
 use tiger_engine::lookahead::paranoid::MeleeSearcher;
 use tiger_engine::rules_core::{Clock, RequestTiming};
 use tiger_engine::valuation::melee::MeleeValuation;
@@ -31,6 +32,7 @@ const DEPTH_GATE: u16 = 3;
 #[derive(Clone, Debug, PartialEq)]
 struct SearchFacts {
     snakes: usize,
+    threads: usize,
     depths: Vec<u16>,
     nodes_total: u64,
     nodes_per_second_aggregate: f64,
@@ -39,10 +41,12 @@ struct SearchFacts {
 }
 
 fn measure_search(suite: &[MeleeBoard], snakes: usize) -> SearchFacts {
+    let threads: usize = env_number("PROFILE_MELEE_THREADS", 1);
     let valuation = MeleeValuation::standard();
     let clock = SystemClock::new();
     let mut facts = SearchFacts {
         snakes,
+        threads,
         depths: Vec::new(),
         nodes_total: 0,
         nodes_per_second_aggregate: 0.0,
@@ -60,12 +64,25 @@ fn measure_search(suite: &[MeleeBoard], snakes: usize) -> SearchFacts {
             Duration::from_millis(500),
         )
         .expect("500 ms is above the reserve");
-        let mut searcher = MeleeSearcher::new(&valuation, MeleeFinish::new(&DEFAULT_MELEE_PROFILE));
-        let report = deepen_melee(&mut searcher, board, &mut allowance, DEPTH_CEILING);
+        let finish = MeleeFinish::new(&DEFAULT_MELEE_PROFILE);
+        let report = if threads > 1 {
+            let mut split = RootSplit::new(
+                &valuation,
+                finish,
+                *board,
+                &clock,
+                allowance.deadline(),
+                threads,
+            );
+            drive(&mut split, &mut allowance, DEPTH_CEILING)
+        } else {
+            let mut searcher = MeleeSearcher::new(&valuation, finish);
+            deepen_melee(&mut searcher, board, &mut allowance, DEPTH_CEILING)
+        };
         let elapsed = started.elapsed();
         if report
             .principal_score
-            .is_some_and(|s| searcher.is_decisive(s))
+            .is_some_and(|s| s.abs() >= finish.finite_limit())
         {
             facts.decisive_early_stops += 1;
         }
@@ -91,8 +108,9 @@ fn render(facts: &SearchFacts) -> String {
     );
     let mean = facts.depths.iter().map(|&d| f64::from(d)).sum::<f64>() / facts.depths.len() as f64;
     format!(
-        "melee_snakes: {}\nmelee_suite_size: {}\nsearch_completed_depth_min_median_max: {min} {} {max}     (mean {mean:.2})\nsearch_decisive_early_stops: {}\nsearch_nodes_total: {}\nsearch_nodes_per_second_aggregate: {:.0}\nsearch_slowest_decision_ms: {:.1}\ndepth_gate: median >= {DEPTH_GATE} -> {}\n",
+        "melee_snakes: {}\nmelee_threads: {}\nmelee_suite_size: {}\nsearch_completed_depth_min_median_max: {min} {} {max}     (mean {mean:.2})\nsearch_decisive_early_stops: {}\nsearch_nodes_total: {}\nsearch_nodes_per_second_aggregate: {:.0}\nsearch_slowest_decision_ms: {:.1}\ndepth_gate: median >= {DEPTH_GATE} -> {}\n",
         facts.snakes,
+        facts.threads,
         facts.depths.len(),
         median(&facts.depths),
         facts.decisive_early_stops,
@@ -146,6 +164,7 @@ fn the_suite_is_reproducible_and_depends_on_its_seed() {
 fn the_report_states_the_gate_from_the_median_depth() {
     let passing = SearchFacts {
         snakes: 4,
+        threads: 1,
         depths: vec![2, 3, 5, 3, 4],
         nodes_total: 1000,
         nodes_per_second_aggregate: 1.0,

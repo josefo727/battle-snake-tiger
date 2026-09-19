@@ -5,4 +5,5 @@ pub mod deepening;
 pub mod ledger;
 pub mod minimax;
 pub mod ordering;
+pub mod parallel;
 pub mod paranoid;

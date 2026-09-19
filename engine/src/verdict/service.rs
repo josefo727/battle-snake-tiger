@@ -8,9 +8,10 @@ use crate::arena::duel::DuelBoard;
 use crate::arena::ingest::direction_of;
 use crate::arena::melee::MeleeBoard;
 use crate::lookahead::allowance::SearchAllowance;
-use crate::lookahead::deepening::{DEPTH_CEILING, deepen, deepen_melee};
+use crate::lookahead::deepening::{DEPTH_CEILING, deepen, deepen_melee, drive};
 use crate::lookahead::ledger::LookaheadReport;
 use crate::lookahead::minimax::Searcher;
+use crate::lookahead::parallel::RootSplit;
 use crate::lookahead::paranoid::MeleeSearcher;
 use crate::rules_core::{
     Clock, DecisionReport, MonotonicInstant, RequestTiming, TurnRequestDto, TurnState, classify,
@@ -30,6 +31,8 @@ pub struct VerdictService {
     melee_valuation: MeleeValuation,
     melee_finish: MeleeFinish,
     depth_limit: u16,
+    /// Threads of the melee search's root split; one means no split.
+    threads: usize,
 }
 
 impl VerdictService {
@@ -42,7 +45,15 @@ impl VerdictService {
             melee_valuation: MeleeValuation::standard(),
             melee_finish: MeleeFinish::new(&DEFAULT_MELEE_PROFILE),
             depth_limit: DEPTH_CEILING,
+            threads: 1,
         }
+    }
+
+    /// Splits the melee search at the root over `threads` threads (at least one).
+    #[must_use]
+    pub const fn with_threads(mut self, threads: usize) -> Self {
+        self.threads = if threads == 0 { 1 } else { threads };
+        self
     }
 
     /// Caps the search depth below the ceiling (tests and sparring use this to
@@ -113,9 +124,22 @@ impl VerdictService {
         arrived_at: MonotonicInstant,
     ) -> VerdictReport {
         let mut allowance = self.allowance_for(request, arrived_at);
-        let mut searcher = MeleeSearcher::new(&self.melee_valuation, self.melee_finish);
-        let searched = deepen_melee(&mut searcher, board, &mut allowance, self.depth_limit);
-        let decisive = |score| searcher.is_decisive(score);
+        let searched = if self.threads > 1 {
+            let mut split = RootSplit::new(
+                &self.melee_valuation,
+                self.melee_finish,
+                *board,
+                self.clock.as_ref(),
+                allowance.deadline(),
+                self.threads,
+            );
+            drive(&mut split, &mut allowance, self.depth_limit)
+        } else {
+            let mut searcher = MeleeSearcher::new(&self.melee_valuation, self.melee_finish);
+            deepen_melee(&mut searcher, board, &mut allowance, self.depth_limit)
+        };
+        let finish = self.melee_finish;
+        let decisive = move |score: i32| score.abs() >= finish.finite_limit();
         self.report_search(
             EnginePath::MeleeSearch,
             &searched,

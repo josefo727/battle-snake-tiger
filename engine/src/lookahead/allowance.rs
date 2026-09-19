@@ -52,6 +52,18 @@ impl<'clock> SearchAllowance<'clock> {
         }
     }
 
+    /// An allowance ending exactly at `deadline` (a search deadline that already
+    /// took the tail margin), for the lanes of a split search.
+    #[must_use]
+    pub const fn with_deadline(clock: &'clock dyn Clock, deadline: MonotonicInstant) -> Self {
+        Self {
+            clock,
+            deadline,
+            nodes_since_poll: 0,
+            expired: false,
+        }
+    }
+
     /// The allowance for a request that arrived at `timing.arrived_at` with the
     /// declared `timeout`, or `None` when the timeout does not exceed the
     /// response reserve (such a request is outside the supported scope).

@@ -8,16 +8,19 @@ use std::str::FromStr;
 const DEFAULT_BIND_ADDR: IpAddr = IpAddr::V4(Ipv4Addr::UNSPECIFIED);
 const DEFAULT_PORT: u16 = 8080;
 const DEFAULT_LOG_KEEP_DAYS: usize = 14;
+const DEFAULT_SEARCH_THREADS: usize = 1;
 
 /// Where the server listens, read from `BIND_ADDR` (default `0.0.0.0`) and `PORT`
-/// (default `8080`), and where it keeps its daily log files: `LOG_DIR` (unset or empty
-/// means no files) and `LOG_KEEP_DAYS` (default 14).
+/// (default `8080`), where it keeps its daily log files: `LOG_DIR` (unset or empty
+/// means no files) and `LOG_KEEP_DAYS` (default 14), and how many threads the
+/// melee search splits over: `SEARCH_THREADS` (default 1).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Settings {
     pub bind_addr: IpAddr,
     pub port: u16,
     pub log_dir: Option<PathBuf>,
     pub log_keep_days: usize,
+    pub search_threads: usize,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -25,6 +28,7 @@ pub enum SettingsError {
     InvalidBindAddr(String),
     InvalidPort(String),
     InvalidLogKeepDays(String),
+    InvalidSearchThreads(String),
 }
 
 impl fmt::Display for SettingsError {
@@ -41,6 +45,10 @@ impl fmt::Display for SettingsError {
             Self::InvalidLogKeepDays(value) => write!(
                 formatter,
                 "LOG_KEEP_DAYS {value:?} is not a number of days; use a whole number of 1 or more"
+            ),
+            Self::InvalidSearchThreads(value) => write!(
+                formatter,
+                "SEARCH_THREADS {value:?} is not a thread count; use a whole number from 1 to 64"
             ),
         }
     }
@@ -75,11 +83,23 @@ impl Settings {
         if log_keep_days == 0 {
             return Err(SettingsError::InvalidLogKeepDays("0".to_owned()));
         }
+        let search_threads = read(
+            &lookup,
+            "SEARCH_THREADS",
+            DEFAULT_SEARCH_THREADS,
+            SettingsError::InvalidSearchThreads,
+        )?;
+        if !(1..=64).contains(&search_threads) {
+            return Err(SettingsError::InvalidSearchThreads(
+                search_threads.to_string(),
+            ));
+        }
         Ok(Self {
             bind_addr,
             port,
             log_dir,
             log_keep_days,
+            search_threads,
         })
     }
 

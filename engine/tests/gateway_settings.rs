@@ -172,3 +172,21 @@ fn the_older_settings_are_still_checked_first() {
 
     assert!(matches!(error, SettingsError::InvalidPort(_)));
 }
+
+#[test]
+fn the_search_threads_default_to_one_and_must_be_one_to_sixty_four() {
+    let none = Settings::from_lookup(|_| None).unwrap();
+    let two =
+        Settings::from_lookup(|name| (name == "SEARCH_THREADS").then(|| "2".to_owned())).unwrap();
+
+    assert_eq!(none.search_threads, 1);
+    assert_eq!(two.search_threads, 2);
+    for bad in ["0", "65", "two", "-1"] {
+        let result =
+            Settings::from_lookup(|name| (name == "SEARCH_THREADS").then(|| bad.to_owned()));
+        assert!(
+            matches!(result, Err(SettingsError::InvalidSearchThreads(_))),
+            "{bad}: {result:?}"
+        );
+    }
+}

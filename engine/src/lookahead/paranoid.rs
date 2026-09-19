@@ -260,6 +260,36 @@ impl<'valuation, O: HeadingOrder> MeleeSearcher<'valuation, O> {
         })
     }
 
+    /// The exact paranoid value of answering `ours` from `board` at `depth`
+    /// plies (the root's minimizing layers with an open window), or `None` at
+    /// the stop signal. One root heading's share of a search split over threads.
+    ///
+    /// # Panics
+    ///
+    /// Panics when `depth` is zero.
+    pub fn root_value(
+        &mut self,
+        board: &MeleeBoard,
+        ours: Heading,
+        depth: u16,
+        stop: &mut impl StopSignal,
+    ) -> Option<i32> {
+        assert!(depth >= 1, "a search needs at least one ply");
+        let mut chosen = [ours; MAX_SEATS];
+        let our_target = ours.step(board.serpent(Seat::US).head());
+        self.minimize(
+            board,
+            &mut chosen,
+            our_target,
+            1,
+            depth,
+            0,
+            Window::open(self.finish.sentinel()),
+            stop,
+        )
+        .ok()
+    }
+
     /// Every position visited by this searcher so far, interrupted searches
     /// included.
     #[must_use]

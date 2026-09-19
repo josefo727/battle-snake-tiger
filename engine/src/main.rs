@@ -7,7 +7,7 @@ use std::sync::Arc;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 
-use tiger_engine::build_service;
+use tiger_engine::build_service_with_threads;
 use tiger_engine::gateway::beacon::TracingBeacon;
 use tiger_engine::gateway::calendar::SystemCalendar;
 use tiger_engine::gateway::clock::SystemClock;
@@ -65,10 +65,11 @@ async fn main() -> ExitCode {
         }
     }
 
-    let app = build_service(
+    let app = build_service_with_threads(
         Arc::new(SystemClock::new()),
         Arc::new(TracingBeacon),
         Arc::new(TracingLifecycleBeacon),
+        settings.search_threads,
     );
     if let Err(error) = axum::serve(listener, app).await {
         tracing::error!("the server stopped: {error}");

@@ -342,3 +342,19 @@ proptest! {
         }
     }
 }
+
+#[test]
+fn a_melee_decided_over_two_threads_is_the_same_decision() {
+    let clock = Arc::new(ManualClock::at_micros(ARRIVAL));
+    let request = request_with("v1.2.3", 4, 500, 1, &[(5, 6), (2, 3)]);
+
+    let one = service(&clock, 3).decide(&request, arrival());
+    let two = service(&clock, 3)
+        .with_threads(2)
+        .decide(&request, arrival());
+
+    assert_eq!(two.engine_path, EnginePath::MeleeSearch);
+    assert_eq!(two.selected_move, one.selected_move);
+    assert_eq!(two.principal_score, one.principal_score);
+    assert_eq!(two.search_depth, 3);
+}
