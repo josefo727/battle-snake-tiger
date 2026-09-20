@@ -1,0 +1,123 @@
+{
+  "engine": {
+    "commit": "a83b1a62ab3e0428456eca29219017c40106d06d",
+    "name": "tiger-engine"
+  },
+  "environment": {
+    "cpu": "AMD Ryzen 7 5700X 8-Core Processor",
+    "kernel": "Linux 7.2.5-3-omarchy x86_64",
+    "rules_cli_release": "v1.2.3",
+    "rustc": "rustc 1.98.1 (48a229cea 2026-09-01) (Arch Linux rust 1:1.98.1-1)"
+  },
+  "matchups": [
+    {
+      "challenger": "tiger",
+      "draws": 0,
+      "losses": 5,
+      "mean_turns": 380.5,
+      "opponent": "shapeshifter",
+      "seeds": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12
+      ],
+      "win_rate": 0.5833333333333334,
+      "win_rate_wilson95": [
+        0.31951131254954973,
+        0.8067396863412435
+      ],
+      "wins": 7
+    },
+    {
+      "challenger": "baseline",
+      "draws": 0,
+      "losses": 12,
+      "mean_turns": 37.5,
+      "opponent": "shapeshifter",
+      "seeds": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12
+      ],
+      "win_rate": 0.0,
+      "win_rate_wilson95": [
+        2.7755575615628914e-17,
+        0.24249400665524085
+      ],
+      "wins": 0
+    },
+    {
+      "challenger": "tiger",
+      "draws": 0,
+      "losses": 8,
+      "mean_turns": 370.3333333333333,
+      "opponent": "flood",
+      "seeds": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12
+      ],
+      "win_rate": 0.3333333333333333,
+      "win_rate_wilson95": [
+        0.13812009109121315,
+        0.6093779111272004
+      ],
+      "wins": 4
+    },
+    {
+      "challenger": "baseline",
+      "draws": 0,
+      "losses": 12,
+      "mean_turns": 65.75,
+      "opponent": "flood",
+      "seeds": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12
+      ],
+      "win_rate": 0.0,
+      "win_rate_wilson95": [
+        2.7755575615628914e-17,
+        0.24249400665524085
+      ],
+      "wins": 0
+    }
+  ],
+  "schema_version": "1.0.0"
+}

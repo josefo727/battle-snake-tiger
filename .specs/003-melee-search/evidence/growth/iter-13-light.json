@@ -1,0 +1,271 @@
+{
+  "engine": {
+    "commit": "1238768989960ca1a614746cc6d99f79c0395b85",
+    "name": "tiger-engine"
+  },
+  "environment": {
+    "cpu": "AMD Ryzen 7 5700X 8-Core Processor",
+    "kernel": "Linux 7.2.5-3-omarchy x86_64",
+    "rules_cli_release": "v1.2.3",
+    "rustc": "rustc 1.98.1 (48a229cea 2026-09-01) (Arch Linux rust 1:1.98.1-1)"
+  },
+  "games": [
+    {
+      "placements": [
+        {
+          "place": 2.5,
+          "snake": "tiger"
+        },
+        {
+          "place": 1.0,
+          "snake": "shapeshifter"
+        },
+        {
+          "place": 2.5,
+          "snake": "mobility"
+        },
+        {
+          "place": 4.0,
+          "snake": "one-turn"
+        }
+      ],
+      "seat_one": "tiger",
+      "seed": 1,
+      "turns": 211
+    },
+    {
+      "placements": [
+        {
+          "place": 1.5,
+          "snake": "tiger"
+        },
+        {
+          "place": 1.5,
+          "snake": "shapeshifter"
+        },
+        {
+          "place": 3.0,
+          "snake": "mobility"
+        },
+        {
+          "place": 4.0,
+          "snake": "one-turn"
+        }
+      ],
+      "seat_one": "tiger",
+      "seed": 2,
+      "turns": 364
+    },
+    {
+      "placements": [
+        {
+          "place": 2.0,
+          "snake": "tiger"
+        },
+        {
+          "place": 1.0,
+          "snake": "shapeshifter"
+        },
+        {
+          "place": 3.0,
+          "snake": "mobility"
+        },
+        {
+          "place": 4.0,
+          "snake": "one-turn"
+        }
+      ],
+      "seat_one": "tiger",
+      "seed": 3,
+      "turns": 480
+    },
+    {
+      "placements": [
+        {
+          "place": 2.0,
+          "snake": "tiger"
+        },
+        {
+          "place": 1.0,
+          "snake": "shapeshifter"
+        },
+        {
+          "place": 4.0,
+          "snake": "mobility"
+        },
+        {
+          "place": 3.0,
+          "snake": "one-turn"
+        }
+      ],
+      "seat_one": "tiger",
+      "seed": 4,
+      "turns": 400
+    },
+    {
+      "placements": [
+        {
+          "place": 2.0,
+          "snake": "tiger"
+        },
+        {
+          "place": 1.0,
+          "snake": "shapeshifter"
+        },
+        {
+          "place": 3.0,
+          "snake": "mobility"
+        },
+        {
+          "place": 4.0,
+          "snake": "one-turn"
+        }
+      ],
+      "seat_one": "tiger",
+      "seed": 5,
+      "turns": 589
+    },
+    {
+      "placements": [
+        {
+          "place": 1.0,
+          "snake": "tiger"
+        },
+        {
+          "place": 2.0,
+          "snake": "shapeshifter"
+        },
+        {
+          "place": 3.0,
+          "snake": "mobility"
+        },
+        {
+          "place": 4.0,
+          "snake": "one-turn"
+        }
+      ],
+      "seat_one": "tiger",
+      "seed": 6,
+      "turns": 397
+    },
+    {
+      "placements": [
+        {
+          "place": 1.0,
+          "snake": "tiger"
+        },
+        {
+          "place": 2.0,
+          "snake": "shapeshifter"
+        },
+        {
+          "place": 3.0,
+          "snake": "mobility"
+        },
+        {
+          "place": 4.0,
+          "snake": "one-turn"
+        }
+      ],
+      "seat_one": "tiger",
+      "seed": 7,
+      "turns": 567
+    },
+    {
+      "placements": [
+        {
+          "place": 3.0,
+          "snake": "tiger"
+        },
+        {
+          "place": 1.0,
+          "snake": "shapeshifter"
+        },
+        {
+          "place": 2.0,
+          "snake": "mobility"
+        },
+        {
+          "place": 4.0,
+          "snake": "one-turn"
+        }
+      ],
+      "seat_one": "tiger",
+      "seed": 8,
+      "turns": 238
+    },
+    {
+      "placements": [
+        {
+          "place": 3.0,
+          "snake": "tiger"
+        },
+        {
+          "place": 1.0,
+          "snake": "shapeshifter"
+        },
+        {
+          "place": 2.0,
+          "snake": "mobility"
+        },
+        {
+          "place": 4.0,
+          "snake": "one-turn"
+        }
+      ],
+      "seat_one": "tiger",
+      "seed": 9,
+      "turns": 392
+    },
+    {
+      "placements": [
+        {
+          "place": 2.0,
+          "snake": "tiger"
+        },
+        {
+          "place": 1.0,
+          "snake": "shapeshifter"
+        },
+        {
+          "place": 3.0,
+          "snake": "mobility"
+        },
+        {
+          "place": 4.0,
+          "snake": "one-turn"
+        }
+      ],
+      "seat_one": "tiger",
+      "seed": 10,
+      "turns": 358
+    }
+  ],
+  "schema_version": "1.1.0",
+  "summary": {
+    "baseline": null,
+    "baseline_mean": null,
+    "challenger": "tiger",
+    "challenger_mean": 2.0,
+    "criterion_met": false,
+    "opponents": [
+      {
+        "id": "shapeshifter",
+        "mean_with_baseline": null,
+        "mean_with_challenger": 1.25
+      },
+      {
+        "id": "mobility",
+        "mean_with_baseline": null,
+        "mean_with_challenger": 2.85
+      },
+      {
+        "id": "one-turn",
+        "mean_with_baseline": null,
+        "mean_with_challenger": 3.9
+      }
+    ],
+    "reference_mean_in_challenger_games": 1.25,
+    "reference_opponent": "shapeshifter"
+  }
+}
