@@ -25,6 +25,9 @@ pub struct MeleeWeights {
     pub head_danger: i32,
     /// Value of each seat already eliminated.
     pub attrition_seat: i32,
+    /// Value of each exit taken from, and each cell of territory denied to, a
+    /// shorter rival in contact (growth iteration 10).
+    pub finisher_step: i32,
 }
 
 /// The initial, reasoned (not yet fitted) profile; the placement benchmark
@@ -41,4 +44,5 @@ pub const DEFAULT_MELEE_PROFILE: MeleeWeights = MeleeWeights {
     larder_pellet: 400,
     head_danger: 300,
     attrition_seat: 5_000,
+    finisher_step: 150,
 };

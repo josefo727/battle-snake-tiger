@@ -10,6 +10,7 @@ use tiger_engine::valuation::melee::Surveyed;
 use tiger_engine::valuation::melee::appetite::{Appetite, REACH};
 use tiger_engine::valuation::melee::attrition::Attrition;
 use tiger_engine::valuation::melee::finish::MeleeFinish;
+use tiger_engine::valuation::melee::finisher::Finisher;
 use tiger_engine::valuation::melee::hunger::Hunger;
 use tiger_engine::valuation::melee::larder::Larder;
 use tiger_engine::valuation::melee::standing::{HeadDanger, Standing};
@@ -276,4 +277,35 @@ fn the_larder_counts_the_pellets_we_reach_before_every_rival() {
     .unwrap();
 
     assert_eq!(Larder.assess(&Surveyed::new(&board)), 2);
+}
+
+#[test]
+fn the_finisher_counts_the_exits_and_territory_denied_to_a_shorter_rival_in_contact() {
+    // We are five long; a three-long rival two cells away sits in a corner with
+    // one exit and little territory; another shorter rival is far away.
+    let us: &[(i32, i32)] = &[(2, 1), (3, 1), (4, 1), (5, 1), (6, 1)];
+    let cornered: &[(i32, i32)] = &[(0, 0), (0, 1), (0, 2)];
+    let far: &[(i32, i32)] = &[(10, 10), (10, 9), (10, 8)];
+    let board = ingest_melee(&turn_state_from_bodies(
+        &[us, cornered, far],
+        &[90; 3],
+        0,
+        &[],
+    ))
+    .unwrap();
+    let raw = Finisher.assess(&Surveyed::new(&board));
+
+    // The cornered head at (0,0) has one exit, (1,0): two exits taken; its
+    // territory is small, so the term is positive and bounded.
+    assert!((2..=3 + 8).contains(&raw), "{raw}");
+    // A longer rival in contact contributes nothing.
+    let longer: &[(i32, i32)] = &[(0, 0), (0, 1), (0, 2), (0, 3), (0, 4), (0, 5)];
+    let board = ingest_melee(&turn_state_from_bodies(
+        &[us, longer, far],
+        &[90; 3],
+        0,
+        &[],
+    ))
+    .unwrap();
+    assert_eq!(Finisher.assess(&Surveyed::new(&board)), 0);
 }
