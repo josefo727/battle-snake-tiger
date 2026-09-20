@@ -1,5 +1,9 @@
 # Pause - 2026-09-20 (resume here)
 
+## Session 48-49 of 2026-09-20 was reverted (user's decision)
+
+Everything done that day after this file was written (the duel post-mortem tool, `RESPONSE_RESERVE_MS`, a rival-model fix, growth iteration 15 on a branch, findings and journal) was undone at the user's request after early platform deaths: `main` is back at `4d92071`, the VPS back on `tiger-engine:818f0b0`. The work is archived under the tags `archive/session-48-49-main` and `archive/session-48-49-fill-waiting`; nothing of it is to be reintroduced unless the user asks. The state below is the one from before that session and still holds.
+
 ## Where things are
 
 - `main` = features 001 (duel search), 002 (game logging), 003 (melee search) plus growth iterations 4, 6, 8, 10, 11, 12 (kept). Full log with numbers: `.specs/003-melee-search/evidence/growth/growth-log.md`; journal sessions 44 to 47 in `JOURNAL.md`.
