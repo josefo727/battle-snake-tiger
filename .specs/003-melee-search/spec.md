@@ -50,5 +50,5 @@ None.
 ## Closed (reconstructed history)
 
 - Date: `2026-09-16`
-- Commit: `pending`
+- Commit: `3f305a3b1cb7bb03708057042bbd3ca1f45ffc2c`
 - Notes: Task commits consolidate the preserved Red-Green-Refactor beats.

@@ -46,3 +46,7 @@ Recorded in `.specs/001-duel-search/research.md` (captured 2026-09-18). Every te
 - Voronoi territory and endgame handling for two-agent trail games: Google AI Challenge 2010 post-mortem (https://www.a1k0n.net/2010/03/04/google-ai-postmortem.html).
 - Battlesnake turn resolution order: https://docs.battlesnake.com/rules.
 - `snork` README methodology (documented approach only): https://github.com/wrenger/snork.
+
+## Commit dates
+
+Commit dates in this repository follow a reconstructed chronology; they are not the wall-clock time at which each change was made.

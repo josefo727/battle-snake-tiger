@@ -46,5 +46,5 @@ None. (Snake names in `game_started` were left out by default, see clarify Q2.)
 ## Closed (reconstructed history)
 
 - Date: `2026-09-15`
-- Commit: `pending`
+- Commit: `968335553154fd59948a16063f20d6bed895f9ed`
 - Notes: Task commits consolidate the preserved Red-Green-Refactor beats.
