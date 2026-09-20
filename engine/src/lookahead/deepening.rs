@@ -1,4 +1,6 @@
-//! Iterative deepening: search one ply deeper until the allowance says stop.
+//! Iterative deepening: search one ply deeper while the next depth is predicted
+//! to fit in the time left (growth iteration 12: the last iteration's duration
+//! times the observed growth, in place of a fixed share of the allowance).
 //!
 //! Only a completed depth is ever reported; an interrupted iteration is dropped
 //! and the last completed depth's heading stands (spec criterion 3).
@@ -14,10 +16,12 @@ use crate::arena::duel::DuelBoard;
 use crate::arena::melee::MeleeBoard;
 use crate::valuation::AssessorSet;
 
-/// A new depth starts only while less than this share of the allowance, in
-/// percent, has elapsed. Deeper iterations cost several times the previous one,
-/// so starting late mostly wastes the time that remains.
-pub const ITERATION_START_PERCENT: u64 = 40;
+/// The growth of one iteration's cost over the previous one is assumed to lie
+/// between these factors when predicting whether the next depth fits in the
+/// time left; with one iteration measured the growth is taken as [`GROWTH_DEFAULT`].
+pub const GROWTH_FLOOR: u32 = 2;
+pub const GROWTH_CEILING: u32 = 8;
+pub const GROWTH_DEFAULT: u32 = 4;
 
 /// The deepest iteration ever attempted, however much time is left.
 pub const DEPTH_CEILING: u16 = 64;
@@ -110,14 +114,18 @@ pub fn drive(
     let searcher = search;
     let baseline = searcher.nodes_visited();
     let mut deepest = None;
-    let mut span = None;
+    let mut durations: Vec<Duration> = Vec::new();
+    let mut left_at_start = None;
 
     for depth in 1..=depth_limit.min(DEPTH_CEILING) {
         let left = allowance.time_left();
-        let span = *span.get_or_insert(left);
-        if !may_start_iteration(left, span) {
+        if let Some(started) = left_at_start {
+            durations.push(started - left);
+        }
+        if left.is_zero() || predicted_next(&durations) > left {
             break;
         }
+        left_at_start = Some(left);
         let Some(completed) = searcher.search_until(depth, allowance) else {
             break;
         };
@@ -140,10 +148,24 @@ pub fn drive(
     )
 }
 
-/// Whether a new iteration may begin with `left` of an allowance that was `span`
-/// long when the search began: only while under [`ITERATION_START_PERCENT`] of it
-/// has elapsed, and never once nothing is left.
-fn may_start_iteration(left: Duration, span: Duration) -> bool {
-    let elapsed = span.saturating_sub(left);
-    elapsed.as_micros() * 100 < span.as_micros() * u128::from(ITERATION_START_PERCENT)
+/// How long the next iteration is expected to take from the completed ones:
+/// nothing before the first (depth 1 always starts), the last duration times
+/// the observed growth (clamped to [`GROWTH_FLOOR`]..=[`GROWTH_CEILING`]) or
+/// times [`GROWTH_DEFAULT`] when only one duration is known.
+fn predicted_next(durations: &[Duration]) -> Duration {
+    match durations {
+        [] => Duration::ZERO,
+        [only] => *only * GROWTH_DEFAULT,
+        [.., previous, last] => {
+            let growth = if previous.is_zero() {
+                GROWTH_CEILING
+            } else {
+                let ratio = last.as_micros().div_ceil(previous.as_micros().max(1));
+                u32::try_from(ratio)
+                    .unwrap_or(GROWTH_CEILING)
+                    .clamp(GROWTH_FLOOR, GROWTH_CEILING)
+            };
+            *last * growth
+        }
+    }
 }

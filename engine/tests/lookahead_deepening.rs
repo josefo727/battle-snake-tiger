@@ -7,7 +7,7 @@ use tiger_engine::arena::ingest::ingest_melee;
 use tiger_engine::lookahead::allowance::{
     NeverStop, SEARCH_TAIL_MARGIN, SearchAllowance, StopSignal,
 };
-use tiger_engine::lookahead::deepening::{ITERATION_START_PERCENT, deepen, deepen_melee};
+use tiger_engine::lookahead::deepening::{GROWTH_CEILING, GROWTH_FLOOR, deepen, deepen_melee};
 use tiger_engine::lookahead::ledger::LookaheadReport;
 use tiger_engine::lookahead::minimax::Searcher;
 use tiger_engine::lookahead::ordering::NaturalOrder;
@@ -112,11 +112,15 @@ fn a_decided_position_stops_deepening_at_the_depth_that_decides_it() {
 }
 
 #[test]
-fn no_depth_starts_once_the_start_fraction_of_the_allowance_has_elapsed() {
-    // Boundary reads: start, 10%, 39%, exactly 40%. Depth 4 must not start.
+fn a_depth_starts_only_when_the_last_iteration_predicts_it_will_finish() {
+    // Boundary reads of a 1,000,000 allowance: depth 1 took 150,000 (depth 2 is
+    // predicted at four times that and starts) and depth 2 280,000; the growth
+    // rounds up to 2, so depth 3 is predicted at 560,000 of the 570,000 left and
+    // starts although 43% has elapsed (the old 40% cut would have stopped).
+    // Depth 3 takes 370,000; twice that does not fit in the 200,000 left.
     let pipeline = ValuationPipeline::standard();
     let board = start();
-    let clock = ScriptedClock::new(&[0, 100_000, 390_000, 400_000]);
+    let clock = ScriptedClock::new(&[0, 150_000, 430_000, 800_000]);
     let mut allowance = allowance_ending_at(&clock, SEARCH_DEADLINE);
 
     let report = deepen(
@@ -126,17 +130,19 @@ fn no_depth_starts_once_the_start_fraction_of_the_allowance_has_elapsed() {
         8,
     );
 
-    assert_eq!(ITERATION_START_PERCENT, 40);
+    assert_eq!((GROWTH_FLOOR, GROWTH_CEILING), (2, 8));
     assert_eq!(report.completed_depth, 3);
     assert_eq!(clock.reads(), 4);
 }
 
 #[test]
-fn a_depth_may_start_just_below_the_start_fraction() {
-    // 399,999 of 1,000,000 elapsed is below 40%, so depth 2 starts; 40% then stops.
+fn a_depth_that_is_predicted_to_overrun_does_not_start_however_early_it_is() {
+    // Depth 1 took 50,000 and depth 2 300,000: the ratio is 6, so depth 3 is
+    // predicted at 1,800,000 against 650,000 left and does not start, although
+    // only 35% of the allowance has elapsed.
     let pipeline = ValuationPipeline::standard();
     let board = start();
-    let clock = ScriptedClock::new(&[0, 399_999, 400_000]);
+    let clock = ScriptedClock::new(&[0, 50_000, 350_000]);
     let mut allowance = allowance_ending_at(&clock, SEARCH_DEADLINE);
 
     let report = deepen(
@@ -148,6 +154,28 @@ fn a_depth_may_start_just_below_the_start_fraction() {
 
     assert_eq!(report.completed_depth, 2);
     assert_eq!(clock.reads(), 3);
+}
+
+#[test]
+fn the_second_depth_is_predicted_at_four_times_the_first() {
+    // One duration known: depth 2 is assumed to cost four times depth 1.
+    // 200,000 for depth 1 leaves 800,000, exactly enough: it starts.
+    // 250,000 would leave 750,000 for a predicted 1,000,000: it does not.
+    let pipeline = ValuationPipeline::standard();
+    let board = start();
+    for (first, expected_depth) in [(200_000, 2), (250_000, 1)] {
+        let clock = ScriptedClock::new(&[0, first, 1_000_000]);
+        let mut allowance = allowance_ending_at(&clock, SEARCH_DEADLINE);
+
+        let report = deepen(
+            &mut Searcher::new(&pipeline, finish()),
+            &board,
+            &mut allowance,
+            8,
+        );
+
+        assert_eq!(report.completed_depth, expected_depth, "first took {first}");
+    }
 }
 
 #[test]
@@ -372,29 +400,31 @@ fn a_melee_deepens_to_the_limit_with_the_fixed_depth_answer() {
 fn a_melee_iteration_cut_short_is_dropped_and_the_previous_depth_stands() {
     let board = ingest_melee(&turn_state(4, 0, &[(5, 6)])).expect("melee");
     let valuation = MeleeValuation::standard();
-    // Boundaries of depths 1 and 2 read 0; the poll inside depth 2 sees the expiry.
-    // Boundaries of depths 1, 2 and 3 read 0; the first poll inside depth 3
-    // (which visits thousands of nodes) sees the expiry.
-    let clock = ScriptedClock::expiring_after(3);
+    // The clock expires at its fifth read: some iteration boundary or the first
+    // poll inside an iteration of more than 1024 nodes, whichever comes first.
+    let clock = ScriptedClock::expiring_after(4);
     let mut allowance = allowance_ending_at(&clock, SEARCH_DEADLINE);
     let mut searcher = MeleeSearcher::new(&valuation, melee_finish());
 
     let report = deepen_melee(&mut searcher, &board, &mut allowance, 8);
 
-    let depth_two =
-        MeleeSearcher::with_order(&valuation, melee_finish(), NaturalOrder).search_fixed(&board, 2);
-    assert_eq!(report.completed_depth, 2);
-    assert_eq!(report.best, depth_two.best);
-    // The same run with the expiry at the third boundary never starts depth 3, so
-    // the difference is exactly the abandoned iteration's nodes, which still count.
-    let clock = ScriptedClock::expiring_after(2);
+    // The deepest completed depth stands, with that depth's own answer.
+    let depth = report.completed_depth;
+    assert!((1..8).contains(&depth), "{report:?}");
+    let fixed = MeleeSearcher::with_order(&valuation, melee_finish(), NaturalOrder)
+        .search_fixed(&board, depth);
+    assert_eq!(report.best, fixed.best);
+    assert_eq!(report.principal_score, fixed.principal_score);
+    // One read fewer expires one step earlier: never deeper, and the nodes of the
+    // iteration that was cut short still count in the longer run.
+    let clock = ScriptedClock::expiring_after(3);
     let mut allowance = allowance_ending_at(&clock, SEARCH_DEADLINE);
     let mut searcher = MeleeSearcher::new(&valuation, melee_finish());
-    let without_third = deepen_melee(&mut searcher, &board, &mut allowance, 8);
-    assert_eq!(without_third.completed_depth, 2);
+    let earlier = deepen_melee(&mut searcher, &board, &mut allowance, 8);
+    assert!(earlier.completed_depth <= depth);
     assert!(
-        report.nodes_explored > without_third.nodes_explored,
-        "the abandoned iteration's nodes still count"
+        report.nodes_explored > earlier.nodes_explored,
+        "{report:?} vs {earlier:?}"
     );
 }
 
