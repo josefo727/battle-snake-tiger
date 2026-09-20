@@ -140,11 +140,11 @@ fn the_standard_pipeline_registers_the_five_terms_with_the_default_weights_in_or
 
 #[test]
 fn the_standard_pipelines_worst_case_is_the_sum_of_weight_times_bound() {
-    // 121*100 (territory) + 60*200 (hunger) + 120*250 (length) + 4*150 (head
+    // 121*100 (territory) + 60*200 (hunger) + 120*1000 (length) + 4*150 (head
     // pressure) + 121*120 (enclosure).
     let worst = ValuationPipeline::standard().worst_case_magnitude();
 
-    assert_eq!(worst, 12_100 + 12_000 + 30_000 + 600 + 14_520);
+    assert_eq!(worst, 12_100 + 12_000 + 120_000 + 600 + 14_520);
     assert!(
         worst < Finish::new(&DEFAULT_PROFILE).finite_limit(),
         "a positional score must never look like a forced win or loss"

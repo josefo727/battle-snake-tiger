@@ -26,12 +26,12 @@ pub struct WeightSheet {
 
 /// The initial, reasoned (not yet fitted) profile; sparring iterations refine it.
 pub const DEFAULT_PROFILE: WeightSheet = WeightSheet {
-    win_score: 100_000,
+    win_score: 1_000_000,
     draw_score: -1_000,
     ply_penalty: 100,
     territory_cell: 100,
     hunger_urgency: 200,
-    length_advantage: 250,
+    length_advantage: 1_000,
     head_pressure: 150,
     enclosure_turn: 120,
 };
