@@ -1,0 +1,69 @@
+{
+  "engine": {
+    "commit": "ee73243b1a151d575b8be59faaec865ee5d1170d",
+    "name": "tiger-engine"
+  },
+  "environment": {
+    "cpu": "AMD Ryzen 7 5700X 8-Core Processor",
+    "kernel": "Linux 7.2.5-3-omarchy x86_64",
+    "rules_cli_release": "v1.2.3",
+    "rustc": "rustc 1.98.1 (48a229cea 2026-09-01) (Arch Linux rust 1:1.98.1-1)"
+  },
+  "matchups": [
+    {
+      "challenger": "tiger",
+      "draws": 0,
+      "losses": 10,
+      "mean_turns": 357.6666666666667,
+      "opponent": "shapeshifter-full",
+      "seeds": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12
+      ],
+      "win_rate": 0.16666666666666666,
+      "win_rate_wilson95": [
+        0.04696514218385378,
+        0.4480308622529734
+      ],
+      "wins": 2
+    },
+    {
+      "challenger": "baseline",
+      "draws": 0,
+      "losses": 12,
+      "mean_turns": 39.833333333333336,
+      "opponent": "shapeshifter-full",
+      "seeds": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12
+      ],
+      "win_rate": 0.0,
+      "win_rate_wilson95": [
+        2.7755575615628914e-17,
+        0.24249400665524085
+      ],
+      "wins": 0
+    }
+  ],
+  "schema_version": "1.0.0"
+}

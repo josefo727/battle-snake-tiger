@@ -67,7 +67,8 @@ impl<'pipeline, S: AssessorSet, O: HeadingOrder> Searcher<'pipeline, S, O> {
 
     /// Searches exactly `depth` plies (each a full joint move) and reports the
     /// best heading and its exact minimax value. Ties go to the earliest heading
-    /// in [`Heading::ALL`], whatever order the layers are tried in.
+    /// in [`Heading::ALL`] that does not kill us by itself, whatever order the
+    /// layers are tried in.
     ///
     /// # Panics
     ///
@@ -133,11 +134,17 @@ impl<'pipeline, S: AssessorSet, O: HeadingOrder> Searcher<'pipeline, S, O> {
         let Window { mut alpha, beta } = window;
         let mut best = (Heading::ALL[0], -self.finish.sentinel());
         let root = ply == 0;
+        let fatal = if root {
+            self_fatal_headings(board)
+        } else {
+            [false; 4]
+        };
         for ours in self.order.arrange(Side::Us, ply) {
-            // At the root an earlier heading must win an exact tie whatever the
-            // trial order, so it is searched one point wider to tell a tie from
-            // a bound.
-            let wins_ties = root && ours.index() < best.0.index();
+            // At the root an exact tie goes to the heading that precedes the
+            // other whatever the trial order (a heading that kills us by itself
+            // comes after every other, then the fixed order), so it is searched
+            // one point wider to tell a tie from a bound.
+            let wins_ties = root && precedes(ours, best.0, fatal);
             let floor = if wins_ties { alpha - 1 } else { alpha };
             let narrowed = Window { alpha: floor, beta };
             let score = self.minimizer(board, ours, depth, ply, narrowed, stop)?;
@@ -188,4 +195,31 @@ impl<'pipeline, S: AssessorSet, O: HeadingOrder> Searcher<'pipeline, S, O> {
         }
         Ok(best)
     }
+}
+
+/// Whether `a` wins an exact tie against `b` at the root: a heading that kills
+/// us by itself (`fatal[index]`) loses to any that does not; otherwise the
+/// earlier heading in [`Heading::ALL`] wins.
+fn precedes(a: Heading, b: Heading, fatal: [bool; 4]) -> bool {
+    (fatal[a.index()], a.index()) < (fatal[b.index()], b.index())
+}
+
+/// Our headings that kill us with no rival's help: off the board or into a
+/// cell that stays occupied this turn (free cells plus both tails that vacate).
+fn self_fatal_headings(board: &DuelBoard) -> [bool; 4] {
+    let head = board.serpent(Side::Us).head();
+    let enterable =
+        [Side::Us, Side::Them]
+            .into_iter()
+            .fold(board.occupied().complement(), |cells, side| {
+                board
+                    .serpent(side)
+                    .cell_released_on_turn(1)
+                    .map_or(cells, |cell| cells.with(cell))
+            });
+    Heading::ALL.map(|heading| {
+        !heading
+            .step(head)
+            .is_some_and(|cell| enterable.contains(cell))
+    })
 }

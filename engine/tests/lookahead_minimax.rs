@@ -1,7 +1,7 @@
 mod support;
 
 use proptest::prelude::*;
-use tiger_engine::arena::duel::{Advance, DuelBoard, Verdict};
+use tiger_engine::arena::duel::{Advance, DuelBoard, Side, Verdict};
 use tiger_engine::arena::heading::Heading;
 use tiger_engine::arena::ingest::ingest;
 use tiger_engine::lookahead::minimax::Searcher;
@@ -62,12 +62,33 @@ impl<'p, S: AssessorSet> Reference<'p, S> {
     }
 }
 
-fn first_best(values: [i32; 4]) -> Heading {
+/// The heading the searcher must report: the best value, and among ties the
+/// first heading that does not kill us by itself, then the first in `ALL`.
+fn first_best(board: &DuelBoard, values: [i32; 4]) -> Heading {
     let best = *values.iter().max().expect("four values");
-    Heading::ALL[values
-        .iter()
-        .position(|&v| v == best)
-        .expect("the max is present")]
+    Heading::ALL
+        .into_iter()
+        .zip(values)
+        .filter(|&(_, v)| v == best)
+        .min_by_key(|&(heading, _)| (is_self_fatal(board, heading), heading.index()))
+        .expect("the max is present")
+        .0
+}
+
+/// Off the board, or into a cell that stays occupied after both tails move.
+fn is_self_fatal(board: &DuelBoard, heading: Heading) -> bool {
+    let enterable =
+        [Side::Us, Side::Them]
+            .into_iter()
+            .fold(board.occupied().complement(), |cells, side| {
+                board
+                    .serpent(side)
+                    .cell_released_on_turn(1)
+                    .map_or(cells, |cell| cells.with(cell))
+            });
+    !heading
+        .step(board.serpent(Side::Us).head())
+        .is_some_and(|cell| enterable.contains(cell))
 }
 
 fn length_pipeline() -> ValuationPipeline<((), tiger_engine::valuation::Weighted<LengthAdvantage>)>
@@ -89,7 +110,7 @@ fn one_ply_matches_the_exhaustive_value_on_the_standard_start() {
 
     let values = reference.root_values(&board, 1);
     assert_eq!(report.principal_score, Some(*values.iter().max().unwrap()));
-    assert_eq!(report.best, Some(first_best(values)));
+    assert_eq!(report.best, Some(first_best(&board, values)));
     assert_eq!(report.completed_depth, 1);
 }
 
@@ -103,7 +124,7 @@ fn three_plies_match_the_exhaustive_value_on_the_standard_start() {
 
     let values = reference.root_values(&board, 3);
     assert_eq!(report.principal_score, Some(*values.iter().max().unwrap()));
-    assert_eq!(report.best, Some(first_best(values)));
+    assert_eq!(report.best, Some(first_best(&board, values)));
     assert_eq!(report.completed_depth, 3);
 }
 
@@ -158,6 +179,15 @@ fn a_depth_of_zero_is_a_programming_error() {
     assert!(result.is_err());
 }
 
+fn they_can_kill_us(board: &DuelBoard, ours: Heading) -> bool {
+    Heading::ALL.into_iter().any(|theirs| {
+        matches!(
+            board.advance(ours, theirs),
+            Advance::Over(Verdict::TheyOnly | Verdict::BothDown)
+        )
+    })
+}
+
 fn certain_loss(board: &DuelBoard, ours: Heading) -> bool {
     Heading::ALL.into_iter().all(|theirs| {
         matches!(
@@ -183,7 +213,7 @@ proptest! {
 
         let values = reference.root_values(&board, depth);
         prop_assert_eq!(report.principal_score, Some(*values.iter().max().unwrap()));
-        prop_assert_eq!(report.best, Some(first_best(values)));
+        prop_assert_eq!(report.best, Some(first_best(&board, values)));
         prop_assert!(report.nodes_explored <= reference.advances.get());
     }
 
@@ -200,7 +230,7 @@ proptest! {
 
         let values = reference.root_values(&board, depth);
         prop_assert_eq!(report.principal_score, Some(*values.iter().max().unwrap()));
-        prop_assert_eq!(report.best, Some(first_best(values)));
+        prop_assert_eq!(report.best, Some(first_best(&board, values)));
     }
 
     #[test]
@@ -216,4 +246,27 @@ proptest! {
 
         prop_assert!(!certain_loss(&board, report.best.expect("a heading")));
     }
+}
+
+#[test]
+fn among_certain_losses_a_heading_that_kills_us_by_itself_loses_the_tie() {
+    // Our head at (5,10) on the top row, body to the east; a longer rival at
+    // (4,9) can enter both (4,10) and (5,9). Every heading is a certain loss:
+    // north is the wall, east the neck, west and south a losing head-to-head
+    // if the rival chooses it. The tie must go to a heading the rival has to
+    // act on, never to the wall.
+    let us: &[(i32, i32)] = &[(5, 10), (6, 10), (7, 10)];
+    let them: &[(i32, i32)] = &[(4, 9), (3, 9), (2, 9), (1, 9)];
+    let state = turn_state_from_bodies(&[us, them], &[90, 90], 0, &[(10, 0)]);
+    let board = ingest(&state).expect("a duel converts");
+    let pipeline = ValuationPipeline::standard();
+    let mut searcher = Searcher::new(&pipeline, finish());
+
+    let report = searcher.search_fixed(&board, 1);
+
+    for ours in [Heading::North, Heading::West, Heading::South] {
+        assert!(they_can_kill_us(&board, ours), "{ours:?}");
+    }
+    let best = report.best.expect("a heading");
+    assert!(matches!(best, Heading::West | Heading::South), "{report:?}");
 }

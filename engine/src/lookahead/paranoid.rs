@@ -59,7 +59,7 @@ impl<'valuation, O: HeadingOrder> MeleeSearcher<'valuation, O> {
 
     /// Searches exactly `depth` plies (each a full joint move of every living
     /// seat) and reports the best heading and its exact paranoid value. Ties go
-    /// to the earliest heading in [`Heading::ALL`].
+    /// to the earliest heading in [`Heading::ALL`] that does not kill us by itself.
     ///
     /// # Panics
     ///
@@ -109,11 +109,18 @@ impl<'valuation, O: HeadingOrder> MeleeSearcher<'valuation, O> {
         let Window { mut alpha, beta } = window;
         let mut best = (Heading::ALL[0], -self.finish.sentinel());
         let root = ply == 0;
+        let fatal = if root {
+            self_fatal_headings(board)
+        } else {
+            HeadingSet::of(|_| false)
+        };
         for ours in self.order.arrange(Seat::US, ply) {
-            // At the root an earlier heading must win an exact tie whatever the
-            // trial order, so it is searched one point wider to tell a tie from
-            // a bound (the duel searcher does the same).
-            let wins_ties = root && ours.index() < best.0.index();
+            // At the root an exact tie goes to the heading that precedes the
+            // other whatever the trial order (a heading that kills us by itself
+            // comes after every other, then the fixed order), so it is searched
+            // one point wider to tell a tie from a bound (the duel searcher does
+            // the same).
+            let wins_ties = root && precedes(ours, best.0, fatal);
             let floor = if wins_ties { alpha - 1 } else { alpha };
             let mut chosen = [ours; MAX_SEATS];
             let our_target = ours.step(board.serpent(Seat::US).head());
@@ -307,7 +314,7 @@ impl<'valuation, O: HeadingOrder> MeleeSearcher<'valuation, O> {
 
 /// A subset of the four headings, as a bit per [`Heading::index`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-struct HeadingSet(u8);
+pub(super) struct HeadingSet(u8);
 
 impl HeadingSet {
     const ALL: Self = Self(0b1111);
@@ -325,6 +332,25 @@ impl HeadingSet {
     const fn is_empty(self) -> bool {
         self.0 == 0
     }
+}
+
+/// Whether `a` wins an exact tie against `b` at the root: a heading that kills
+/// us by itself (in `fatal`) loses to any that does not; otherwise the earlier
+/// heading in [`Heading::ALL`] wins.
+pub(super) fn precedes(a: Heading, b: Heading, fatal: HeadingSet) -> bool {
+    (fatal.contains(&a), a.index()) < (fatal.contains(&b), b.index())
+}
+
+/// Our headings that kill us with no rival's help: off the board or into a
+/// cell that stays occupied this turn.
+pub(super) fn self_fatal_headings(board: &MeleeBoard) -> HeadingSet {
+    let head = board.serpent(Seat::US).head();
+    let enterable = enterable_cells(board);
+    HeadingSet::of(|heading| {
+        !heading
+            .step(head)
+            .is_some_and(|cell| enterable.contains(cell))
+    })
 }
 
 /// Free cells plus the tail cells that vacate this turn.

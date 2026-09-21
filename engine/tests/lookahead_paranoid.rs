@@ -121,9 +121,22 @@ impl Reference<'_> {
     }
 }
 
-fn first_best(values: [i32; 4]) -> Heading {
+/// The heading the searcher must report: the best value, and among ties the
+/// first heading that does not kill us by itself, then the first in `ALL`.
+fn first_best(board: &MeleeBoard, values: [i32; 4]) -> Heading {
     let best = *values.iter().max().expect("four values");
-    Heading::ALL[values.iter().position(|&v| v == best).expect("present")]
+    Heading::ALL
+        .into_iter()
+        .zip(values)
+        .filter(|&(_, v)| v == best)
+        .min_by_key(|&(heading, _)| {
+            (
+                !is_self_preserving(board, Seat::US, heading),
+                heading.index(),
+            )
+        })
+        .expect("present")
+        .0
 }
 
 fn assert_matches_reference(board: &MeleeBoard, depth: u16) {
@@ -146,7 +159,7 @@ fn assert_matches_reference(board: &MeleeBoard, depth: u16) {
     );
     assert_eq!(
         report.best,
-        Some(first_best(values)),
+        Some(first_best(board, values)),
         "depth {depth}: values {values:?}"
     );
 }
@@ -342,4 +355,34 @@ proptest! {
         let board = ingest_melee(&realize_melee(&spec)).expect("melee");
         assert_matches_reference(&board, 2);
     }
+}
+
+#[test]
+fn among_certain_losses_a_heading_that_kills_us_by_itself_loses_the_tie() {
+    // Platform game 88b139a0, turn 15: our head at (7,10) on the top row, body
+    // to the east. A longer rival at (6,9) can enter both cells we could move
+    // into, so the paranoid model scores west and south as certain losses; north
+    // is the wall, a certain loss with no rival needed. Ties must not go to the
+    // wall.
+    let us: &[(i32, i32)] = &[(7, 10), (8, 10), (9, 10), (10, 10)];
+    let longer: &[(i32, i32)] = &[(6, 9), (6, 8), (6, 7), (6, 6), (6, 5)];
+    let far_a: &[(i32, i32)] = &[(3, 8), (2, 8), (2, 7), (3, 7)];
+    let far_b: &[(i32, i32)] = &[(4, 7), (4, 6), (3, 6), (3, 5)];
+    let state = turn_state_from_bodies(
+        &[us, longer, far_a, far_b],
+        &[87, 92, 89, 87],
+        0,
+        &[(6, 10)],
+    );
+    let board = ingest_melee(&state).expect("melee");
+    let valuation = MeleeValuation::standard();
+    let mut searcher = MeleeSearcher::new(&valuation, finish());
+
+    let report = searcher.search_fixed(&board, 1);
+
+    let score = report.principal_score.expect("a score");
+    assert!(searcher.is_decisive(score) && score < 0, "{report:?}");
+    let best = report.best.expect("a heading");
+    assert_ne!(best, Heading::North, "{report:?}");
+    assert!(is_self_preserving(&board, Seat::US, best), "{report:?}");
 }

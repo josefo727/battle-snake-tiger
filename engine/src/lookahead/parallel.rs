@@ -1,7 +1,8 @@
 //! The melee search split at the root over threads (growth iteration 7): each
 //! root heading is valued in its own lane with an open window, lanes are shared
-//! out over `threads`, and the best heading is the greatest value, earliest
-//! heading on a tie. Every lane keeps its own move-order tables and its own
+//! out over `threads`, and the best heading is the greatest value, and on a tie
+//! the earliest heading that does not kill us by itself (as the sequential
+//! root). Every lane keeps its own move-order tables and its own
 //! allowance on the same deadline, so nothing is shared between threads but
 //! the position and the valuation.
 
@@ -11,6 +12,7 @@ use super::allowance::{SearchAllowance, StopSignal};
 use super::deepening::IterativeSearch;
 use super::ledger::LookaheadReport;
 use super::paranoid::MeleeSearcher;
+use super::paranoid::{precedes, self_fatal_headings};
 use crate::arena::heading::Heading;
 use crate::arena::melee::MeleeBoard;
 use crate::rules_core::{Clock, MonotonicInstant};
@@ -89,10 +91,13 @@ impl<'valuation, 'clock> RootSplit<'valuation, 'clock> {
                 .flat_map(|worker| worker.join().expect("a lane never panics"))
                 .collect()
         });
+        let fatal = self_fatal_headings(&board);
         let mut best: Option<(Heading, i32)> = None;
         for (lane, value) in self.lanes.iter().zip(values) {
             let value = value?;
-            if best.is_none_or(|(_, score)| value > score) {
+            if best.is_none_or(|(heading, score)| {
+                value > score || (value == score && precedes(lane.heading, heading, fatal))
+            }) {
                 best = Some((lane.heading, value));
             }
         }
