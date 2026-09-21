@@ -96,10 +96,15 @@ target/release/spar --roster reference/roster-strong.json \
 
 Reports are versioned JSON with per-game placements and Wilson intervals; the
 game transcripts stay in the scratch directory. The yardstick for adoption is
-"not worse than Shapeshifter in four-snake games": as of growth iteration 14 the
-engine places 2.40 on average against Shapeshifter's 2.62 over 50 seeds
-(`.specs/003-melee-search/evidence/growth/growth-log.md`), and wins about a third
-of its duels against the strong build.
+"not worse than Shapeshifter in four-snake games". As of growth iteration 15 the
+engine is about even with it, not ahead: over three 50-seed runs of the same code
+the tiger places 2.49 on average against Shapeshifter's 2.52, and finishes ahead of
+it in 77 games and behind it in 72. Single runs spread widely (the first gave 2.40
+against 2.62 and 31 ahead / 19 behind, a later one 2.49 against 2.33 and 21 / 29),
+so one 50-game run does not separate changes smaller than about 0.3 places. In
+duels the engine wins about 30% against the strong build (22 of 74), mostly losing
+a race for length before being boxed in. The runs are in
+`.specs/003-melee-search/evidence/growth/growth-log.md`.
 
 ## Method and provenance
 
