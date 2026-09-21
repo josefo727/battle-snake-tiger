@@ -195,7 +195,10 @@ impl<'valuation, O: HeadingOrder> MeleeSearcher<'valuation, O> {
     ///   that stays), unless it has none, when it keeps all four;
     /// - at every ply, a rival no longer than us is not assumed to trade heads
     ///   with us (step into `our_target`, its own certain death for ours), unless
-    ///   that would leave it nothing else. A strictly longer rival keeps the threat.
+    ///   that is its only step that does not kill it outright: "nothing else" is
+    ///   judged on the self-preserving headings at the root too, so a rival
+    ///   boxed against the contested cell keeps the threat. A strictly longer
+    ///   rival keeps the threat always.
     fn replies_of(
         &self,
         board: &MeleeBoard,
@@ -207,33 +210,31 @@ impl<'valuation, O: HeadingOrder> MeleeSearcher<'valuation, O> {
             return HeadingSet::ALL;
         }
         let head = board.serpent(seat).head();
-        let preserving = if ply == 0 {
+        let enterable = enterable_cells(board);
+        let safe = HeadingSet::of(|heading| {
+            heading
+                .step(head)
+                .is_some_and(|cell| enterable.contains(cell))
+        });
+        let judged = if safe.is_empty() {
             HeadingSet::ALL
         } else {
-            let enterable = enterable_cells(board);
-            let safe = HeadingSet::of(|heading| {
-                heading
-                    .step(head)
-                    .is_some_and(|cell| enterable.contains(cell))
-            });
-            if safe.is_empty() {
-                HeadingSet::ALL
-            } else {
-                safe
-            }
+            safe
         };
+        let preserving = if ply == 0 { HeadingSet::ALL } else { judged };
         let no_longer_than_us = board.serpent(seat).length() <= board.serpent(Seat::US).length();
         let Some(target) = our_target.filter(|_| no_longer_than_us) else {
             return preserving;
         };
-        let untraded = HeadingSet::of(|heading| {
-            preserving.contains(&heading) && heading.step(head) != Some(target)
-        });
-        if untraded.is_empty() {
-            preserving
-        } else {
-            untraded
+        let has_untraded = Heading::ALL
+            .into_iter()
+            .any(|heading| judged.contains(&heading) && heading.step(head) != Some(target));
+        if !has_untraded {
+            return preserving;
         }
+        HeadingSet::of(|heading| {
+            preserving.contains(&heading) && heading.step(head) != Some(target)
+        })
     }
 
     /// One joint move: the finished melee's terminal score, the leaf value, or

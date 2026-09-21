@@ -75,15 +75,21 @@ impl Reference<'_> {
         let our_target = moves[0].step(board.serpent(Seat::US).head());
         let our_length = board.serpent(Seat::US).length();
         board.seats().filter(|s| *s != Seat::US).all(|seat| {
-            let preserving = |h: Heading| ply == 0 || is_self_preserving(board, seat, h);
-            let has_safe = Heading::ALL.into_iter().any(preserving);
-            let base = |h: Heading| !has_safe || preserving(h);
+            let safe = |h: Heading| is_self_preserving(board, seat, h);
+            let has_safe = Heading::ALL.into_iter().any(safe);
+            // Below the root a rival keeps its safe headings (all four when it
+            // has none); at the root all four stay on the table.
+            let base = |h: Heading| ply == 0 || !has_safe || safe(h);
             let trades = |h: Heading| {
                 board.serpent(seat).length() <= our_length
                     && our_target.is_some()
                     && h.step(board.serpent(seat).head()) == our_target
             };
-            let has_untraded = Heading::ALL.into_iter().any(|h| base(h) && !trades(h));
+            // "Nothing else" is judged on the safe headings at every ply: a
+            // rival whose only safe step is the trade is assumed to take it.
+            let has_untraded = Heading::ALL
+                .into_iter()
+                .any(|h| (!has_safe || safe(h)) && !trades(h));
             let mine = moves[seat.index()];
             base(mine) && (!has_untraded || !trades(mine))
         })
@@ -246,6 +252,34 @@ fn an_equal_rival_is_not_assumed_to_trade_heads_so_contested_food_is_taken() {
 
     assert_eq!(report.best, Some(Heading::North), "{report:?}");
     assert!(report.principal_score.unwrap() > -finish().finite_limit());
+    assert_matches_reference(&board, 1);
+    assert_matches_reference(&board, 2);
+}
+
+#[test]
+fn a_rival_whose_only_safe_step_is_the_contested_cell_is_assumed_to_take_it_at_the_root() {
+    // Platform game c2613a83, turn 35, in miniature: an equal-length rival at
+    // (5,7) has bodies on both sides, so its only self-preserving step is south
+    // into (5,6), the cell our north would enter. The trade kills both; the
+    // model must keep it even at the root, so north is not the move.
+    let us: &[(i32, i32)] = &[(5, 5), (5, 4), (5, 3)];
+    let rival: &[(i32, i32)] = &[(5, 7), (5, 8), (5, 9)];
+    let west_wall: &[(i32, i32)] = &[(4, 7), (4, 8), (4, 9), (4, 10)];
+    let east_wall: &[(i32, i32)] = &[(6, 7), (6, 8), (6, 9), (6, 10)];
+    let state = turn_state_from_bodies(
+        &[us, rival, west_wall, east_wall],
+        &[90, 90, 90, 90],
+        0,
+        &[(5, 6)],
+    );
+    let board = ingest_melee(&state).expect("melee");
+    let valuation = MeleeValuation::standard();
+    let mut searcher = MeleeSearcher::new(&valuation, finish());
+
+    let report = searcher.search_fixed(&board, 1);
+
+    assert_ne!(report.best, Some(Heading::North), "{report:?}");
+    assert!(!survives_every_reply(&board, Heading::North));
     assert_matches_reference(&board, 1);
     assert_matches_reference(&board, 2);
 }
