@@ -1,11 +1,11 @@
 mod support;
 
 use proptest::prelude::*;
-use tiger_engine::arena::cellset::CellSet;
+use tiger_engine::arena::cellset::{Cell, CellSet};
 use tiger_engine::arena::heading::Heading;
 use tiger_engine::arena::ingest::ingest_melee;
 use tiger_engine::arena::melee::{MAX_SEATS, MeleeBoard, MeleeOutcome, Seat};
-use tiger_engine::lookahead::paranoid::MeleeSearcher;
+use tiger_engine::lookahead::paranoid::{MeleeSearcher, TRADE_RISK, contested_by_equal};
 use tiger_engine::valuation::melee::MeleeValuation;
 use tiger_engine::valuation::melee::finish::MeleeFinish;
 use tiger_engine::valuation::melee::weights::DEFAULT_MELEE_PROFILE;
@@ -116,8 +116,17 @@ impl Reference<'_> {
             .expect("four headings")
     }
 
+    /// The root's values: each heading's paranoid value, less the trade risk
+    /// when its cell is contested by an equal-length rival.
     fn root_values(&self, board: &MeleeBoard, depth: u16) -> [i32; 4] {
-        Heading::ALL.map(|ours| self.value_of_heading(board, ours, depth, 0))
+        let head = board.serpent(Seat::US).head();
+        Heading::ALL.map(|ours| {
+            let value = self.value_of_heading(board, ours, depth, 0);
+            match ours.step(head) {
+                Some(target) if contested_by_equal(board, target) => value - TRADE_RISK,
+                _ => value,
+            }
+        })
     }
 }
 
@@ -252,19 +261,56 @@ fn an_opponent_with_no_safe_heading_keeps_all_four_headings() {
 fn an_equal_rival_is_not_assumed_to_trade_heads_so_contested_food_is_taken() {
     // Our head at (5,5) facing north, a pellet at (5,6), and an equal-length rival
     // at (5,7) facing us: a paranoid rival would meet us on the pellet and die
-    // with us; the model assumes it will not, so north is the move.
+    // with us; the model assumes it will not, so with no trade risk at the root
+    // north is the move.
     let us: &[(i32, i32)] = &[(5, 5), (5, 4), (5, 3)];
     let rival: &[(i32, i32)] = &[(5, 7), (5, 8), (5, 9)];
     let far: &[(i32, i32)] = &[(9, 0), (9, 1), (9, 2)];
     let state = turn_state_from_bodies(&[us, rival, far], &[90, 90, 90], 0, &[(5, 6)]);
     let board = ingest_melee(&state).expect("melee");
     let valuation = MeleeValuation::standard();
-    let mut searcher = MeleeSearcher::new(&valuation, finish());
+    let mut searcher = MeleeSearcher::new(&valuation, finish()).with_trade_risk(0);
 
     let report = searcher.search_fixed(&board, 1);
 
     assert_eq!(report.best, Some(Heading::North), "{report:?}");
     assert!(report.principal_score.unwrap() > -finish().finite_limit());
+    assert_matches_reference(&board, 1);
+    assert_matches_reference(&board, 2);
+}
+
+#[test]
+fn a_cell_an_equal_rival_can_also_enter_pays_the_trade_risk_at_the_root() {
+    // The same pellet at (5,6) between our head at (5,5) and an equal-length
+    // rival at (5,7): the cell is contested, east and west are free. The root
+    // charges the contested heading the trade risk, so a risk larger than the
+    // pellet's worth turns the search away from it, and the reported score is
+    // the free heading's plain value.
+    let us: &[(i32, i32)] = &[(5, 5), (5, 4), (5, 3)];
+    let rival: &[(i32, i32)] = &[(5, 7), (5, 8), (5, 9)];
+    let far: &[(i32, i32)] = &[(9, 0), (9, 1), (9, 2)];
+    let state = turn_state_from_bodies(&[us, rival, far], &[90, 90, 90], 0, &[(5, 6)]);
+    let board = ingest_melee(&state).expect("melee");
+    let cell = |x: u8, y: u8| Cell::from_xy(x, y).expect("on the board");
+    assert!(contested_by_equal(&board, cell(5, 6)));
+    assert!(!contested_by_equal(&board, cell(4, 5)));
+    let valuation = MeleeValuation::standard();
+    let model = Reference {
+        valuation: &valuation,
+        finish: finish(),
+        filtered: true,
+    };
+    let mut searcher = MeleeSearcher::new(&valuation, finish()).with_trade_risk(100_000);
+
+    let report = searcher.search_fixed(&board, 1);
+
+    let best = report.best.expect("a heading");
+    assert_ne!(best, Heading::North, "{report:?}");
+    assert_eq!(
+        report.principal_score,
+        Some(model.value_of_heading(&board, best, 1, 0)),
+        "{report:?}"
+    );
     assert_matches_reference(&board, 1);
     assert_matches_reference(&board, 2);
 }

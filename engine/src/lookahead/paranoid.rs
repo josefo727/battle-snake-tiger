@@ -17,12 +17,20 @@ use crate::arena::melee::{MAX_SEATS, MeleeBoard, MeleeOutcome, Seat};
 use crate::valuation::melee::MeleeValuation;
 use crate::valuation::melee::finish::MeleeFinish;
 
+/// What a root heading pays for entering a cell that an equal-length rival's
+/// head can also enter this turn. The opponent model assumes such a rival does
+/// not trade heads (growth iteration 4); the platform's population sometimes
+/// does, so with a free alternative of similar value the root avoids the coin
+/// flip, and with a clearly worse alternative it still takes the cell.
+pub const TRADE_RISK: i32 = 4_000;
+
 pub struct MeleeSearcher<'valuation, O = LearnedOrder> {
     valuation: &'valuation MeleeValuation,
     finish: MeleeFinish,
     order: O,
     nodes: u64,
     prune_opponents: bool,
+    trade_risk: i32,
 }
 
 impl<'valuation> MeleeSearcher<'valuation> {
@@ -46,7 +54,16 @@ impl<'valuation, O: HeadingOrder> MeleeSearcher<'valuation, O> {
             order,
             nodes: 0,
             prune_opponents: true,
+            trade_risk: TRADE_RISK,
         }
+    }
+
+    /// A root heading into a cell an equal-length rival can also enter pays
+    /// `risk` (the default is [`TRADE_RISK`]; zero restores the plain model).
+    #[must_use]
+    pub const fn with_trade_risk(mut self, risk: i32) -> Self {
+        self.trade_risk = risk;
+        self
     }
 
     /// Below the root, opponents normally try only the headings that do not
@@ -124,16 +141,26 @@ impl<'valuation, O: HeadingOrder> MeleeSearcher<'valuation, O> {
             let floor = if wins_ties { alpha - 1 } else { alpha };
             let mut chosen = [ours; MAX_SEATS];
             let our_target = ours.step(board.serpent(Seat::US).head());
-            let score = self.minimize(
-                board,
-                &mut chosen,
-                our_target,
-                1,
-                depth,
-                ply,
-                Window { alpha: floor, beta },
-                stop,
-            )?;
+            let risk = if root {
+                self.root_risk(board, our_target)
+            } else {
+                0
+            };
+            let score = self
+                .minimize(
+                    board,
+                    &mut chosen,
+                    our_target,
+                    1,
+                    depth,
+                    ply,
+                    Window {
+                        alpha: floor.saturating_add(risk),
+                        beta: beta.saturating_add(risk),
+                    },
+                    stop,
+                )?
+                .saturating_sub(risk);
             if score > best.1 || (wins_ties && score == best.1) {
                 best = (ours, score);
                 alpha = alpha.max(score);
@@ -285,6 +312,7 @@ impl<'valuation, O: HeadingOrder> MeleeSearcher<'valuation, O> {
         assert!(depth >= 1, "a search needs at least one ply");
         let mut chosen = [ours; MAX_SEATS];
         let our_target = ours.step(board.serpent(Seat::US).head());
+        let risk = self.root_risk(board, our_target);
         self.minimize(
             board,
             &mut chosen,
@@ -296,6 +324,16 @@ impl<'valuation, O: HeadingOrder> MeleeSearcher<'valuation, O> {
             stop,
         )
         .ok()
+        .map(|value| value.saturating_sub(risk))
+    }
+
+    /// What our root heading into `our_target` pays: [`Self::with_trade_risk`]
+    /// when the cell is contested by an equal-length rival, nothing otherwise.
+    fn root_risk(&self, board: &MeleeBoard, our_target: Option<Cell>) -> i32 {
+        match our_target {
+            Some(target) if contested_by_equal(board, target) => self.trade_risk,
+            _ => 0,
+        }
     }
 
     /// Every position visited by this searcher so far, interrupted searches
@@ -339,6 +377,23 @@ impl HeadingSet {
 /// heading in [`Heading::ALL`] wins.
 pub(super) fn precedes(a: Heading, b: Heading, fatal: HeadingSet) -> bool {
     (fatal.contains(&a), a.index()) < (fatal.contains(&b), b.index())
+}
+
+/// Whether a living rival of exactly our length can step into `target` this
+/// turn: the head-to-head the opponent model assumes it declines.
+#[must_use]
+pub fn contested_by_equal(board: &MeleeBoard, target: Cell) -> bool {
+    let our_length = board.serpent(Seat::US).length();
+    board
+        .seats()
+        .filter(|seat| *seat != Seat::US && board.is_alive(*seat))
+        .filter(|seat| board.serpent(*seat).length() == our_length)
+        .any(|seat| {
+            let head = board.serpent(seat).head();
+            Heading::ALL
+                .into_iter()
+                .any(|heading| heading.step(head) == Some(target))
+        })
 }
 
 /// Our headings that kill us with no rival's help: off the board or into a

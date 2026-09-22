@@ -1,0 +1,1191 @@
+{
+  "engine": {
+    "commit": "1346de0",
+    "name": "tiger-engine"
+  },
+  "environment": {
+    "cpu": "AMD Ryzen 7 5700X 8-Core Processor",
+    "kernel": "Linux 7.2.5-3-omarchy x86_64",
+    "rules_cli_release": "v1.2.3",
+    "rustc": "rustc 1.98.1 (48a229cea 2026-09-01) (Arch Linux rust 1:1.98.1-1)"
+  },
+  "games": [
+    {
+      "placements": [
+        {
+          "place": 4.0,
+          "snake": "tiger"
+        },
+        {
+          "place": 3.0,
+          "snake": "shapeshifter"
+        },
+        {
+          "place": 1.0,
+          "snake": "flood-a"
+        },
+        {
+          "place": 2.0,
+          "snake": "flood-b"
+        }
+      ],
+      "seat_one": "tiger",
+      "seed": 1,
+      "turns": 470
+    },
+    {
+      "placements": [
+        {
+          "place": 2.0,
+          "snake": "tiger"
+        },
+        {
+          "place": 1.0,
+          "snake": "shapeshifter"
+        },
+        {
+          "place": 4.0,
+          "snake": "flood-a"
+        },
+        {
+          "place": 3.0,
+          "snake": "flood-b"
+        }
+      ],
+      "seat_one": "tiger",
+      "seed": 2,
+      "turns": 561
+    },
+    {
+      "placements": [
+        {
+          "place": 4.0,
+          "snake": "tiger"
+        },
+        {
+          "place": 2.0,
+          "snake": "shapeshifter"
+        },
+        {
+          "place": 1.0,
+          "snake": "flood-a"
+        },
+        {
+          "place": 3.0,
+          "snake": "flood-b"
+        }
+      ],
+      "seat_one": "tiger",
+      "seed": 3,
+      "turns": 747
+    },
+    {
+      "placements": [
+        {
+          "place": 1.0,
+          "snake": "tiger"
+        },
+        {
+          "place": 2.0,
+          "snake": "shapeshifter"
+        },
+        {
+          "place": 3.0,
+          "snake": "flood-a"
+        },
+        {
+          "place": 4.0,
+          "snake": "flood-b"
+        }
+      ],
+      "seat_one": "tiger",
+      "seed": 4,
+      "turns": 502
+    },
+    {
+      "placements": [
+        {
+          "place": 1.0,
+          "snake": "tiger"
+        },
+        {
+          "place": 4.0,
+          "snake": "shapeshifter"
+        },
+        {
+          "place": 2.0,
+          "snake": "flood-a"
+        },
+        {
+          "place": 3.0,
+          "snake": "flood-b"
+        }
+      ],
+      "seat_one": "tiger",
+      "seed": 5,
+      "turns": 566
+    },
+    {
+      "placements": [
+        {
+          "place": 2.0,
+          "snake": "tiger"
+        },
+        {
+          "place": 3.0,
+          "snake": "shapeshifter"
+        },
+        {
+          "place": 4.0,
+          "snake": "flood-a"
+        },
+        {
+          "place": 1.0,
+          "snake": "flood-b"
+        }
+      ],
+      "seat_one": "tiger",
+      "seed": 6,
+      "turns": 398
+    },
+    {
+      "placements": [
+        {
+          "place": 3.0,
+          "snake": "tiger"
+        },
+        {
+          "place": 2.0,
+          "snake": "shapeshifter"
+        },
+        {
+          "place": 4.0,
+          "snake": "flood-a"
+        },
+        {
+          "place": 1.0,
+          "snake": "flood-b"
+        }
+      ],
+      "seat_one": "tiger",
+      "seed": 7,
+      "turns": 625
+    },
+    {
+      "placements": [
+        {
+          "place": 4.0,
+          "snake": "tiger"
+        },
+        {
+          "place": 3.0,
+          "snake": "shapeshifter"
+        },
+        {
+          "place": 2.0,
+          "snake": "flood-a"
+        },
+        {
+          "place": 1.0,
+          "snake": "flood-b"
+        }
+      ],
+      "seat_one": "tiger",
+      "seed": 8,
+      "turns": 256
+    },
+    {
+      "placements": [
+        {
+          "place": 4.0,
+          "snake": "tiger"
+        },
+        {
+          "place": 1.0,
+          "snake": "shapeshifter"
+        },
+        {
+          "place": 2.0,
+          "snake": "flood-a"
+        },
+        {
+          "place": 3.0,
+          "snake": "flood-b"
+        }
+      ],
+      "seat_one": "tiger",
+      "seed": 9,
+      "turns": 443
+    },
+    {
+      "placements": [
+        {
+          "place": 3.0,
+          "snake": "tiger"
+        },
+        {
+          "place": 1.0,
+          "snake": "shapeshifter"
+        },
+        {
+          "place": 2.0,
+          "snake": "flood-a"
+        },
+        {
+          "place": 4.0,
+          "snake": "flood-b"
+        }
+      ],
+      "seat_one": "tiger",
+      "seed": 10,
+      "turns": 624
+    },
+    {
+      "placements": [
+        {
+          "place": 1.0,
+          "snake": "tiger"
+        },
+        {
+          "place": 3.0,
+          "snake": "shapeshifter"
+        },
+        {
+          "place": 2.0,
+          "snake": "flood-a"
+        },
+        {
+          "place": 4.0,
+          "snake": "flood-b"
+        }
+      ],
+      "seat_one": "tiger",
+      "seed": 11,
+      "turns": 559
+    },
+    {
+      "placements": [
+        {
+          "place": 3.0,
+          "snake": "tiger"
+        },
+        {
+          "place": 1.0,
+          "snake": "shapeshifter"
+        },
+        {
+          "place": 4.0,
+          "snake": "flood-a"
+        },
+        {
+          "place": 2.0,
+          "snake": "flood-b"
+        }
+      ],
+      "seat_one": "tiger",
+      "seed": 12,
+      "turns": 544
+    },
+    {
+      "placements": [
+        {
+          "place": 2.0,
+          "snake": "tiger"
+        },
+        {
+          "place": 4.0,
+          "snake": "shapeshifter"
+        },
+        {
+          "place": 3.0,
+          "snake": "flood-a"
+        },
+        {
+          "place": 1.0,
+          "snake": "flood-b"
+        }
+      ],
+      "seat_one": "tiger",
+      "seed": 13,
+      "turns": 542
+    },
+    {
+      "placements": [
+        {
+          "place": 3.0,
+          "snake": "tiger"
+        },
+        {
+          "place": 4.0,
+          "snake": "shapeshifter"
+        },
+        {
+          "place": 1.0,
+          "snake": "flood-a"
+        },
+        {
+          "place": 2.0,
+          "snake": "flood-b"
+        }
+      ],
+      "seat_one": "tiger",
+      "seed": 14,
+      "turns": 526
+    },
+    {
+      "placements": [
+        {
+          "place": 2.0,
+          "snake": "tiger"
+        },
+        {
+          "place": 1.0,
+          "snake": "shapeshifter"
+        },
+        {
+          "place": 4.0,
+          "snake": "flood-a"
+        },
+        {
+          "place": 3.0,
+          "snake": "flood-b"
+        }
+      ],
+      "seat_one": "tiger",
+      "seed": 15,
+      "turns": 472
+    },
+    {
+      "placements": [
+        {
+          "place": 3.0,
+          "snake": "tiger"
+        },
+        {
+          "place": 1.0,
+          "snake": "shapeshifter"
+        },
+        {
+          "place": 2.0,
+          "snake": "flood-a"
+        },
+        {
+          "place": 4.0,
+          "snake": "flood-b"
+        }
+      ],
+      "seat_one": "tiger",
+      "seed": 16,
+      "turns": 438
+    },
+    {
+      "placements": [
+        {
+          "place": 3.0,
+          "snake": "tiger"
+        },
+        {
+          "place": 2.0,
+          "snake": "shapeshifter"
+        },
+        {
+          "place": 4.0,
+          "snake": "flood-a"
+        },
+        {
+          "place": 1.0,
+          "snake": "flood-b"
+        }
+      ],
+      "seat_one": "tiger",
+      "seed": 17,
+      "turns": 417
+    },
+    {
+      "placements": [
+        {
+          "place": 3.0,
+          "snake": "tiger"
+        },
+        {
+          "place": 1.0,
+          "snake": "shapeshifter"
+        },
+        {
+          "place": 4.0,
+          "snake": "flood-a"
+        },
+        {
+          "place": 2.0,
+          "snake": "flood-b"
+        }
+      ],
+      "seat_one": "tiger",
+      "seed": 18,
+      "turns": 434
+    },
+    {
+      "placements": [
+        {
+          "place": 2.0,
+          "snake": "tiger"
+        },
+        {
+          "place": 1.0,
+          "snake": "shapeshifter"
+        },
+        {
+          "place": 4.0,
+          "snake": "flood-a"
+        },
+        {
+          "place": 3.0,
+          "snake": "flood-b"
+        }
+      ],
+      "seat_one": "tiger",
+      "seed": 19,
+      "turns": 706
+    },
+    {
+      "placements": [
+        {
+          "place": 3.0,
+          "snake": "tiger"
+        },
+        {
+          "place": 1.0,
+          "snake": "shapeshifter"
+        },
+        {
+          "place": 2.0,
+          "snake": "flood-a"
+        },
+        {
+          "place": 4.0,
+          "snake": "flood-b"
+        }
+      ],
+      "seat_one": "tiger",
+      "seed": 20,
+      "turns": 432
+    },
+    {
+      "placements": [
+        {
+          "place": 1.0,
+          "snake": "tiger"
+        },
+        {
+          "place": 4.0,
+          "snake": "shapeshifter"
+        },
+        {
+          "place": 2.0,
+          "snake": "flood-a"
+        },
+        {
+          "place": 3.0,
+          "snake": "flood-b"
+        }
+      ],
+      "seat_one": "tiger",
+      "seed": 21,
+      "turns": 480
+    },
+    {
+      "placements": [
+        {
+          "place": 3.0,
+          "snake": "tiger"
+        },
+        {
+          "place": 1.0,
+          "snake": "shapeshifter"
+        },
+        {
+          "place": 2.0,
+          "snake": "flood-a"
+        },
+        {
+          "place": 4.0,
+          "snake": "flood-b"
+        }
+      ],
+      "seat_one": "tiger",
+      "seed": 22,
+      "turns": 741
+    },
+    {
+      "placements": [
+        {
+          "place": 3.0,
+          "snake": "tiger"
+        },
+        {
+          "place": 1.0,
+          "snake": "shapeshifter"
+        },
+        {
+          "place": 2.0,
+          "snake": "flood-a"
+        },
+        {
+          "place": 4.0,
+          "snake": "flood-b"
+        }
+      ],
+      "seat_one": "tiger",
+      "seed": 23,
+      "turns": 402
+    },
+    {
+      "placements": [
+        {
+          "place": 3.0,
+          "snake": "tiger"
+        },
+        {
+          "place": 2.0,
+          "snake": "shapeshifter"
+        },
+        {
+          "place": 4.0,
+          "snake": "flood-a"
+        },
+        {
+          "place": 1.0,
+          "snake": "flood-b"
+        }
+      ],
+      "seat_one": "tiger",
+      "seed": 24,
+      "turns": 320
+    },
+    {
+      "placements": [
+        {
+          "place": 3.0,
+          "snake": "tiger"
+        },
+        {
+          "place": 1.0,
+          "snake": "shapeshifter"
+        },
+        {
+          "place": 4.0,
+          "snake": "flood-a"
+        },
+        {
+          "place": 2.0,
+          "snake": "flood-b"
+        }
+      ],
+      "seat_one": "tiger",
+      "seed": 25,
+      "turns": 743
+    },
+    {
+      "placements": [
+        {
+          "place": 2.0,
+          "snake": "tiger"
+        },
+        {
+          "place": 3.0,
+          "snake": "shapeshifter"
+        },
+        {
+          "place": 4.0,
+          "snake": "flood-a"
+        },
+        {
+          "place": 1.0,
+          "snake": "flood-b"
+        }
+      ],
+      "seat_one": "tiger",
+      "seed": 26,
+      "turns": 536
+    },
+    {
+      "placements": [
+        {
+          "place": 4.0,
+          "snake": "tiger"
+        },
+        {
+          "place": 1.0,
+          "snake": "shapeshifter"
+        },
+        {
+          "place": 3.0,
+          "snake": "flood-a"
+        },
+        {
+          "place": 2.0,
+          "snake": "flood-b"
+        }
+      ],
+      "seat_one": "tiger",
+      "seed": 27,
+      "turns": 424
+    },
+    {
+      "placements": [
+        {
+          "place": 3.0,
+          "snake": "tiger"
+        },
+        {
+          "place": 2.0,
+          "snake": "shapeshifter"
+        },
+        {
+          "place": 1.0,
+          "snake": "flood-a"
+        },
+        {
+          "place": 4.0,
+          "snake": "flood-b"
+        }
+      ],
+      "seat_one": "tiger",
+      "seed": 28,
+      "turns": 370
+    },
+    {
+      "placements": [
+        {
+          "place": 2.0,
+          "snake": "tiger"
+        },
+        {
+          "place": 1.0,
+          "snake": "shapeshifter"
+        },
+        {
+          "place": 3.0,
+          "snake": "flood-a"
+        },
+        {
+          "place": 4.0,
+          "snake": "flood-b"
+        }
+      ],
+      "seat_one": "tiger",
+      "seed": 29,
+      "turns": 422
+    },
+    {
+      "placements": [
+        {
+          "place": 3.0,
+          "snake": "tiger"
+        },
+        {
+          "place": 4.0,
+          "snake": "shapeshifter"
+        },
+        {
+          "place": 1.0,
+          "snake": "flood-a"
+        },
+        {
+          "place": 2.0,
+          "snake": "flood-b"
+        }
+      ],
+      "seat_one": "tiger",
+      "seed": 30,
+      "turns": 436
+    },
+    {
+      "placements": [
+        {
+          "place": 1.0,
+          "snake": "tiger"
+        },
+        {
+          "place": 3.0,
+          "snake": "shapeshifter"
+        },
+        {
+          "place": 4.0,
+          "snake": "flood-a"
+        },
+        {
+          "place": 2.0,
+          "snake": "flood-b"
+        }
+      ],
+      "seat_one": "tiger",
+      "seed": 31,
+      "turns": 464
+    },
+    {
+      "placements": [
+        {
+          "place": 1.0,
+          "snake": "tiger"
+        },
+        {
+          "place": 4.0,
+          "snake": "shapeshifter"
+        },
+        {
+          "place": 3.0,
+          "snake": "flood-a"
+        },
+        {
+          "place": 2.0,
+          "snake": "flood-b"
+        }
+      ],
+      "seat_one": "tiger",
+      "seed": 32,
+      "turns": 445
+    },
+    {
+      "placements": [
+        {
+          "place": 4.0,
+          "snake": "tiger"
+        },
+        {
+          "place": 2.5,
+          "snake": "shapeshifter"
+        },
+        {
+          "place": 2.5,
+          "snake": "flood-a"
+        },
+        {
+          "place": 1.0,
+          "snake": "flood-b"
+        }
+      ],
+      "seat_one": "tiger",
+      "seed": 33,
+      "turns": 286
+    },
+    {
+      "placements": [
+        {
+          "place": 3.0,
+          "snake": "tiger"
+        },
+        {
+          "place": 2.0,
+          "snake": "shapeshifter"
+        },
+        {
+          "place": 4.0,
+          "snake": "flood-a"
+        },
+        {
+          "place": 1.0,
+          "snake": "flood-b"
+        }
+      ],
+      "seat_one": "tiger",
+      "seed": 34,
+      "turns": 536
+    },
+    {
+      "placements": [
+        {
+          "place": 2.0,
+          "snake": "tiger"
+        },
+        {
+          "place": 1.0,
+          "snake": "shapeshifter"
+        },
+        {
+          "place": 4.0,
+          "snake": "flood-a"
+        },
+        {
+          "place": 3.0,
+          "snake": "flood-b"
+        }
+      ],
+      "seat_one": "tiger",
+      "seed": 35,
+      "turns": 410
+    },
+    {
+      "placements": [
+        {
+          "place": 2.0,
+          "snake": "tiger"
+        },
+        {
+          "place": 4.0,
+          "snake": "shapeshifter"
+        },
+        {
+          "place": 1.0,
+          "snake": "flood-a"
+        },
+        {
+          "place": 3.0,
+          "snake": "flood-b"
+        }
+      ],
+      "seat_one": "tiger",
+      "seed": 36,
+      "turns": 411
+    },
+    {
+      "placements": [
+        {
+          "place": 3.0,
+          "snake": "tiger"
+        },
+        {
+          "place": 1.0,
+          "snake": "shapeshifter"
+        },
+        {
+          "place": 2.0,
+          "snake": "flood-a"
+        },
+        {
+          "place": 4.0,
+          "snake": "flood-b"
+        }
+      ],
+      "seat_one": "tiger",
+      "seed": 37,
+      "turns": 526
+    },
+    {
+      "placements": [
+        {
+          "place": 1.0,
+          "snake": "tiger"
+        },
+        {
+          "place": 3.0,
+          "snake": "shapeshifter"
+        },
+        {
+          "place": 4.0,
+          "snake": "flood-a"
+        },
+        {
+          "place": 2.0,
+          "snake": "flood-b"
+        }
+      ],
+      "seat_one": "tiger",
+      "seed": 38,
+      "turns": 380
+    },
+    {
+      "placements": [
+        {
+          "place": 2.0,
+          "snake": "tiger"
+        },
+        {
+          "place": 1.0,
+          "snake": "shapeshifter"
+        },
+        {
+          "place": 4.0,
+          "snake": "flood-a"
+        },
+        {
+          "place": 3.0,
+          "snake": "flood-b"
+        }
+      ],
+      "seat_one": "tiger",
+      "seed": 39,
+      "turns": 323
+    },
+    {
+      "placements": [
+        {
+          "place": 4.0,
+          "snake": "tiger"
+        },
+        {
+          "place": 3.0,
+          "snake": "shapeshifter"
+        },
+        {
+          "place": 2.0,
+          "snake": "flood-a"
+        },
+        {
+          "place": 1.0,
+          "snake": "flood-b"
+        }
+      ],
+      "seat_one": "tiger",
+      "seed": 40,
+      "turns": 522
+    },
+    {
+      "placements": [
+        {
+          "place": 4.0,
+          "snake": "tiger"
+        },
+        {
+          "place": 2.0,
+          "snake": "shapeshifter"
+        },
+        {
+          "place": 1.0,
+          "snake": "flood-a"
+        },
+        {
+          "place": 3.0,
+          "snake": "flood-b"
+        }
+      ],
+      "seat_one": "tiger",
+      "seed": 41,
+      "turns": 519
+    },
+    {
+      "placements": [
+        {
+          "place": 2.0,
+          "snake": "tiger"
+        },
+        {
+          "place": 1.0,
+          "snake": "shapeshifter"
+        },
+        {
+          "place": 4.0,
+          "snake": "flood-a"
+        },
+        {
+          "place": 3.0,
+          "snake": "flood-b"
+        }
+      ],
+      "seat_one": "tiger",
+      "seed": 42,
+      "turns": 541
+    },
+    {
+      "placements": [
+        {
+          "place": 4.0,
+          "snake": "tiger"
+        },
+        {
+          "place": 2.0,
+          "snake": "shapeshifter"
+        },
+        {
+          "place": 3.0,
+          "snake": "flood-a"
+        },
+        {
+          "place": 1.0,
+          "snake": "flood-b"
+        }
+      ],
+      "seat_one": "tiger",
+      "seed": 43,
+      "turns": 669
+    },
+    {
+      "placements": [
+        {
+          "place": 3.0,
+          "snake": "tiger"
+        },
+        {
+          "place": 2.0,
+          "snake": "shapeshifter"
+        },
+        {
+          "place": 4.0,
+          "snake": "flood-a"
+        },
+        {
+          "place": 1.0,
+          "snake": "flood-b"
+        }
+      ],
+      "seat_one": "tiger",
+      "seed": 44,
+      "turns": 632
+    },
+    {
+      "placements": [
+        {
+          "place": 1.0,
+          "snake": "tiger"
+        },
+        {
+          "place": 3.0,
+          "snake": "shapeshifter"
+        },
+        {
+          "place": 2.0,
+          "snake": "flood-a"
+        },
+        {
+          "place": 4.0,
+          "snake": "flood-b"
+        }
+      ],
+      "seat_one": "tiger",
+      "seed": 45,
+      "turns": 440
+    },
+    {
+      "placements": [
+        {
+          "place": 3.0,
+          "snake": "tiger"
+        },
+        {
+          "place": 2.0,
+          "snake": "shapeshifter"
+        },
+        {
+          "place": 4.0,
+          "snake": "flood-a"
+        },
+        {
+          "place": 1.0,
+          "snake": "flood-b"
+        }
+      ],
+      "seat_one": "tiger",
+      "seed": 46,
+      "turns": 770
+    },
+    {
+      "placements": [
+        {
+          "place": 4.0,
+          "snake": "tiger"
+        },
+        {
+          "place": 1.0,
+          "snake": "shapeshifter"
+        },
+        {
+          "place": 2.0,
+          "snake": "flood-a"
+        },
+        {
+          "place": 3.0,
+          "snake": "flood-b"
+        }
+      ],
+      "seat_one": "tiger",
+      "seed": 47,
+      "turns": 727
+    },
+    {
+      "placements": [
+        {
+          "place": 2.0,
+          "snake": "tiger"
+        },
+        {
+          "place": 3.0,
+          "snake": "shapeshifter"
+        },
+        {
+          "place": 4.0,
+          "snake": "flood-a"
+        },
+        {
+          "place": 1.0,
+          "snake": "flood-b"
+        }
+      ],
+      "seat_one": "tiger",
+      "seed": 48,
+      "turns": 624
+    },
+    {
+      "placements": [
+        {
+          "place": 4.0,
+          "snake": "tiger"
+        },
+        {
+          "place": 3.0,
+          "snake": "shapeshifter"
+        },
+        {
+          "place": 1.0,
+          "snake": "flood-a"
+        },
+        {
+          "place": 2.0,
+          "snake": "flood-b"
+        }
+      ],
+      "seat_one": "tiger",
+      "seed": 49,
+      "turns": 744
+    },
+    {
+      "placements": [
+        {
+          "place": 3.0,
+          "snake": "tiger"
+        },
+        {
+          "place": 1.0,
+          "snake": "shapeshifter"
+        },
+        {
+          "place": 2.0,
+          "snake": "flood-a"
+        },
+        {
+          "place": 4.0,
+          "snake": "flood-b"
+        }
+      ],
+      "seat_one": "tiger",
+      "seed": 50,
+      "turns": 360
+    }
+  ],
+  "schema_version": "1.1.0",
+  "summary": {
+    "baseline": null,
+    "baseline_mean": null,
+    "challenger": "tiger",
+    "challenger_mean": 2.66,
+    "criterion_met": false,
+    "opponents": [
+      {
+        "id": "shapeshifter",
+        "mean_with_baseline": null,
+        "mean_with_challenger": 2.11
+      },
+      {
+        "id": "flood-a",
+        "mean_with_baseline": null,
+        "mean_with_challenger": 2.77
+      },
+      {
+        "id": "flood-b",
+        "mean_with_baseline": null,
+        "mean_with_challenger": 2.46
+      }
+    ],
+    "reference_mean_in_challenger_games": 2.11,
+    "reference_opponent": "shapeshifter"
+  }
+}
