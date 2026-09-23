@@ -22,7 +22,7 @@ use crate::valuation::melee::finish::MeleeFinish;
 /// not trade heads (growth iteration 4); the platform's population sometimes
 /// does, so with a free alternative of similar value the root avoids the coin
 /// flip, and with a clearly worse alternative it still takes the cell.
-pub const TRADE_RISK: i32 = 4_000;
+pub const TRADE_RISK: i32 = 8_000;
 
 pub struct MeleeSearcher<'valuation, O = LearnedOrder> {
     valuation: &'valuation MeleeValuation,

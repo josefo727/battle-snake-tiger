@@ -171,3 +171,24 @@ The operator's aim is to be better than or equal to Shapeshifter (the strong bui
 - Paired measure, same conditions (`iter-16-trade-risk-4000-melee.json`, `iter-16-trade-risk-base-melee.json`, seeds 1 to 50, both series at once): **risk 4,000: 2.660 (±0.28), 8 won (1:8 2:12 3:19 4:11), Shapeshifter 2.100, ahead 15 / behind 35; base: 2.720 (±0.28), 8 won (1:8 2:11 3:18 4:13), Shapeshifter 2.100, ahead 17 / behind 33.** Better in 20 seeds, worse in 15, same in 15: neutral. Neither series met the harness verdict that night; the same base binary and seeds had given 2.190 two hours earlier, so the yardstick's spread between runs (half a place) again exceeds the effects measured; only the paired comparison is read.
 - Cost: an adjacency check at the root; no measurable time.
 - Reading: free against Shapeshifter, and the only measure that can show the gain is the platform. Success criterion set with the user: in the next 100 ladder games, fewer than 6 deaths by an equal-length head collision (13 per 100 games before). If it holds, 8,000 (18 of 20 avoided) is the next candidate, with its own paired run first.
+
+## Iteration 16b: the trade risk raised from 4,000 to 8,000 (kept)
+
+- Why: platform game `bff591a0` (custom, 2026-09-23), turn 9. Every snake was length 4. The cell
+  above our head held **food** and two equal-length rivals stood one step from it; south was free and
+  led to the same 109 reachable cells. The root charged the contested heading 4,000 and still took
+  it (reported score -3,750, so the raw value of the food was +250); Frank The Tank took the same
+  cell and both died on turn 10. Replayed into both binaries: with 4,000 the move is north and we
+  die, **with 8,000 it is south and we live**.
+- This is the calibration the replay of the 20 fatal positions already showed before iteration 16
+  was deployed: 1,000 avoids 4, 2,000 avoids 6, 4,000 avoids 12, **8,000 avoids 18**. 4,000 was
+  adopted as the conservative first step; one night of platform play was enough to bill it.
+- Honest limit of the evidence: 4,000 was measured neutral against Shapeshifter over 50 paired seeds
+  (2.66 against 2.72). **8,000 has not been measured that way.** The far end of this lever, excluding
+  the trade outright, cost half a place (2.63 against 2.19), so the paired 50-seed run at 8,000 is
+  still owed before this can be called free. Adopted now on the platform evidence, with that debt
+  stated.
+- Of the 22 fatal positions analysed, 20 had a single equal-length rival contesting the cell and 2
+  had two. A later refinement worth measuring is scaling the risk with the number of equal-length
+  rivals that can enter, which would keep the single-rival case at the value already measured
+  neutral and only harden the crowded one.
