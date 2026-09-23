@@ -183,11 +183,31 @@ The operator's aim is to be better than or equal to Shapeshifter (the strong bui
 - This is the calibration the replay of the 20 fatal positions already showed before iteration 16
   was deployed: 1,000 avoids 4, 2,000 avoids 6, 4,000 avoids 12, **8,000 avoids 18**. 4,000 was
   adopted as the conservative first step; one night of platform play was enough to bill it.
-- Honest limit of the evidence: 4,000 was measured neutral against Shapeshifter over 50 paired seeds
-  (2.66 against 2.72). **8,000 has not been measured that way.** The far end of this lever, excluding
-  the trade outright, cost half a place (2.63 against 2.19), so the paired 50-seed run at 8,000 is
-  still owed before this can be called free. Adopted now on the platform evidence, with that debt
-  stated.
+- Honest limit of the evidence at deploy time: 4,000 was measured neutral against Shapeshifter over
+  50 paired seeds (2.66 against 2.72), while 8,000 had not been measured that way, and the far end of
+  this lever (excluding the trade outright) cost half a place (2.63 against 2.19). Adopted then on the
+  platform evidence alone, with that debt stated. **The debt is now paid (2026-09-23 17:22 UTC).**
+- Paired measure, same conditions as every run of this iteration, both series at once with the
+  reference pins (`iter-16b-trade-risk-8000-melee.json`, `iter-16b-base-c4c6058-melee.json`, seeds 1
+  to 50): **risk 8,000: 2.680 (+-0.17), 11 won (1:11 2:11 3:11 4:17), Shapeshifter 2.310, ahead 19 /
+  behind 31; base `c4c6058`: 2.620 (+-0.15), 11 won (1:11 2:9 3:18 4:12), Shapeshifter 2.320, ahead
+  21 / behind 29.** Better in 18 seeds, worse in 20, same in 12; mean difference +0.060 +-0.218, sign
+  test p = 0.87. Neutral, like 4,000 before it: the yardstick cannot separate either value from the
+  base, and neither met the harness verdict (nor did the base). Decision: **8,000 stays.** It avoids
+  18 of the 20 fatal replayed positions against 12 for 4,000, at no cost this measure can detect, and
+  the two binaries choose the same move in 125 of 126 real platform positions, so reverting would
+  trade measured coverage for a difference five times smaller than the yardstick's own spread between
+  runs (the same base gave 2.19 and 2.72 on 2026-09-22).
+- One asymmetry worth remembering rather than acting on: 17 fourth places against 12 with the same
+  mean and the same 11 wins. Inside the noise of 50 seeds (the base itself moved from 12 to 18 third
+  places between runs), but if it reappears it would suggest the high risk sometimes pushes the root
+  to a worse cell instead of only declining the trade. Separating +-0.06 would need several hundred
+  games, which is not worth spending on a lever that changes under 1% of real moves.
+- The platform criterion agreed for iteration 16 (fewer than 6 equal-length trades per 100 ladder
+  games) **could not be evaluated**: on 2026-09-23 the ladder degraded to opponents whose servers are
+  down (median game length fell from 189 turns on the 21st to 10 on the 23rd, and 38% of rivals die
+  against a wall on turn <= 2). Filtered to competitive ladder games, the period with risk 8,000 has
+  zero games. See the tracking note in the parent repository.
 - Of the 22 fatal positions analysed, 20 had a single equal-length rival contesting the cell and 2
   had two. A later refinement worth measuring is scaling the risk with the number of equal-length
   rivals that can enter, which would keep the single-rival case at the value already measured
