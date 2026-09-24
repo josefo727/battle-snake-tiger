@@ -32,7 +32,6 @@ use tiger_engine::lookahead::paranoid::MeleeSearcher;
 use tiger_engine::rules_core::{SnakeState, TurnRequestDto, to_turn_state};
 use tiger_engine::valuation::Assessor;
 use tiger_engine::valuation::melee::appetite::Appetite;
-use tiger_engine::valuation::melee::craving::turns_to_food;
 use tiger_engine::valuation::melee::enclosure::MeleeEnclosure;
 use tiger_engine::valuation::melee::finish::MeleeFinish;
 use tiger_engine::valuation::melee::hunger::Hunger;
@@ -832,91 +831,118 @@ fn first_self_preserving(board: &MeleeBoard, seat: Seat) -> Heading {
         .unwrap_or(Heading::ALL[0])
 }
 
-/// Sweeps the weight of the craving term along the two axes it trades between.
+/// Sweeps the weights that are supposed to make us grow, along the two axes
+/// they trade between.
 ///
-/// Raising it is supposed to make us go for contested food; the question is
-/// what that costs in the positions that kill us. For each weight the sweep
-/// reports what the rollout reference says about the step chosen (the survival
-/// axis) and how far the chosen step leaves us from the nearest reachable
-/// pellet (the food axis), over the same positions every time.
+/// The food axis is not how near the chosen step leaves us to a pellet -- that
+/// was the axis the first attempt optimised, and it rewarded sitting beside
+/// food rather than taking it. It is now the plain question: of the positions
+/// where a step onto a pellet was there to be taken, how many did we take?
 #[test]
 #[ignore = "driven by scripts/run-trapsuite; needs a harvest and a sample"]
-fn sweep_the_craving_weight() {
+fn sweep_the_growth_weights() {
     let traps = read_harvest(&suite_path("TRAP_SUITE_HARVEST", "positions.json"));
     let sample = read_harvest(&suite_path("TRAP_SUITE_SAMPLE", "sample.json"));
-    let weights: Vec<i32> = std::env::var("TRAP_SUITE_CRAVING_SWEEP")
-        .unwrap_or_else(|_| "0,40,150,300,600,900".to_owned())
+    let grid: Vec<(i32, i32)> = std::env::var("TRAP_SUITE_GROWTH_SWEEP")
+        .unwrap_or_else(|_| "0:1000,0:2000,0:3000,0:4000,0:6000".to_owned())
         .split(',')
-        .filter_map(|text| text.trim().parse().ok())
+        .filter_map(|pair| {
+            let (craving, standing) = pair.trim().split_once(':')?;
+            Some((craving.parse().ok()?, standing.parse().ok()?))
+        })
         .collect();
 
+    // The reference is the same for every cell of the sweep, so it is computed
+    // once; recomputing it per weight was most of the cost of the last one.
+    let mut references: Vec<(MeleeBoard, [f64; 4], f64)> = Vec::new();
+    for position in &traps {
+        let Some(board) = board_of(&position.request) else {
+            continue;
+        };
+        let reference = Heading::ALL.map(|h| rollout_survival(&board, h, ROLLOUT_SEED));
+        let top = reference.iter().copied().fold(f64::MIN, f64::max);
+        let low = reference.iter().copied().fold(f64::MAX, f64::min);
+        if top - low >= 3.0 {
+            references.push((board, reference, top));
+        }
+    }
+
+    // Likewise the sampled positions in which a meal was on offer at all.
+    let mut meals: Vec<(MeleeBoard, [bool; 4])> = Vec::new();
+    for position in &sample {
+        let Some(board) = board_of(&position.request) else {
+            continue;
+        };
+        let offered = meals_on_offer(&board);
+        if offered.iter().any(|meal| *meal) {
+            meals.push((board, offered));
+        }
+    }
+
     println!(
-        "craving weight sweep over {} trap positions and {} sampled ones",
-        traps.len(),
-        sample.len()
+        "growth sweep over {} trap positions and {} sampled ones with a meal on offer",
+        references.len(),
+        meals.len()
     );
     println!(
-        "{:<10}{:>14}{:>16}{:>18}{:>12}",
-        "weight", "life kept", "best step", "turns to food", "changed"
+        "{:<10}{:<12}{:>14}{:>16}{:>16}",
+        "craving", "standing", "life kept", "best step", "meals taken"
     );
-    let baseline = MeleeValuation::standard();
-    for weight in weights {
+    for (craving, standing) in grid {
+        let _ = craving;
         let profile = MeleeWeights {
-            craving_step: weight,
+            standing_segment: standing,
             ..DEFAULT_MELEE_PROFILE
         };
         let valuation = MeleeValuation::with_profiles(&profile, &DEFAULT_PROFILE);
 
-        let (mut kept, mut available) = (0.0f64, 0.0f64);
-        let (mut best, mut counted) = (0usize, 0usize);
-        for position in &traps {
-            let Some(board) = board_of(&position.request) else {
-                continue;
-            };
-            let reference = Heading::ALL.map(|h| rollout_survival(&board, h, ROLLOUT_SEED));
-            let top = reference.iter().copied().fold(f64::MIN, f64::max);
-            let low = reference.iter().copied().fold(f64::MAX, f64::min);
-            if top - low < 3.0 {
-                continue;
-            }
-            counted += 1;
+        let (mut kept, mut available, mut best) = (0.0f64, 0.0f64, 0usize);
+        for (board, reference, top) in &references {
             available += top;
-            if let Some(chosen) = choice_with(&board, &valuation) {
+            if let Some(chosen) = choice_with(board, &valuation) {
                 kept += reference[chosen.index()];
                 best += usize::from(reference[chosen.index()] >= top - 1.0);
             }
         }
 
-        let (mut distance, mut reachable, mut changed, mut steps) = (0u32, 0usize, 0usize, 0usize);
-        for position in &sample {
-            let Some(board) = board_of(&position.request) else {
-                continue;
-            };
-            let Some(chosen) = choice_with(&board, &valuation) else {
-                continue;
-            };
-            steps += 1;
-            changed += usize::from(choice_with(&board, &baseline) != Some(chosen));
-            let mut moves = [Heading::North; MAX_SEATS];
-            for seat in board.seats().filter(|seat| *seat != Seat::US) {
-                moves[seat.index()] = first_self_preserving(&board, seat);
-            }
-            moves[Seat::US.index()] = chosen;
-            if let MeleeOutcome::Continues(child) = board.advance(&moves)
-                && let Some(turns) = turns_to_food(&child, Seat::US)
+        let mut taken = 0usize;
+        for (board, offered) in &meals {
+            if let Some(chosen) = choice_with(board, &valuation)
+                && offered[chosen.index()]
             {
-                distance += u32::from(turns);
-                reachable += 1;
+                taken += 1;
             }
         }
 
         println!(
-            "{weight:<10}{:>13.1}%{:>11} of {:<4}{:>18.2}{:>11.0}%",
+            "{craving:<10}{standing:<12}{:>13.1}%{:>11} of {:<4}{:>11} of {:<4}",
             100.0 * kept / available,
             best,
-            counted,
-            f64::from(distance) / reachable as f64,
-            100.0 * changed as f64 / steps as f64
+            references.len(),
+            taken,
+            meals.len()
         );
     }
+}
+
+/// Which of our four headings would put our head on a pellet next turn, and is
+/// not simply suicide: a meal we could not survive is not a meal refused.
+fn meals_on_offer(board: &MeleeBoard) -> [bool; 4] {
+    let head = board.serpent(Seat::US).head();
+    let pellets = board.pellets();
+    let mut rivals = [Heading::North; MAX_SEATS];
+    for seat in board.seats().filter(|seat| *seat != Seat::US) {
+        rivals[seat.index()] = first_self_preserving(board, seat);
+    }
+    Heading::ALL.map(|heading| {
+        let Some(target) = heading.step(head) else {
+            return false;
+        };
+        if !pellets.contains(target) {
+            return false;
+        }
+        let mut moves = rivals;
+        moves[Seat::US.index()] = heading;
+        matches!(board.advance(&moves), MeleeOutcome::Continues(_))
+    })
 }

@@ -12,7 +12,9 @@ pub struct MeleeWeights {
     pub placement_step: i32,
     /// Value of one cell of territory over the largest rival's.
     pub territory_cell: i32,
-    /// Value of each segment over the longest rival.
+    /// Value of each segment over the longest rival, which is what a meal is
+    /// worth. It has to outweigh the ground a step toward the meal gives up,
+    /// and territory swings about 1,758 between our four steps (iteration 19).
     pub standing_segment: i32,
     /// Strength of the pull toward food as our health margin shrinks.
     pub hunger_urgency: i32,
@@ -31,9 +33,6 @@ pub struct MeleeWeights {
     /// Value of each turn of estimated survival, over the best a rival has,
     /// once we are shut away from every one of them (growth iteration 18).
     pub enclosure_turn: i32,
-    /// Value of each turn of nearness to the nearest pellet we can reach at
-    /// all, owned or contested (growth iteration 19).
-    pub craving_step: i32,
 }
 
 /// The initial, reasoned (not yet fitted) profile; the placement benchmark
@@ -44,7 +43,7 @@ pub const DEFAULT_MELEE_PROFILE: MeleeWeights = MeleeWeights {
     ply_penalty: 100,
     placement_step: 20_000,
     territory_cell: 100,
-    standing_segment: 1_000,
+    standing_segment: 3_000,
     hunger_urgency: 200,
     appetite_step: 40,
     larder_pellet: 400,
@@ -52,5 +51,4 @@ pub const DEFAULT_MELEE_PROFILE: MeleeWeights = MeleeWeights {
     attrition_seat: 5_000,
     finisher_step: 150,
     enclosure_turn: 120,
-    craving_step: 600,
 };
