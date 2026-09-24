@@ -22,7 +22,7 @@ use self::standing::{HeadDanger, Standing};
 use self::territory::{MeleeSurvey, Territory};
 use self::weights::{DEFAULT_MELEE_PROFILE, MeleeWeights};
 use super::weights::{DEFAULT_PROFILE, WeightSheet};
-use super::{StandardPipeline, ValuationPipeline, Weighted};
+use super::{StandardPipeline, Valuation, ValuationPipeline, Weighted};
 use crate::arena::melee::MeleeBoard;
 
 /// A melee position with its territory survey computed once, so every term
@@ -113,6 +113,17 @@ impl MeleeValuation {
         } else {
             self.melee.score(&Surveyed::new(board))
         }
+    }
+
+    /// The same score with the per-term ledger, for diagnosis; `None` while
+    /// only one opponent is left, where the duel pipeline answers instead.
+    ///
+    /// The ledger is what tells a reader which term actually decided a move
+    /// rather than which term has the largest weight, and the melee had no way
+    /// to ask it (growth iteration 18).
+    #[must_use]
+    pub fn assess(&self, board: &MeleeBoard) -> Option<Valuation> {
+        (board.alive_count() != 2).then(|| self.melee.assess(&Surveyed::new(board)))
     }
 
     /// The largest magnitude any score from this valuation could have.

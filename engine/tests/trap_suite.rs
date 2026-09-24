@@ -31,8 +31,12 @@ use tiger_engine::lookahead::allowance::NeverStop;
 use tiger_engine::lookahead::paranoid::MeleeSearcher;
 use tiger_engine::rules_core::{SnakeState, TurnRequestDto, to_turn_state};
 use tiger_engine::valuation::Assessor;
+use tiger_engine::valuation::melee::appetite::Appetite;
 use tiger_engine::valuation::melee::enclosure::MeleeEnclosure;
 use tiger_engine::valuation::melee::finish::MeleeFinish;
+use tiger_engine::valuation::melee::hunger::Hunger;
+use tiger_engine::valuation::melee::larder::Larder;
+use tiger_engine::valuation::melee::territory::Territory;
 use tiger_engine::valuation::melee::weights::{DEFAULT_MELEE_PROFILE, MeleeWeights};
 use tiger_engine::valuation::melee::{MeleeValuation, Surveyed};
 use tiger_engine::valuation::weights::{DEFAULT_PROFILE, WeightSheet};
@@ -630,4 +634,194 @@ fn score_the_trap_suite() {
             100.0 * took_the_best as f64 / informative as f64
         );
     }
+}
+
+/// Says what the food terms can see on ordinary play.
+///
+/// Appetite, Larder and Hunger all read `survey.food[US]` or
+/// `survey.owned[US]`: the pellets we reach strictly before every rival. In a
+/// melee that means beating three of them, and a pellet two equal-length
+/// serpents reach on the same turn belongs to nobody. This counts how often
+/// that leaves the three terms with nothing to say.
+#[test]
+#[ignore = "driven by scripts/run-trapsuite; needs a cross-section sample"]
+fn measure_what_the_food_terms_can_see() {
+    let harvest = suite_path("TRAP_SUITE_SAMPLE", "sample.json");
+    let positions = read_harvest(&harvest);
+
+    let (mut read, mut we_own_none, mut no_pellets_at_all) = (0usize, 0usize, 0usize);
+    let (mut all_three_silent, mut hunger_spoke) = (0usize, 0usize);
+    let (mut ours_total, mut best_rival_total, mut nobody_total, mut on_board_total) =
+        (0u32, 0u32, 0u32, 0u32);
+    let mut rival_owns_none = 0usize;
+    let (mut rival_seats, mut rival_owns_none_any, mut rivals_total) = (0usize, 0usize, 0u32);
+    for position in &positions {
+        let Some(board) = board_of(&position.request) else {
+            continue;
+        };
+        let pellets = board.pellets();
+        if pellets.is_empty() {
+            no_pellets_at_all += 1;
+            continue;
+        }
+        read += 1;
+        let survey = Territory.survey(&board);
+        let owned_by = |seat: Seat| survey.owned[seat.index()].intersection(pellets).len();
+        let ours = owned_by(Seat::US);
+        let rivals: Vec<u32> = board
+            .seats()
+            .filter(|seat| *seat != Seat::US)
+            .map(owned_by)
+            .collect();
+        let best_rival = rivals.iter().copied().max().unwrap_or(0);
+        rival_seats += rivals.len();
+        rival_owns_none_any += rivals.iter().filter(|owned| **owned == 0).count();
+        rivals_total += rivals.iter().sum::<u32>();
+        let claimed: u32 = ours + rivals.iter().sum::<u32>();
+        on_board_total += pellets.len();
+        ours_total += ours;
+        best_rival_total += best_rival;
+        nobody_total += pellets.len() - claimed;
+        let surveyed = Surveyed::new(&board);
+        let appetite = Appetite.assess(&surveyed);
+        let larder = Larder.assess(&surveyed);
+        let hunger = Hunger.assess(&surveyed);
+        all_three_silent += usize::from(appetite == 0 && larder == 0 && hunger == 0);
+        hunger_spoke += usize::from(hunger != 0);
+        we_own_none += usize::from(ours == 0);
+        rival_owns_none += usize::from(best_rival == 0);
+    }
+
+    println!("food the survey grants, over {read} sampled positions");
+    println!("  (skipped {no_pellets_at_all} with no pellet on the board)");
+    println!(
+        "  positions where we own no pellet at all: {we_own_none} ({:.0}%)",
+        100.0 * we_own_none as f64 / read as f64
+    );
+    println!(
+        "  positions where the best rival owns none: {rival_owns_none} ({:.0}%)",
+        100.0 * rival_owns_none as f64 / read as f64
+    );
+    println!("  pellets on the board: {on_board_total}");
+    println!(
+        "  of them ours {ours_total}, the best rival's {best_rival_total}, nobody's {nobody_total} ({:.0}% unclaimed)",
+        100.0 * f64::from(nobody_total) / f64::from(on_board_total)
+    );
+    println!(
+        "  per rival seat, owns no pellet in {rival_owns_none_any} of {rival_seats} ({:.0}%); pellets per rival seat {:.2} against our {:.2}",
+        100.0 * rival_owns_none_any as f64 / rival_seats as f64,
+        f64::from(rivals_total) / rival_seats as f64,
+        f64::from(ours_total) / read as f64
+    );
+    println!(
+        "  positions where appetite, larder and hunger are all exactly zero: {all_three_silent} ({:.0}%)",
+        100.0 * all_three_silent as f64 / read as f64
+    );
+    println!(
+        "  positions where hunger says anything at all: {hunger_spoke} ({:.0}%)",
+        100.0 * hunger_spoke as f64 / read as f64
+    );
+}
+
+/// Says which term decides the step, rather than which term has the largest
+/// weight.
+///
+/// For every sampled position the four one-ply children are scored with the
+/// full ledger (the rivals holding a fixed self-preserving heading, the same one
+/// in every child, so the only thing that differs between children is our own
+/// step). The spread of a term across those children is what that term is worth
+/// to the decision; a term with a huge weight and no spread decides nothing.
+#[test]
+#[ignore = "driven by scripts/run-trapsuite; needs a cross-section sample"]
+fn measure_which_term_decides_the_step() {
+    let harvest = suite_path("TRAP_SUITE_SAMPLE", "sample.json");
+    let positions = read_harvest(&harvest);
+    let valuation = MeleeValuation::standard();
+
+    let mut spread: Vec<(String, Vec<i32>)> = Vec::new();
+    let mut counted = 0usize;
+    for position in &positions {
+        let Some(board) = board_of(&position.request) else {
+            continue;
+        };
+        let mut rivals = [Heading::North; MAX_SEATS];
+        for seat in board.seats().filter(|seat| *seat != Seat::US) {
+            rivals[seat.index()] = first_self_preserving(&board, seat);
+        }
+
+        let mut per_term: Vec<Vec<i32>> = Vec::new();
+        let mut names: Vec<String> = Vec::new();
+        for ours in Heading::ALL {
+            let mut moves = rivals;
+            moves[Seat::US.index()] = ours;
+            let MeleeOutcome::Continues(child) = board.advance(&moves) else {
+                continue;
+            };
+            let Some(assessed) = valuation.assess(&child) else {
+                continue;
+            };
+            for (index, entry) in assessed.ledger.entries().iter().enumerate() {
+                if per_term.len() <= index {
+                    per_term.push(Vec::new());
+                    names.push(entry.name.to_owned());
+                }
+                per_term[index].push(entry.contribution());
+            }
+        }
+        if per_term.first().is_none_or(|values| values.len() < 2) {
+            continue;
+        }
+        counted += 1;
+        if spread.is_empty() {
+            spread = names
+                .iter()
+                .map(|name| (name.clone(), Vec::new()))
+                .collect();
+        }
+        for (index, values) in per_term.iter().enumerate() {
+            let high = values.iter().copied().max().unwrap_or(0);
+            let low = values.iter().copied().min().unwrap_or(0);
+            spread[index].1.push(high - low);
+        }
+    }
+
+    println!("what each term is worth to the step, over {counted} sampled positions");
+    println!("  (the spread of its contribution across our four one-ply children)");
+    let mut rows: Vec<(String, f64, i32, usize)> = spread
+        .iter()
+        .map(|(name, values)| {
+            let mean = values.iter().map(|v| f64::from(*v)).sum::<f64>() / values.len() as f64;
+            let top = values.iter().copied().max().unwrap_or(0);
+            let silent = values.iter().filter(|v| **v == 0).count();
+            (name.clone(), mean, top, silent)
+        })
+        .collect();
+    rows.sort_by(|a, b| b.1.total_cmp(&a.1));
+    println!(
+        "{:<18}{:>12}{:>12}{:>14}",
+        "term", "mean", "largest", "silent"
+    );
+    for (name, mean, top, silent) in rows {
+        println!(
+            "{name:<18}{mean:>12.0}{top:>12}{:>13.0}%",
+            100.0 * silent as f64 / counted as f64
+        );
+    }
+}
+
+/// The first heading in the fixed order that does not kill `seat` outright.
+fn first_self_preserving(board: &MeleeBoard, seat: Seat) -> Heading {
+    let head = board.serpent(seat).head();
+    let enterable = board
+        .seats()
+        .fold(board.occupied().complement(), |cells, other| {
+            board
+                .serpent(other)
+                .cell_released_on_turn(1)
+                .map_or(cells, |cell| cells.with(cell))
+        });
+    Heading::ALL
+        .into_iter()
+        .find(|h| h.step(head).is_some_and(|cell| enterable.contains(cell)))
+        .unwrap_or(Heading::ALL[0])
 }

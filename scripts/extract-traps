@@ -173,6 +173,30 @@ def harvest(path, name, before, causes):
     return positions
 
 
+def cross_section(path, name, turns):
+    """Every frame of one transcript at `turns` in which we were alive, whatever
+    the game went on to do. Used to ask how a term reads ordinary play, not how
+    a decision went."""
+    wanted = set(turns)
+    seed, positions = seed_of(path), []
+    for frame in frames(path):
+        if frame["turn"] not in wanted or us_in(frame, name) is None:
+            continue
+        if not 2 <= len(frame["board"]["snakes"]) <= 4:
+            continue
+        positions.append(
+            {
+                "seed": seed,
+                "turn": frame["turn"],
+                "turns_before_death": 0,
+                "cause": "sample",
+                "played": "up",
+                "request": request_of(frame, name),
+            }
+        )
+    return positions
+
+
 def seed_of(path):
     stem = os.path.basename(path).rsplit(".", 1)[0]
     tail = stem.rsplit("-", 1)[-1]
@@ -198,15 +222,29 @@ def main(argv):
     parser.add_argument("--before", default="3-12")
     parser.add_argument("--causes", default=",".join(DEFAULT_CAUSES))
     parser.add_argument("--out", default="target/trap-suite/positions.json")
+    parser.add_argument(
+        "--sample",
+        default=None,
+        help="ignore how the games ended and take every frame at these turns "
+        "(e.g. 40,60,80): a plain cross-section of play, for measuring a term "
+        "rather than judging a decision",
+    )
     options = parser.parse_args(argv)
 
     before = parse_before(options.before)
     causes = {text.strip() for text in options.causes.split(",")}
 
     positions, games, harvested = [], 0, 0
+    turns = (
+        [int(text) for text in options.sample.split(",")] if options.sample else None
+    )
     for path in transcripts(options.scratch):
         games += 1
-        found = harvest(path, options.name, before, causes)
+        found = (
+            cross_section(path, options.name, turns)
+            if turns
+            else harvest(path, options.name, before, causes)
+        )
         if found:
             harvested += 1
             positions.extend(found)
@@ -218,7 +256,7 @@ def main(argv):
         json.dump({"positions": positions}, handle)
 
     print(f"transcripts read: {games}")
-    print(f"games that ended in {sorted(causes)}: {harvested}")
+    print(f"games kept: {harvested}")
     print(f"positions harvested: {len(positions)} -> {options.out}")
     return 0
 

@@ -309,3 +309,36 @@ fn the_finisher_counts_the_exits_and_territory_denied_to_a_shorter_rival_in_cont
     .unwrap();
     assert_eq!(Finisher.assess(&Surveyed::new(&board)), 0);
 }
+
+#[test]
+fn the_melee_ledger_adds_up_to_the_score_it_explains() {
+    // Growth iteration 18: the melee could be scored but not read. A ledger
+    // that did not add up to the score would be worse than none at all.
+    let us: &[(i32, i32)] = &[(5, 5), (5, 4), (5, 3)];
+    let rival: &[(i32, i32)] = &[(1, 1), (1, 2), (1, 3)];
+    let third: &[(i32, i32)] = &[(9, 9), (9, 8), (9, 7)];
+    let state = turn_state_from_bodies(&[us, rival, third], &[90, 90, 90], 0, &[(5, 8)]);
+    let board = ingest_melee(&state).expect("a melee converts");
+    let valuation = MeleeValuation::standard();
+
+    let assessed = valuation.assess(&board).expect("three seats are alive");
+    assert_eq!(assessed.score, valuation.score(&board));
+    assert_eq!(
+        assessed
+            .ledger
+            .entries()
+            .iter()
+            .map(|entry| entry.contribution())
+            .sum::<i32>(),
+        assessed.score,
+        "the entries are the score, term by term"
+    );
+    assert!(
+        assessed
+            .ledger
+            .entries()
+            .iter()
+            .any(|entry| entry.name == "appetite"),
+        "every term the pipeline scores is named in the ledger"
+    );
+}
