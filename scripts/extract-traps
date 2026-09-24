@@ -1,0 +1,227 @@
+#!/usr/bin/env python3
+"""Harvests, from finished sparring runs, the positions in which we were still
+alive and about to be walled in.
+
+A paired run of fifty seeds resolves a difference of about a third of a place
+and no less, so a change worth a tenth of a place is invisible to it: three
+iterations in a row came back "neutral" when all that had been shown was that
+the instrument could not see them. One melee we lose by enclosure, however,
+leaves behind a dozen positions in which the game was still there to be saved,
+and each one is an independent verdict. This script collects them; the oracle
+in engine/tests/trap_suite.rs says which of them were savable and which move
+would have saved them.
+
+usage: scripts/extract-traps SCRATCH_DIR [SCRATCH_DIR ...] [--name NAME]
+                             [--before FIRST-LAST] [--causes A,B] [--out FILE]
+
+  SCRATCH_DIR   a --scratch directory of a finished run (one .jsonl per seed)
+  --name        our name in the roster (default: tiger)
+  --before      how many turns before our death to sample (default: 3-12)
+  --causes      which deaths to harvest (default: walled in,room below body)
+  --out         where to write the harvest (default: target/trap-suite/positions.json)
+
+Frames with two, three or four snakes alive are all kept. A good many of these
+games are already down to a duel by the time we walk into the pocket, and the
+rules that shut it are the same either way; the label records how many seats
+were alive so the two can be read apart.
+"""
+
+import argparse
+import json
+import os
+import sys
+
+DIRECTIONS = {(0, 1): "up", (0, -1): "down", (1, 0): "right", (-1, 0): "left"}
+NEIGHBOURS = ((1, 0), (-1, 0), (0, 1), (0, -1))
+DEFAULT_CAUSES = ("walled in", "room below body")
+
+
+def frames(path):
+    """Every frame of one transcript, in order. The CLI writes one JSON object
+    per line; the first line is the game's configuration and has no board."""
+    with open(path) as handle:
+        for line in handle:
+            if '"board"' not in line:
+                continue
+            try:
+                yield json.loads(line)
+            except json.JSONDecodeError:
+                continue
+
+
+def occupied(board):
+    """The cells a serpent may not step on next turn: every body cell but the
+    tails, which move away. It is the assumption the engine's own fill makes."""
+    cells = set()
+    for snake in board["snakes"]:
+        body = [(c["x"], c["y"]) for c in snake["body"]]
+        cells.update(body[:-1] if len(body) > 1 else body)
+    return cells
+
+
+def room(board, head):
+    """How many cells are reachable from `head` through free cells."""
+    blocked = occupied(board)
+    width, height = board["width"], board["height"]
+    seen, stack, count = {head}, [head], 0
+    while stack:
+        x, y = stack.pop()
+        for dx, dy in NEIGHBOURS:
+            cell = (x + dx, y + dy)
+            if not (0 <= cell[0] < width and 0 <= cell[1] < height):
+                continue
+            if cell in blocked or cell in seen:
+                continue
+            seen.add(cell)
+            stack.append(cell)
+            count += 1
+    return count
+
+
+def exits(board, head):
+    """Safe steps available from `head` right now."""
+    blocked = occupied(board)
+    width, height = board["width"], board["height"]
+    return sum(
+        1
+        for dx, dy in NEIGHBOURS
+        if 0 <= head[0] + dx < width
+        and 0 <= head[1] + dy < height
+        and (head[0] + dx, head[1] + dy) not in blocked
+    )
+
+
+def cause(board, us, free_exits, reachable):
+    """Why the game ended for us, read from the last frame we were alive in.
+    The transcript records no elimination reason, so the state we left behind
+    has to say it. The wording matches scripts/analyze-sparring."""
+    if us["health"] <= 1:
+        return "starved"
+    if free_exits == 0:
+        return "walled in"
+    if reachable < us["length"]:
+        return "room below body"
+    return "collision with room to spare"
+
+
+def us_in(frame, name):
+    return next((s for s in frame["board"]["snakes"] if s["name"] == name), None)
+
+
+def played_between(here, later, name):
+    """The move we made in `here`, read from where our head stood in `later`."""
+    ours, next_ours = us_in(here, name), us_in(later, name)
+    if ours is None or next_ours is None:
+        return None
+    step = (
+        next_ours["head"]["x"] - ours["head"]["x"],
+        next_ours["head"]["y"] - ours["head"]["y"],
+    )
+    return DIRECTIONS.get(step)
+
+
+def request_of(frame, name):
+    """The `/move` request body a server would have received for this frame:
+    the frame itself, with `you` pointing at our seat."""
+    ours = us_in(frame, name)
+    return {
+        "game": frame["game"],
+        "turn": frame["turn"],
+        "board": frame["board"],
+        "you": ours,
+    }
+
+
+def harvest(path, name, before, causes):
+    """The positions worth keeping from one transcript, or nothing when the
+    game did not end for us in one of `causes`."""
+    kept = [frame for frame in frames(path) if us_in(frame, name) is not None]
+    if not kept:
+        return []
+    last = kept[-1]
+    ours = us_in(last, name)
+    head = (ours["head"]["x"], ours["head"]["y"])
+    free_exits, reachable = exits(last["board"], head), room(last["board"], head)
+    how = cause(last["board"], ours, free_exits, reachable)
+    if how not in causes:
+        return []
+
+    seed = seed_of(path)
+    by_turn = {frame["turn"]: frame for frame in kept}
+    death_turn = last["turn"]
+    positions = []
+    for distance in range(before[0], before[1] + 1):
+        turn = death_turn - distance
+        frame, later = by_turn.get(turn), by_turn.get(turn + 1)
+        if frame is None or later is None:
+            continue
+        if not 2 <= len(frame["board"]["snakes"]) <= 4:
+            continue
+        move = played_between(frame, later, name)
+        if move is None:
+            continue
+        positions.append(
+            {
+                "seed": seed,
+                "turn": turn,
+                "turns_before_death": distance,
+                "cause": how,
+                "played": move,
+                "request": request_of(frame, name),
+            }
+        )
+    return positions
+
+
+def seed_of(path):
+    stem = os.path.basename(path).rsplit(".", 1)[0]
+    tail = stem.rsplit("-", 1)[-1]
+    return int(tail) if tail.isdigit() else 0
+
+
+def transcripts(directories):
+    for directory in directories:
+        for entry in sorted(os.listdir(directory)):
+            if entry.endswith(".jsonl"):
+                yield os.path.join(directory, entry)
+
+
+def parse_before(text):
+    first, _, last = text.partition("-")
+    return int(first), int(last or first)
+
+
+def main(argv):
+    parser = argparse.ArgumentParser(add_help=True)
+    parser.add_argument("scratch", nargs="+")
+    parser.add_argument("--name", default="tiger")
+    parser.add_argument("--before", default="3-12")
+    parser.add_argument("--causes", default=",".join(DEFAULT_CAUSES))
+    parser.add_argument("--out", default="target/trap-suite/positions.json")
+    options = parser.parse_args(argv)
+
+    before = parse_before(options.before)
+    causes = {text.strip() for text in options.causes.split(",")}
+
+    positions, games, harvested = [], 0, 0
+    for path in transcripts(options.scratch):
+        games += 1
+        found = harvest(path, options.name, before, causes)
+        if found:
+            harvested += 1
+            positions.extend(found)
+
+    directory = os.path.dirname(options.out)
+    if directory:
+        os.makedirs(directory, exist_ok=True)
+    with open(options.out, "w") as handle:
+        json.dump({"positions": positions}, handle)
+
+    print(f"transcripts read: {games}")
+    print(f"games that ended in {sorted(causes)}: {harvested}")
+    print(f"positions harvested: {len(positions)} -> {options.out}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

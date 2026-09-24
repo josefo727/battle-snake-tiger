@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+# Builds and reads the trap suite: the positions we were still alive in, a few
+# turns before being walled in, labelled by an oracle that knows only the rules.
+#
+# A paired run of fifty seeds resolves about a third of a place and no less, so
+# a change worth a tenth of a place cannot be seen there at all. One game we
+# lose by enclosure leaves a dozen positions behind, and each one is a verdict.
+#
+# usage: scripts/run-trapsuite [harvest|label|enclosure] [SCRATCH_DIR ...]
+#   harvest    read the transcripts of finished runs into target/trap-suite/positions.json
+#   label      say, for every position, which headings survive the oracle's depth
+#   enclosure  say how often the melee enclosure term speaks on those positions
+#   (no stage: harvest then label)
+#
+# environment:
+#   TRAP_SUITE_DEPTH    how deep the oracle looks (default: 8; the cost roughly
+#                       quadruples per ply, so 10 is minutes and 12 is hours)
+#   TRAP_SUITE_BEFORE   how many turns before our death to sample (default 3-12)
+#   TRAP_SUITE_NAME     our name in the roster (default: tiger)
+set -euo pipefail
+
+cd "$(dirname "${BASH_SOURCE[0]}")/.."
+
+STAGE=harvest_and_label
+case "${1:-}" in
+    harvest | label | enclosure)
+        STAGE=$1
+        shift
+        ;;
+esac
+
+SCRATCH=("$@")
+[ ${#SCRATCH[@]} -eq 0 ] && SCRATCH=(target/sparring)
+mkdir -p target/trap-suite
+
+harvest() {
+    python3 scripts/extract-traps "${SCRATCH[@]}" \
+        --name "${TRAP_SUITE_NAME:-tiger}" \
+        --before "${TRAP_SUITE_BEFORE:-3-12}" \
+        --out target/trap-suite/positions.json
+}
+
+harness() {
+    cargo test --release --locked --test trap_suite -- \
+        --ignored --nocapture --exact "$1" 2>&1 |
+        grep -vE '^(running|test |test result|$)|Finished|Compiling|Running'
+}
+
+case "$STAGE" in
+    harvest) harvest ;;
+    label) harness label_the_trap_suite ;;
+    enclosure) harness measure_the_enclosure_term_on_the_harvest ;;
+    *)
+        harvest
+        harness label_the_trap_suite
+        ;;
+esac
