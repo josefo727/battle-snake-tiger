@@ -1,0 +1,283 @@
+#!/usr/bin/env python3
+"""Says why the challenger lost the games of a sparring run, not just how often.
+
+`spar` reports placements; a run of 50 seeds is two hours of play summarised in
+one mean, and a mean of placements cannot separate two engines that differ by
+less than about a third of a place. The transcripts it leaves behind hold every
+frame of every game, so the same run can also answer the question that moves the
+engine forward: how we die, when, and with how much room and length compared to
+the rivals.
+
+usage: scripts/analyze-sparring SCRATCH_DIR [SCRATCH_DIR ...] [--name NAME]
+                                [--snapshots 100,150,200,250] [--json OUT.json]
+
+  SCRATCH_DIR   a --scratch directory of a finished run (one .jsonl per seed)
+  --name        the challenger's name in the roster (default: tiger)
+  --snapshots   turns at which to compare room and length (default: 100,150,200,250)
+  --json        also write the per-game rows and the summary as JSON
+
+Reading the output: `walled in` is the metric to move. It counts games that
+ended with no safe step at all, which means the position was already lost
+several turns earlier; `room below body` counts the ones where the reachable
+region had become smaller than our own length. Both are failures of space, and
+together they dominated the melee runs of 2026-09-23 (58 of 78 deaths).
+"""
+
+import argparse
+import json
+import os
+import sys
+from collections import Counter
+from statistics import median
+
+DIRECTIONS = ((1, 0), (-1, 0), (0, 1), (0, -1))
+
+
+def frames(path):
+    """Every frame of one transcript, in order. The CLI writes one JSON object
+    per line; the first line is the game's configuration and has no board."""
+    with open(path) as handle:
+        for line in handle:
+            if '"board"' not in line:
+                continue
+            try:
+                yield json.loads(line)
+            except json.JSONDecodeError:
+                continue
+
+
+def occupied(board, bodies_move=True):
+    """The cells a serpent may not step on next turn. With `bodies_move`, every
+    tail cell is free: it is the same assumption the engine's fill makes."""
+    cells = set()
+    for snake in board["snakes"]:
+        body = [(c["x"], c["y"]) for c in snake["body"]]
+        cells.update(body[:-1] if bodies_move and len(body) > 1 else body)
+    return cells
+
+
+def room(board, head):
+    """How many cells are reachable from `head` through free cells."""
+    blocked = occupied(board)
+    width, height = board["width"], board["height"]
+    seen, stack, count = {head}, [head], 0
+    while stack:
+        x, y = stack.pop()
+        for dx, dy in DIRECTIONS:
+            cell = (x + dx, y + dy)
+            if not (0 <= cell[0] < width and 0 <= cell[1] < height):
+                continue
+            if cell in blocked or cell in seen:
+                continue
+            seen.add(cell)
+            stack.append(cell)
+            count += 1
+    return count
+
+
+def exits(board, head):
+    """Safe steps available from `head` right now."""
+    blocked = occupied(board)
+    width, height = board["width"], board["height"]
+    return sum(
+        1
+        for dx, dy in DIRECTIONS
+        if 0 <= head[0] + dx < width
+        and 0 <= head[1] + dy < height
+        and (head[0] + dx, head[1] + dy) not in blocked
+    )
+
+
+def cause(board, us, alive_after, free_exits, reachable):
+    """Why the game ended for us, read from the last frame we were alive in.
+
+    The transcript records no elimination reason, so the state we left behind
+    has to say it. A serpent with no safe step was lost well before the last
+    turn; one whose region no longer fits its body was lost even earlier.
+    """
+    if alive_after is None:
+        return "survived"
+    if us["health"] <= 1:
+        return "starved"
+    if free_exits == 0:
+        return "walled in"
+    if reachable < us["length"]:
+        return "room below body"
+    return "collision with room to spare"
+
+
+def analyse(path, name, snapshots):
+    """One transcript as a row: how it ended for us, and the snapshots."""
+    last_alive = None
+    alive_after = None
+    taken = {}
+    for frame in frames(path):
+        board = frame["board"]
+        us = next((s for s in board["snakes"] if s["name"] == name), None)
+        if us is not None and frame["turn"] in snapshots:
+            rivals = [s for s in board["snakes"] if s["name"] != name]
+            taken[frame["turn"]] = {
+                "length": us["length"],
+                "best_rival_length": max((s["length"] for s in rivals), default=0),
+                "room": room(board, (us["head"]["x"], us["head"]["y"])),
+                "best_rival_room": max(
+                    (room(board, (s["head"]["x"], s["head"]["y"])) for s in rivals),
+                    default=0,
+                ),
+            }
+        if us is not None:
+            last_alive = frame
+        elif last_alive is not None:
+            alive_after = len(board["snakes"])
+            break
+    if last_alive is None:
+        return None
+
+    board = last_alive["board"]
+    us = next(s for s in board["snakes"] if s["name"] == name)
+    head = (us["head"]["x"], us["head"]["y"])
+    free_exits, reachable = exits(board, head), room(board, head)
+    rivals = [s for s in board["snakes"] if s["name"] != name]
+    return {
+        "seed": seed_of(path),
+        "last_turn": last_alive["turn"],
+        "cause": cause(board, us, alive_after, free_exits, reachable),
+        "exits": free_exits,
+        "room": reachable,
+        "length": us["length"],
+        "longest_rival": max((s["length"] for s in rivals), default=0),
+        "health": us["health"],
+        "snapshots": taken,
+    }
+
+
+def seed_of(path):
+    stem = os.path.basename(path).rsplit(".", 1)[0]
+    tail = stem.rsplit("-", 1)[-1]
+    return int(tail) if tail.isdigit() else None
+
+
+def placements(report, name):
+    """seed -> our place, from a spar report, when one sits beside the run."""
+    if not os.path.exists(report):
+        return {}
+    with open(report) as handle:
+        data = json.load(handle)
+    return {
+        game["seed"]: next(
+            entry["place"] for entry in game["placements"] if entry["snake"] == name
+        )
+        for game in data.get("games", [])
+    }
+
+
+def report_on(rows, places, snapshots):
+    """Everything the run says about how the challenger died, as text."""
+    lines = []
+    say = lines.append
+    deaths = [row for row in rows if row["cause"] != "survived"]
+    say(f"{len(rows)} games, {len(rows) - len(deaths)} survived to the end")
+
+    say("")
+    say("how it ended:")
+    for name, count in Counter(row["cause"] for row in rows).most_common():
+        group = [row for row in rows if row["cause"] == name]
+        place = [
+            places[(row["run"], row["seed"])]
+            for row in group
+            if (row["run"], row["seed"]) in places
+        ]
+        mean_place = f"{sum(place) / len(place):.2f}" if place else "-"
+        say(
+            f"  {name:30s} {count:4d}   median turn {median(r['last_turn'] for r in group):5.0f}"
+            f"   mean place {mean_place}"
+        )
+
+    if deaths:
+        shorter = sum(1 for r in deaths if r["length"] < r["longest_rival"])
+        say("")
+        say(f"at the end ({len(deaths)} deaths):")
+        say(
+            f"  our length {median(r['length'] for r in deaths):.0f} against the longest"
+            f" rival's {median(r['longest_rival'] for r in deaths):.0f};"
+            f" shorter in {shorter} of {len(deaths)} ({100 * shorter / len(deaths):.0f}%)"
+        )
+        say(
+            f"  reachable room {median(r['room'] for r in deaths):.0f} cells;"
+            f" no safe step at all in {sum(1 for r in deaths if r['exits'] == 0)}"
+        )
+        space = sum(1 for r in deaths if r["cause"] in ("walled in", "room below body"))
+        say(
+            f"  deaths by space: {space} of {len(deaths)}"
+            f" ({100 * space / len(deaths):.0f}%)"
+        )
+
+    say("")
+    say("room and length while alive (median over the games still running):")
+    say(f"  {'turn':>6} {'alive':>6} {'room':>6} {'rival room':>11} {'length':>7} {'rival length':>13}")
+    for turn in snapshots:
+        taken = [row["snapshots"][turn] for row in rows if turn in row["snapshots"]]
+        if not taken:
+            continue
+        say(
+            f"  {turn:6d} {len(taken):6d} {median(s['room'] for s in taken):6.0f}"
+            f" {median(s['best_rival_room'] for s in taken):11.0f}"
+            f" {median(s['length'] for s in taken):7.0f}"
+            f" {median(s['best_rival_length'] for s in taken):13.0f}"
+        )
+    say("")
+    say(f"median turn we leave the board: {median(r['last_turn'] for r in rows):.0f}")
+    return "\n".join(lines)
+
+
+def main():
+    parser = argparse.ArgumentParser(add_help=False)
+    parser.add_argument("scratch", nargs="+")
+    parser.add_argument("--name", default="tiger")
+    parser.add_argument("--snapshots", default="100,150,200,250")
+    parser.add_argument("--json", dest="json_out")
+    parser.add_argument("-h", "--help", action="store_true")
+    options = parser.parse_args()
+    if options.help:
+        print(__doc__)
+        return 0
+
+    snapshots = [int(t) for t in options.snapshots.split(",") if t.strip()]
+    rows, places = [], {}
+    for directory in options.scratch:
+        transcripts = sorted(
+            os.path.join(directory, f)
+            for f in os.listdir(directory)
+            if f.endswith(".jsonl")
+        )
+        if not transcripts:
+            print(f"analyze-sparring: no transcripts in {directory}", file=sys.stderr)
+            return 2
+        for path in transcripts:
+            row = analyse(path, options.name, snapshots)
+            if row is not None:
+                row["run"] = directory
+                rows.append(row)
+        for candidate in (
+            os.path.join(directory, "report.json"),
+            directory.rstrip("/") + ".json",
+        ):
+            # Keyed by run as well as seed: two runs of the same seeds are the
+            # usual paired measure, and their places must not overwrite one another.
+            for seed, place in placements(candidate, options.name).items():
+                places[(directory, seed)] = place
+
+    if not rows:
+        print(f"analyze-sparring: {options.name} plays in none of them", file=sys.stderr)
+        return 2
+
+    print(report_on(rows, places, snapshots))
+    if options.json_out:
+        with open(options.json_out, "w") as handle:
+            json.dump({"games": rows}, handle, indent=1)
+        print(f"\nrows written to {options.json_out}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
