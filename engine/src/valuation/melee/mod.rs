@@ -3,6 +3,7 @@
 
 pub mod appetite;
 pub mod attrition;
+pub mod craving;
 pub mod enclosure;
 pub mod finish;
 pub mod finisher;
@@ -14,6 +15,7 @@ pub mod weights;
 
 use self::appetite::Appetite;
 use self::attrition::Attrition;
+use self::craving::Craving;
 use self::enclosure::MeleeEnclosure;
 use self::finisher::Finisher;
 use self::hunger::Hunger;
@@ -43,7 +45,7 @@ impl Surveyed {
     }
 }
 
-/// The nine positional terms of the melee valuation, in ledger order.
+/// The ten positional terms of the melee valuation, in ledger order.
 pub type MeleeTerms = (
     (
         (
@@ -51,20 +53,23 @@ pub type MeleeTerms = (
                 (
                     (
                         (
-                            (((), Weighted<Territory>), Weighted<Standing>),
-                            Weighted<Hunger>,
+                            (
+                                (((), Weighted<Territory>), Weighted<Standing>),
+                                Weighted<Hunger>,
+                            ),
+                            Weighted<Appetite>,
                         ),
-                        Weighted<Appetite>,
+                        Weighted<Larder>,
                     ),
-                    Weighted<Larder>,
+                    Weighted<HeadDanger>,
                 ),
-                Weighted<HeadDanger>,
+                Weighted<Attrition>,
             ),
-            Weighted<Attrition>,
+            Weighted<Finisher>,
         ),
-        Weighted<Finisher>,
+        Weighted<MeleeEnclosure>,
     ),
-    Weighted<MeleeEnclosure>,
+    Weighted<Craving>,
 );
 
 pub type MeleePipeline = ValuationPipeline<MeleeTerms>;
@@ -99,7 +104,8 @@ impl MeleeValuation {
                 .with(HeadDanger, melee.head_danger)
                 .with(Attrition, melee.attrition_seat)
                 .with(Finisher, melee.finisher_step)
-                .with(MeleeEnclosure, melee.enclosure_turn),
+                .with(MeleeEnclosure, melee.enclosure_turn)
+                .with(Craving, melee.craving_step),
             duel: StandardPipeline::with_profile(duel),
             attrition_seat: melee.attrition_seat,
         }

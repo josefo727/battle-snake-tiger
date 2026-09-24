@@ -19,7 +19,7 @@ use self::weights::{DEFAULT_PROFILE, WeightSheet};
 use crate::arena::duel::DuelBoard;
 
 /// Most terms one ledger can describe.
-pub const LEDGER_CAPACITY: usize = 9;
+pub const LEDGER_CAPACITY: usize = 10;
 
 /// One assessor answering one question about a position of its board type
 /// (a duel or a melee).
