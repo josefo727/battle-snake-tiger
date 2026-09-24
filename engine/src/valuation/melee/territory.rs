@@ -99,18 +99,24 @@ impl Assessor for Territory {
     const NAME: &'static str = "territory";
     const MAX_RAW: i32 = 121;
 
-    /// Our cells minus the most cells any living opponent owns.
+    /// Our cells minus every cell held against us (growth iteration 18).
+    ///
+    /// Read against the largest rival alone, a seat that owns 34 cells while
+    /// three rivals own 24, 25 and 25 scores +9 and looks comfortable; it is in
+    /// fact hemmed in, and the cage that ends these games is built by two
+    /// rivals at once, never by the biggest of them on its own. The seats' sets
+    /// are disjoint, so the ground held against us is the sum of theirs and the
+    /// term stays inside `MAX_RAW`.
     fn assess(&self, position: &Surveyed) -> i32 {
         let survey = &position.survey;
         let ours = survey.owned[Seat::US.index()].len().cast_signed();
-        let best_rival = position
+        let rivals: i32 = position
             .board
             .seats()
             .filter(|seat| *seat != Seat::US)
             .map(|seat| survey.owned[seat.index()].len().cast_signed())
-            .max()
-            .unwrap_or(0);
-        ours - best_rival
+            .sum();
+        ours - rivals
     }
 }
 

@@ -47,7 +47,20 @@ fn three_serpents_in_three_corners_split_the_board_by_arrival_and_length() {
     assert_eq!(survey.food[0], Some(4));
     assert_eq!(survey.owned[3], CellSet::EMPTY);
     assert_eq!(survey.food[3], None);
-    assert!(Territory.assess(&Surveyed::new(&board)) > 0);
+    // We hold 57 cells to their 32 and 28: more than either of them, and just
+    // short of the two together, which is what the term reads (iteration 18).
+    let ours = survey.owned[0].len().cast_signed();
+    let held_against_us: i32 = (1..3)
+        .map(|seat| survey.owned[seat].len().cast_signed())
+        .sum();
+    assert!(
+        ours > survey.owned[1].len().cast_signed(),
+        "we own more than either rival on its own"
+    );
+    assert_eq!(
+        Territory.assess(&Surveyed::new(&board)),
+        ours - held_against_us
+    );
 }
 
 #[test]
@@ -174,4 +187,37 @@ proptest! {
         let board = ingest_melee(&state).expect("melee");
         prop_assert_eq!(Territory.survey(&board), oracle(&state));
     }
+}
+
+#[test]
+fn territory_answers_to_every_rival_at_once_not_only_to_the_largest() {
+    // Growth iteration 18. The four corners, us the longest so every tie falls
+    // our way: we own 34 cells and the three of them own 24, 25 and 25. Read
+    // against the largest rival alone the position is comfortable, +9; read
+    // against the board it is what being hemmed in looks like, and the cage
+    // that kills us is built by two rivals at once, never by the biggest one
+    // on its own.
+    let us: &[(i32, i32)] = &[(0, 0), (0, 1), (0, 2), (0, 3), (0, 4)];
+    let east: &[(i32, i32)] = &[(10, 0), (10, 1), (10, 2)];
+    let north: &[(i32, i32)] = &[(0, 10), (1, 10), (2, 10)];
+    let far: &[(i32, i32)] = &[(10, 10), (9, 10), (8, 10)];
+    let (_, board) = melee(&[us, east, north, far], &[]);
+
+    let survey = Territory.survey(&board);
+    let ours = survey.owned[0].len();
+    let rivals: Vec<u32> = (1..4).map(|seat| survey.owned[seat].len()).collect();
+
+    assert!(
+        rivals.iter().all(|rival| *rival < ours),
+        "the position is built so that no single rival owns as much as we do"
+    );
+    assert!(
+        ours < rivals.iter().sum::<u32>(),
+        "and so that the three of them together own more"
+    );
+    assert_eq!(
+        Territory.assess(&Surveyed::new(&board)),
+        ours.cast_signed() - rivals.iter().sum::<u32>().cast_signed(),
+        "the term is our ground against all the ground held against us"
+    );
 }
