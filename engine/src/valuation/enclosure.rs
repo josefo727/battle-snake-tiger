@@ -5,6 +5,7 @@ use super::Assessor;
 use super::fill::{Fill, MAX_LAYERS};
 use crate::arena::cellset::{Cell, CellSet};
 use crate::arena::duel::{DuelBoard, Side};
+use crate::arena::serpent::Serpent;
 
 /// Turns of life a pellet restores at most (a pellet resets health to 100).
 const PELLET_LIFE: i32 = 100;
@@ -23,11 +24,60 @@ impl Enclosure {
     #[must_use]
     pub fn survival_estimate(&self, board: &DuelBoard, side: Side) -> i32 {
         let serpent = board.serpent(side);
-        let room = own_room(board, side);
-        let pellets = room.intersection(board.pellets()).len().cast_signed();
-        let starvation_cap = i32::from(serpent.vigor()) + PELLET_LIFE * pellets;
+        survival_in(
+            own_room(board.occupied(), serpent),
+            serpent,
+            board.pellets(),
+        )
+    }
+}
 
-        parity_bound(room, serpent.head()).min(starvation_cap)
+/// The turns of life `room` is worth to `serpent`: the checkerboard bound on
+/// the path through it, capped by the health it has and the [`PELLET_LIFE`]
+/// each pellet in there restores.
+///
+/// Shared with the melee assessor, which asks the same question of a board with
+/// three or four seats on it.
+#[must_use]
+pub fn survival_in(room: CellSet, serpent: &Serpent, pellets: CellSet) -> i32 {
+    let in_reach = room.intersection(pellets).len().cast_signed();
+    let starvation_cap = i32::from(serpent.vigor()) + PELLET_LIFE * in_reach;
+
+    parity_bound(room, serpent.head()).min(starvation_cap)
+}
+
+/// Cells `serpent` can reach alone from an `occupied` board: free cells plus
+/// its own body cells as they free, every other body a wall.
+#[must_use]
+pub fn own_room(occupied: CellSet, serpent: &Serpent) -> CellSet {
+    let mut free = occupied.complement();
+    let mut fill = Fill::from(serpent.head());
+    for layer in 1..=MAX_LAYERS {
+        let released = serpent
+            .cell_released_on_turn(layer)
+            .map_or(CellSet::EMPTY, CellSet::single);
+        free = free.union(released);
+        fill.advance(free, released);
+        if layer >= u16::from(serpent.length()) && fill.is_exhausted() {
+            break;
+        }
+    }
+    fill.seen().without(serpent.head())
+}
+
+/// Cells reachable from `head` through the cells that are free right now.
+#[must_use]
+pub fn static_region(occupied: CellSet, head: Cell) -> CellSet {
+    let free = occupied.complement();
+    let mut seen = CellSet::EMPTY;
+    let mut front = CellSet::single(head);
+    loop {
+        let next = front.neighbours().intersection(free).difference(seen);
+        if next.is_empty() {
+            return seen;
+        }
+        seen = seen.union(next);
+        front = next;
     }
 }
 
@@ -57,39 +107,6 @@ const fn colour(cell: Cell) -> u8 {
     (cell.x() + cell.y()) & 1
 }
 
-/// Cells `side` can reach alone: free cells plus its own body cells as they free.
-fn own_room(board: &DuelBoard, side: Side) -> CellSet {
-    let serpent = board.serpent(side);
-    let mut free = board.occupied().complement();
-    let mut fill = Fill::from(serpent.head());
-    for layer in 1..=MAX_LAYERS {
-        let released = serpent
-            .cell_released_on_turn(layer)
-            .map_or(CellSet::EMPTY, CellSet::single);
-        free = free.union(released);
-        fill.advance(free, released);
-        if layer >= u16::from(serpent.length()) && fill.is_exhausted() {
-            break;
-        }
-    }
-    fill.seen().without(serpent.head())
-}
-
-/// Cells reachable from `head` through unoccupied cells only.
-fn static_region(board: &DuelBoard, head: Cell) -> CellSet {
-    let free = board.occupied().complement();
-    let mut seen = CellSet::EMPTY;
-    let mut front = CellSet::single(head);
-    loop {
-        let next = front.neighbours().intersection(free).difference(seen);
-        if next.is_empty() {
-            return seen;
-        }
-        seen = seen.union(next);
-        front = next;
-    }
-}
-
 impl Assessor for Enclosure {
     type Board = DuelBoard;
 
@@ -99,8 +116,8 @@ impl Assessor for Enclosure {
     /// Our survival estimate minus theirs, but only when the serpents are walled
     /// apart; while either can reach the other's ground the term is zero.
     fn assess(&self, board: &DuelBoard) -> i32 {
-        let ours = static_region(board, board.serpent(Side::Us).head());
-        let theirs = static_region(board, board.serpent(Side::Them).head());
+        let ours = static_region(board.occupied(), board.serpent(Side::Us).head());
+        let theirs = static_region(board.occupied(), board.serpent(Side::Them).head());
         if !ours.intersection(theirs).is_empty() {
             return 0;
         }

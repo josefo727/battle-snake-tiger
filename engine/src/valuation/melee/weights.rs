@@ -28,6 +28,9 @@ pub struct MeleeWeights {
     /// Value of each exit taken from, and each cell of territory denied to, a
     /// shorter rival in contact (growth iteration 10).
     pub finisher_step: i32,
+    /// Value of each turn of estimated survival, over the best a rival has,
+    /// once we are shut away from every one of them (growth iteration 18).
+    pub enclosure_turn: i32,
 }
 
 /// The initial, reasoned (not yet fitted) profile; the placement benchmark
@@ -45,4 +48,5 @@ pub const DEFAULT_MELEE_PROFILE: MeleeWeights = MeleeWeights {
     head_danger: 300,
     attrition_seat: 5_000,
     finisher_step: 150,
+    enclosure_turn: 120,
 };

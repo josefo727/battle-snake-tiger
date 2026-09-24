@@ -3,6 +3,7 @@
 
 pub mod appetite;
 pub mod attrition;
+pub mod enclosure;
 pub mod finish;
 pub mod finisher;
 pub mod hunger;
@@ -13,6 +14,7 @@ pub mod weights;
 
 use self::appetite::Appetite;
 use self::attrition::Attrition;
+use self::enclosure::MeleeEnclosure;
 use self::finisher::Finisher;
 use self::hunger::Hunger;
 use self::larder::Larder;
@@ -41,25 +43,28 @@ impl Surveyed {
     }
 }
 
-/// The eight positional terms of the melee valuation, in ledger order.
+/// The nine positional terms of the melee valuation, in ledger order.
 pub type MeleeTerms = (
     (
         (
             (
                 (
                     (
-                        (((), Weighted<Territory>), Weighted<Standing>),
-                        Weighted<Hunger>,
+                        (
+                            (((), Weighted<Territory>), Weighted<Standing>),
+                            Weighted<Hunger>,
+                        ),
+                        Weighted<Appetite>,
                     ),
-                    Weighted<Appetite>,
+                    Weighted<Larder>,
                 ),
-                Weighted<Larder>,
+                Weighted<HeadDanger>,
             ),
-            Weighted<HeadDanger>,
+            Weighted<Attrition>,
         ),
-        Weighted<Attrition>,
+        Weighted<Finisher>,
     ),
-    Weighted<Finisher>,
+    Weighted<MeleeEnclosure>,
 );
 
 pub type MeleePipeline = ValuationPipeline<MeleeTerms>;
@@ -93,7 +98,8 @@ impl MeleeValuation {
                 .with(Larder, melee.larder_pellet)
                 .with(HeadDanger, melee.head_danger)
                 .with(Attrition, melee.attrition_seat)
-                .with(Finisher, melee.finisher_step),
+                .with(Finisher, melee.finisher_step)
+                .with(MeleeEnclosure, melee.enclosure_turn),
             duel: StandardPipeline::with_profile(duel),
             attrition_seat: melee.attrition_seat,
         }
