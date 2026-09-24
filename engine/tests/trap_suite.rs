@@ -25,7 +25,7 @@ use serde_json::{Value, json};
 use tiger_engine::arena::cellset::{Cell, CellSet};
 use tiger_engine::arena::heading::Heading;
 use tiger_engine::arena::ingest::ingest_melee;
-use tiger_engine::arena::melee::{MAX_SEATS, MeleeBoard};
+use tiger_engine::arena::melee::{MAX_SEATS, MeleeBoard, MeleeOutcome, Seat};
 use tiger_engine::arena::serpent::Serpent;
 use tiger_engine::lookahead::allowance::NeverStop;
 use tiger_engine::lookahead::paranoid::MeleeSearcher;
@@ -430,5 +430,204 @@ fn measure_the_enclosure_term_on_the_harvest() {
     println!("  and against us: {against_us} (worst {worst})");
     for (distance, value) in &by_distance {
         println!("    {distance} turns before we died: {value}");
+    }
+}
+
+// ---------------------------------------------------------------------------
+// A reference that can see further than a search can
+// ---------------------------------------------------------------------------
+
+/// How many turns a rollout plays before it gives up and calls us a survivor.
+const ROLLOUT_HORIZON: u16 = 30;
+/// How many rollouts back each heading.
+const ROLLOUTS: u32 = 200;
+/// The fixed seed: the reference has to be the same number every time it is
+/// asked, or two engines cannot be compared on it.
+const ROLLOUT_SEED: u64 = 0x5f2d_1c9b_a733_4e11;
+
+/// The oracle proved the mistake that kills us is not inside an eight-ply
+/// horizon, and a search cannot be pushed to thirty: every ply costs about five
+/// times the last, so depth 12 is hours for a single position.
+///
+/// What can reach thirty turns is simulation. From each heading we play many
+/// games in which every serpent, ourselves included, steps at random among the
+/// steps that do not kill it outright, and we count how long we last. A random
+/// walker dies in a corridor a careful serpent would survive, so this reads
+/// open ground as worth more than it is; that bias is the same for every
+/// heading of a position and for every engine measured on it, and it is the
+/// only reference available that sees as far as the mistake.
+///
+/// No food is spawned: the board's own pellets are eaten as usual, but nothing
+/// new appears, so the number depends on the position and the seed alone.
+fn rollout_survival(board: &MeleeBoard, heading: Heading, seed: u64) -> f64 {
+    let mut rng = Xorshift::new(seed);
+    let mut total = 0u32;
+    for _ in 0..ROLLOUTS {
+        total += u32::from(one_rollout(board, heading, &mut rng));
+    }
+    f64::from(total) / f64::from(ROLLOUTS)
+}
+
+/// Turns we last from `board` after playing `heading`, capped at the horizon.
+fn one_rollout(board: &MeleeBoard, heading: Heading, rng: &mut Xorshift) -> u16 {
+    let mut current = *board;
+    let mut first = Some(heading);
+    for turn in 0..ROLLOUT_HORIZON {
+        let mut moves = [Heading::North; MAX_SEATS];
+        for seat in current.seats() {
+            moves[seat.index()] = if seat == Seat::US && first.is_some() {
+                first.take().expect("checked")
+            } else {
+                safe_random_step(&current, seat, rng)
+            };
+        }
+        match current.advance(&moves) {
+            MeleeOutcome::Continues(next) => current = next,
+            MeleeOutcome::WeAlone => return ROLLOUT_HORIZON,
+            MeleeOutcome::WeDown { .. } => return turn,
+        }
+    }
+    ROLLOUT_HORIZON
+}
+
+/// A step for `seat` drawn evenly from the ones that do not kill it on the
+/// spot; when every step does, any of them, because it makes no difference.
+fn safe_random_step(board: &MeleeBoard, seat: Seat, rng: &mut Xorshift) -> Heading {
+    let head = board.serpent(seat).head();
+    let enterable = board
+        .seats()
+        .fold(board.occupied().complement(), |cells, other| {
+            board
+                .serpent(other)
+                .cell_released_on_turn(1)
+                .map_or(cells, |cell| cells.with(cell))
+        });
+    let safe: Vec<Heading> = Heading::ALL
+        .into_iter()
+        .filter(|h| h.step(head).is_some_and(|cell| enterable.contains(cell)))
+        .collect();
+    if safe.is_empty() {
+        return Heading::ALL[(rng.next() % 4) as usize];
+    }
+    safe[(rng.next() % safe.len() as u64) as usize]
+}
+
+/// The smallest reproducible source of randomness that will do the job; a
+/// dependency would have to be justified to cargo-deny for four lines of shift.
+struct Xorshift(u64);
+
+impl Xorshift {
+    const fn new(seed: u64) -> Self {
+        Self(seed | 1)
+    }
+
+    fn next(&mut self) -> u64 {
+        self.0 ^= self.0 << 13;
+        self.0 ^= self.0 >> 7;
+        self.0 ^= self.0 << 17;
+        self.0
+    }
+}
+
+#[test]
+fn the_rollout_reference_sees_the_pocket_the_search_needs_five_plies_for() {
+    // The same pocket as above. The reference is asked nothing about plies: it
+    // just plays on, and a serpent that walks into three cells is dead in four
+    // turns however the rest of the game would have gone.
+    let board = pocket_position();
+
+    let into_the_pocket = rollout_survival(&board, Heading::South, ROLLOUT_SEED);
+    let into_the_open = rollout_survival(&board, Heading::North, ROLLOUT_SEED);
+
+    assert!(
+        into_the_pocket < 5.0,
+        "the pocket is four turns long, whatever happens afterwards (got {into_the_pocket})"
+    );
+    assert!(
+        into_the_open > into_the_pocket + 5.0,
+        "the open board is worth many more turns (got {into_the_open})"
+    );
+}
+
+#[test]
+fn the_rollout_reference_gives_the_same_answer_every_time() {
+    // Two engines can only be compared on this number if it is the same number
+    // both times it is asked.
+    let board = pocket_position();
+    assert_eq!(
+        rollout_survival(&board, Heading::North, ROLLOUT_SEED),
+        rollout_survival(&board, Heading::North, ROLLOUT_SEED)
+    );
+}
+
+/// What the engine as compiled answers for `board`, so the suite scores the
+/// engine and not a weight sheet.
+///
+/// The depth is fixed rather than timed. A clock would make the score depend on
+/// what else the machine was doing, and an instrument built to settle arguments
+/// between two engines cannot answer differently because a sparring run happened
+/// to be going at the time. Four is the median depth the melee profiling harness
+/// reaches under the production allowance; `TRAP_SUITE_PLAY_DEPTH` moves it.
+fn production_choice(board: &MeleeBoard) -> Option<Heading> {
+    let valuation = MeleeValuation::standard();
+    let finish = MeleeFinish::new(&DEFAULT_MELEE_PROFILE);
+    let depth =
+        u16::try_from(env_number::<u64>("TRAP_SUITE_PLAY_DEPTH", 4)).expect("a depth fits in u16");
+    let mut searcher = MeleeSearcher::new(&valuation, finish);
+    searcher.search_fixed(board, depth).best
+}
+
+/// Scores the engine as compiled against the rollout reference.
+///
+/// A position counts only when the headings differ by at least
+/// `TRAP_SUITE_MARGIN` turns of expected life: where every step is worth the
+/// same there is nothing to get right. On the rest the engine is asked for its
+/// move at a fixed depth, and the report is how much of the available life it
+/// kept.
+#[test]
+#[ignore = "driven by scripts/run-trapsuite; minutes of work"]
+fn score_the_trap_suite() {
+    let harvest = suite_path("TRAP_SUITE_HARVEST", "positions.json");
+    let margin: f64 = env_number("TRAP_SUITE_MARGIN", 3.0);
+    let positions = read_harvest(&harvest);
+
+    let (mut informative, mut took_the_best) = (0usize, 0usize);
+    let (mut kept, mut available) = (0.0f64, 0.0f64);
+    let mut played_kept = 0.0f64;
+    for position in &positions {
+        let Some(board) = board_of(&position.request) else {
+            continue;
+        };
+        let reference = Heading::ALL.map(|h| rollout_survival(&board, h, ROLLOUT_SEED));
+        let best = reference.iter().copied().fold(f64::MIN, f64::max);
+        let worst = reference.iter().copied().fold(f64::MAX, f64::min);
+        if best - worst < margin {
+            continue;
+        }
+        informative += 1;
+        available += best;
+        played_kept += reference[position.played.index()];
+        let Some(chosen) = production_choice(&board) else {
+            continue;
+        };
+        kept += reference[chosen.index()];
+        took_the_best += usize::from(reference[chosen.index()] >= best - 1.0);
+    }
+
+    println!("trap suite scored over {} positions", positions.len());
+    println!("  positions where the step matters (margin {margin}): {informative}");
+    if informative > 0 {
+        println!(
+            "  life kept by this engine: {:.1}% of what was there",
+            100.0 * kept / available
+        );
+        println!(
+            "  life kept by the move actually played then: {:.1}%",
+            100.0 * played_kept / available
+        );
+        println!(
+            "  took a best step (within one turn): {took_the_best} of {informative} ({:.1}%)",
+            100.0 * took_the_best as f64 / informative as f64
+        );
     }
 }

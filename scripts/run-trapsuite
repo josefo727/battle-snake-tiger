@@ -6,15 +6,19 @@
 # a change worth a tenth of a place cannot be seen there at all. One game we
 # lose by enclosure leaves a dozen positions behind, and each one is a verdict.
 #
-# usage: scripts/run-trapsuite [harvest|label|enclosure] [SCRATCH_DIR ...]
+# usage: scripts/run-trapsuite [harvest|label|score|enclosure] [SCRATCH_DIR ...]
 #   harvest    read the transcripts of finished runs into target/trap-suite/positions.json
 #   label      say, for every position, which headings survive the oracle's depth
+#   score      score the engine as compiled against the rollout reference
 #   enclosure  say how often the melee enclosure term speaks on those positions
-#   (no stage: harvest then label)
+#   (no stage: harvest then score)
 #
 # environment:
-#   TRAP_SUITE_DEPTH    how deep the oracle looks (default: 8; the cost roughly
-#                       quadruples per ply, so 10 is minutes and 12 is hours)
+#   TRAP_SUITE_DEPTH    how deep the oracle looks (default: 8; the cost grows
+#                       about fivefold per ply, so 10 is minutes and 12 is hours)
+#   TRAP_SUITE_PLAY_DEPTH  the fixed depth the scored engine plays at (default 4)
+#   TRAP_SUITE_MARGIN   turns of life the headings must differ by for a position
+#                       to count as evidence (default 3)
 #   TRAP_SUITE_BEFORE   how many turns before our death to sample (default 3-12)
 #   TRAP_SUITE_NAME     our name in the roster (default: tiger)
 set -euo pipefail
@@ -23,7 +27,7 @@ cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
 STAGE=harvest_and_label
 case "${1:-}" in
-    harvest | label | enclosure)
+    harvest | label | score | enclosure)
         STAGE=$1
         shift
         ;;
@@ -49,9 +53,10 @@ harness() {
 case "$STAGE" in
     harvest) harvest ;;
     label) harness label_the_trap_suite ;;
+    score) harness score_the_trap_suite ;;
     enclosure) harness measure_the_enclosure_term_on_the_harvest ;;
     *)
         harvest
-        harness label_the_trap_suite
+        harness score_the_trap_suite
         ;;
 esac
