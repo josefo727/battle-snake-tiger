@@ -32,6 +32,7 @@ use tiger_engine::gateway::clock::SystemClock;
 use tiger_engine::lookahead::allowance::{NeverStop, SearchAllowance};
 use tiger_engine::lookahead::deepening::{DEPTH_CEILING, deepen_melee};
 use tiger_engine::lookahead::paranoid::{MeleeSearcher, TRADE_RISK, contested_by_equal};
+use tiger_engine::lookahead::rollout;
 use tiger_engine::rules_core::{Clock, RequestTiming, SnakeState, TurnRequestDto, to_turn_state};
 use tiger_engine::valuation::Assessor;
 use tiger_engine::valuation::melee::appetite::Appetite;
@@ -1231,15 +1232,103 @@ fn explain_under_the_clock() {
         .expect("the budget must be above the reserve");
         let mut searcher = MeleeSearcher::new(&valuation, finish);
         let report = deepen_melee(&mut searcher, &board, &mut allowance, DEPTH_CEILING);
+        let lost = report
+            .principal_score
+            .is_some_and(|score| score < 0 && score.abs() >= finish.finite_limit());
         println!(
-            "{:<8}{:>8}{:>10.1}{:>14}{:>8}",
+            "{:<8}{:>8}{:>10.1}{:>14}{:>8}{:>10}{:>10}",
             position.turn,
             report.completed_depth,
             started.elapsed().as_secs_f64() * 1000.0,
             report
                 .principal_score
                 .map_or("-".to_owned(), |s| s.to_string()),
-            report.best.map_or("-".to_owned(), heading_name_owned)
+            report.best.map_or("-".to_owned(), heading_name_owned),
+            if lost { "yes" } else { "no" },
+            rollout::best_heading(&board, &mut NeverStop)
+                .map_or("-".to_owned(), heading_name_owned)
         );
+    }
+}
+
+/// How much of the rollout reading is the position and how much is the seed.
+///
+/// The rescue picks the heading with the most survival. If the gap between the
+/// top two is inside the spread across seeds, it is picking noise, and one
+/// arbitrary tie-break has replaced another.
+#[test]
+#[ignore = "driven by hand: TRAP_SUITE_HARVEST=<positions>"]
+fn measure_the_rollout_noise() {
+    let positions = read_harvest(&suite_path("TRAP_SUITE_HARVEST", "positions.json"));
+    for position in &positions {
+        let Some(board) = board_of(&position.request) else {
+            continue;
+        };
+        println!("turn {}", position.turn);
+        for heading in Heading::ALL {
+            let runs: Vec<f64> = (0..8)
+                .map(|k| rollout_survival(&board, heading, ROLLOUT_SEED.wrapping_add(k * 0x9E37)))
+                .collect();
+            let low = runs.iter().copied().fold(f64::MAX, f64::min);
+            let high = runs.iter().copied().fold(f64::MIN, f64::max);
+            let mean = runs.iter().sum::<f64>() / runs.len() as f64;
+            println!(
+                "  {:<6} mean {mean:>6.2}   spread {low:>6.2} to {high:>6.2}",
+                heading_name(heading)
+            );
+        }
+    }
+}
+
+/// What the rescue is worth, over every harvested position the search proves
+/// lost: the life the search's heading keeps against the life the rollouts'
+/// heading keeps, on the same positions.
+#[test]
+#[ignore = "driven by scripts/run-trapsuite; needs a harvest"]
+fn measure_the_rescue_on_lost_positions() {
+    let positions = read_harvest(&suite_path("TRAP_SUITE_HARVEST", "positions.json"));
+    let valuation = MeleeValuation::standard();
+    let finish = MeleeFinish::new(&DEFAULT_MELEE_PROFILE);
+    let depth =
+        u16::try_from(env_number::<u64>("TRAP_SUITE_PLAY_DEPTH", 4)).expect("a depth fits in u16");
+
+    let (mut lost, mut search_life, mut rescue_life) = (0usize, 0.0f64, 0.0f64);
+    let (mut search_zero, mut rescue_zero, mut differed) = (0usize, 0usize, 0usize);
+    for position in &positions {
+        let Some(board) = board_of(&position.request) else {
+            continue;
+        };
+        let mut searcher = MeleeSearcher::new(&valuation, finish);
+        let report = searcher.search_fixed(&board, depth);
+        let is_lost = report
+            .principal_score
+            .is_some_and(|s| s < 0 && s.abs() >= finish.finite_limit());
+        if !is_lost {
+            continue;
+        }
+        let (Some(named), Some(rescued)) =
+            (report.best, rollout::best_heading(&board, &mut NeverStop))
+        else {
+            continue;
+        };
+        lost += 1;
+        differed += usize::from(named != rescued);
+        let a = rollout_survival(&board, named, ROLLOUT_SEED);
+        let b = rollout_survival(&board, rescued, ROLLOUT_SEED);
+        search_life += a;
+        rescue_life += b;
+        search_zero += usize::from(a == 0.0);
+        rescue_zero += usize::from(b == 0.0);
+    }
+
+    println!("positions the search proves lost: {lost}");
+    if lost > 0 {
+        println!("  the two pick a different heading in {differed}");
+        println!(
+            "  mean rollout life -- search {:.2}, rollouts {:.2}",
+            search_life / lost as f64,
+            rescue_life / lost as f64
+        );
+        println!("  headings worth nothing at all -- search {search_zero}, rollouts {rescue_zero}");
     }
 }

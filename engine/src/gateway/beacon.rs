@@ -78,6 +78,7 @@ const fn reason_name(reason: SelectionReason) -> &'static str {
     match reason {
         SelectionReason::SearchCompletedDepth => "search_completed_depth",
         SelectionReason::SearchTerminalWin => "search_terminal_win",
+        SelectionReason::SearchLostSoRolloutsChose => "search_lost_so_rollouts_chose",
         SelectionReason::BudgetExhaustedBeforeFirstDepth => "budget_exhausted_before_first_depth",
         SelectionReason::OneTurnSafety => "one_turn_safety",
         SelectionReason::UnsupportedBestEffort => "unsupported_best_effort",

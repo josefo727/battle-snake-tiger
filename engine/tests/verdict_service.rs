@@ -210,6 +210,61 @@ fn melee_searched(request: &TurnRequestDto, depth: u16) -> (Direction, i32) {
 
 // ---- the melee path -----------------------------------------------------------
 
+/// A melee we cannot survive: we have one health left, so we starve this turn
+/// whatever anyone does.
+fn lost_melee() -> TurnRequestDto {
+    request_from_bodies(
+        &[
+            &[(5, 5), (5, 4), (5, 3)],
+            &[(2, 2), (2, 1), (2, 0)],
+            &[(9, 9), (9, 8), (9, 7)],
+        ],
+        &[1, 90, 90],
+        0,
+        &[],
+    )
+}
+
+#[test]
+fn a_melee_the_search_proved_lost_is_handed_to_the_rollouts() {
+    // The proof holds only against an opponent model in which all three rivals
+    // play the worst line for us every turn. On the ladder on 2026-09-25 that
+    // model called a melee lost from turn 105 and the move for the four turns
+    // that followed came from the fixed heading order among headings it had
+    // scored the same kind of nothing. The rollouts get the last word, and the
+    // report says so rather than passing it off as an ordinary search.
+    let clock = Arc::new(ManualClock::at_micros(ARRIVAL));
+
+    let report = service(&clock, 4).decide(&lost_melee(), arrival());
+
+    assert_eq!(report.engine_path, EnginePath::MeleeSearch);
+    assert_eq!(
+        report.selection_reason,
+        SelectionReason::SearchLostSoRolloutsChose
+    );
+    assert!(
+        report.principal_score.is_some_and(|score| score < 0),
+        "the search still reports what it found"
+    );
+    assert!(!report.fallback_used, "this is not the safety engine");
+    assert_eq!(report.diagnostic, Diagnostic::None);
+}
+
+#[test]
+fn a_melee_that_is_merely_bad_is_left_to_the_search() {
+    // Only a proof is overruled. Anything short of one is the search's to call,
+    // or the rollouts would be deciding the whole game.
+    let clock = Arc::new(ManualClock::at_micros(ARRIVAL));
+    let request = request_with("v1.2.3", 4, 500, 1, &[(5, 6), (2, 3)]);
+
+    let report = service(&clock, 2).decide(&request, arrival());
+
+    assert_eq!(
+        report.selection_reason,
+        SelectionReason::SearchCompletedDepth
+    );
+}
+
 #[test]
 fn a_melee_answers_with_the_paranoid_heading_at_the_completed_depth() {
     let clock = Arc::new(ManualClock::at_micros(ARRIVAL));

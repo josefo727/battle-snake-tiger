@@ -7,3 +7,4 @@ pub mod minimax;
 pub mod ordering;
 pub mod parallel;
 pub mod paranoid;
+pub mod rollout;

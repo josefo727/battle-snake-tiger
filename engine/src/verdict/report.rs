@@ -18,6 +18,9 @@ pub enum SelectionReason {
     SearchCompletedDepth,
     /// The search proved a forced win.
     SearchTerminalWin,
+    /// The search proved a forced loss under its paranoid opponent model, so
+    /// the move was taken from the rollouts instead (growth iteration 20).
+    SearchLostSoRolloutsChose,
     /// The duel search could not finish even one depth, so the one-turn safety
     /// engine answered.
     BudgetExhaustedBeforeFirstDepth,
@@ -87,6 +90,17 @@ impl VerdictReport {
                 SelectionReason::SearchCompletedDepth
             },
             diagnostic: Diagnostic::None,
+        }
+    }
+
+    /// The same, for a position the search proved lost: the move is the one the
+    /// rollouts liked, not the one the search named.
+    #[must_use]
+    pub const fn rescued_by_rollouts(self, selected_move: Direction) -> Self {
+        Self {
+            selected_move,
+            selection_reason: SelectionReason::SearchLostSoRolloutsChose,
+            ..self
         }
     }
 

@@ -13,6 +13,7 @@ use crate::lookahead::ledger::LookaheadReport;
 use crate::lookahead::minimax::Searcher;
 use crate::lookahead::parallel::RootSplit;
 use crate::lookahead::paranoid::MeleeSearcher;
+use crate::lookahead::rollout;
 use crate::rules_core::{
     Clock, DecisionReport, MonotonicInstant, RequestTiming, TurnRequestDto, TurnState, classify,
     decide_unsupported, decide_within_deadline, declared_timeout, response_deadline,
@@ -140,14 +141,41 @@ impl VerdictService {
         };
         let finish = self.melee_finish;
         let decisive = move |score: i32| score.abs() >= finish.finite_limit();
-        self.report_search(
+        let report = self.report_search(
             EnginePath::MeleeSearch,
             &searched,
             decisive,
             request,
             state,
             arrived_at,
-        )
+        );
+        self.rescue_a_lost_melee(board, &searched, report, &mut allowance)
+    }
+
+    /// When the search proved the melee lost, the move it names is whichever
+    /// heading the fixed order reached first among several it scored the same
+    /// kind of nothing. The proof holds only against an opponent model in which
+    /// all three rivals play the worst line for us every turn, and they do not,
+    /// so the rollouts get the last word with whatever is left of the budget.
+    ///
+    /// Anything short of a proof is left alone, and so is a rescue that runs
+    /// out of time: half a set of rollouts is not an answer.
+    fn rescue_a_lost_melee(
+        &self,
+        board: &MeleeBoard,
+        searched: &LookaheadReport,
+        report: VerdictReport,
+        allowance: &mut SearchAllowance<'_>,
+    ) -> VerdictReport {
+        let lost = searched
+            .principal_score
+            .is_some_and(|score| score < 0 && score.abs() >= self.melee_finish.finite_limit());
+        if !lost {
+            return report;
+        }
+        rollout::best_heading(board, allowance).map_or(report, |heading| {
+            report.rescued_by_rollouts(direction_of(heading))
+        })
     }
 
     /// The report of a deepening search: its move at the completed depth, or the
