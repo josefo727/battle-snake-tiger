@@ -90,6 +90,36 @@ SANSON='    { "id": "sanson", "launch": {
 flood_seat() {
     printf '    { "id": "%s", "launch": {\n      "program": "taskset",\n      "args": ["-c", "%s", "%s/snork/target/release/server", "--host", "127.0.0.1:{port}", "--config", "{\\"Flood\\":{}}"] } }' "$1" "$2" "$REF"
 }
+# The bench that can charge for a head-to-head. Shapeshifter and the Floods
+# never trade heads, so until now nothing on this machine ever made the engine
+# pay for entering a cell an equal-length rival could take -- the dial at the
+# root was shipped on faith three times. `trader` is this same engine with
+# TRADE_RISK=0: it declines nothing, which is the behaviour 22 of 49 ladder
+# losses came from on 2026-09-22.
+write_trader_roster() {
+    cat > "$REF/roster-trader-melee.json" <<JSON
+{
+  "rules_cli_release": "v1.2.3",
+  "challenger": { "id": "tiger", "launch": {
+    "program": "taskset", "args": ["-c", "0,1,8,9", "$ROOT/target/release/tiger-engine"],
+    "env": { "BIND_ADDR": "127.0.0.1", "PORT": "{port}" } } },
+  "baseline": { "id": "baseline", "launch": {
+    "program": "taskset", "args": ["-c", "0,1,8,9", "$ROOT/target/baseline/release/battle-snake-rust"],
+    "env": { "BIND_ADDR": "127.0.0.1", "PORT": "{port}" } } },
+  "opponents": [
+    { "id": "shapeshifter", "launch": {
+      "program": "taskset",
+      "args": ["-c", "2,3,10,11", "$REF/shapeshifter-full/release/shapeshifter"],
+      "env": { "PORT": "{port}" } } },
+$(flood_seat flood-a "4,5,12,13"),
+    { "id": "trader", "launch": {
+      "program": "taskset", "args": ["-c", "6,7,14,15", "$ROOT/target/release/tiger-engine"],
+      "env": { "BIND_ADDR": "127.0.0.1", "PORT": "{port}", "TRADE_RISK": "0" } } }
+  ]
+}
+JSON
+}
+
 write_melee_roster() {
     cat > "$REF/roster-melee.json" <<JSON
 {
@@ -116,4 +146,5 @@ $FLOOD"
 write_roster "$REF/roster-strong.json" "$SHAPESHIFTER_FULL"
 # The four-snake placement benchmark (003 criterion 6): Sansón and two Flood seats.
 write_melee_roster
+write_trader_roster
 echo "==> rosters written to $REF/roster.json, $REF/roster-strong.json and $REF/roster-melee.json"

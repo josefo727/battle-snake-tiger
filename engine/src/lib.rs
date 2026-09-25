@@ -6,6 +6,7 @@ use axum::Router;
 
 use crate::gateway::beacon::DecisionBeacon;
 use crate::gateway::lifecycle::LifecycleBeacon;
+use crate::lookahead::paranoid::TRADE_RISK;
 use crate::rules_core::Clock;
 use crate::verdict::service::VerdictService;
 
@@ -35,6 +36,21 @@ pub fn build_service_with_threads(
     lifecycle: Arc<dyn LifecycleBeacon>,
     threads: usize,
 ) -> Router {
-    let service = VerdictService::new(clock.clone()).with_threads(threads);
+    build_service_with(clock, beacon, lifecycle, threads, TRADE_RISK)
+}
+
+/// The same, with the price a root heading pays for a cell an equal-length
+/// rival can also enter. Zero is the sparring opponent that never declines the
+/// head-to-head; the local roster had nobody who did.
+pub fn build_service_with(
+    clock: Arc<dyn Clock>,
+    beacon: Arc<dyn DecisionBeacon>,
+    lifecycle: Arc<dyn LifecycleBeacon>,
+    threads: usize,
+    trade_risk: i32,
+) -> Router {
+    let service = VerdictService::new(clock.clone())
+        .with_threads(threads)
+        .with_trade_risk(trade_risk);
     gateway::http::router(clock, service, beacon, lifecycle)
 }

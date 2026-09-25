@@ -12,7 +12,7 @@ use crate::lookahead::deepening::{DEPTH_CEILING, deepen, deepen_melee, drive};
 use crate::lookahead::ledger::LookaheadReport;
 use crate::lookahead::minimax::Searcher;
 use crate::lookahead::parallel::RootSplit;
-use crate::lookahead::paranoid::MeleeSearcher;
+use crate::lookahead::paranoid::{self, MeleeSearcher};
 use crate::lookahead::rollout;
 use crate::rules_core::{
     Clock, DecisionReport, MonotonicInstant, RequestTiming, TurnRequestDto, TurnState, classify,
@@ -34,6 +34,8 @@ pub struct VerdictService {
     depth_limit: u16,
     /// Threads of the melee search's root split; one means no split.
     threads: usize,
+    /// What a root heading pays for a cell an equal-length rival can enter.
+    trade_risk: i32,
 }
 
 impl VerdictService {
@@ -47,7 +49,17 @@ impl VerdictService {
             melee_finish: MeleeFinish::new(&DEFAULT_MELEE_PROFILE),
             depth_limit: DEPTH_CEILING,
             threads: 1,
+            trade_risk: paranoid::TRADE_RISK,
         }
+    }
+
+    /// What a root heading pays for a cell an equal-length rival can also
+    /// enter. Zero makes a sparring opponent that never declines the
+    /// head-to-head, which is the only way the local bench can charge for one.
+    #[must_use]
+    pub const fn with_trade_risk(mut self, trade_risk: i32) -> Self {
+        self.trade_risk = trade_risk;
+        self
     }
 
     /// Splits the melee search at the root over `threads` threads (at least one).
@@ -136,7 +148,8 @@ impl VerdictService {
             );
             drive(&mut split, &mut allowance, self.depth_limit)
         } else {
-            let mut searcher = MeleeSearcher::new(&self.melee_valuation, self.melee_finish);
+            let mut searcher = MeleeSearcher::new(&self.melee_valuation, self.melee_finish)
+                .with_trade_risk(self.trade_risk);
             deepen_melee(&mut searcher, board, &mut allowance, self.depth_limit)
         };
         let finish = self.melee_finish;

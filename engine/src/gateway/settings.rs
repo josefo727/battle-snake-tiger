@@ -1,5 +1,6 @@
 //! Process settings: where the server listens and where it keeps its log.
 
+use crate::lookahead::paranoid;
 use core::fmt;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::path::PathBuf;
@@ -21,6 +22,11 @@ pub struct Settings {
     pub log_dir: Option<PathBuf>,
     pub log_keep_days: usize,
     pub search_threads: usize,
+    /// What a root heading pays for a cell an equal-length rival can also
+    /// enter. The default is the engine's own; a sparring opponent set to zero
+    /// never declines the head-to-head, which is the only way the local bench
+    /// can charge for one (Shapeshifter and the Floods never do).
+    pub trade_risk: i32,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -29,6 +35,7 @@ pub enum SettingsError {
     InvalidPort(String),
     InvalidLogKeepDays(String),
     InvalidSearchThreads(String),
+    InvalidTradeRisk(String),
 }
 
 impl fmt::Display for SettingsError {
@@ -45,6 +52,11 @@ impl fmt::Display for SettingsError {
             Self::InvalidLogKeepDays(value) => write!(
                 formatter,
                 "LOG_KEEP_DAYS {value:?} is not a number of days; use a whole number of 1 or more"
+            ),
+            Self::InvalidTradeRisk(value) => write!(
+                formatter,
+                "TRADE_RISK {value:?} is not a whole number of points from 0 upwards; \
+                 0 makes the engine take every head-to-head it would otherwise decline"
             ),
             Self::InvalidSearchThreads(value) => write!(
                 formatter,
@@ -94,12 +106,22 @@ impl Settings {
                 search_threads.to_string(),
             ));
         }
+        let trade_risk = read(
+            &lookup,
+            "TRADE_RISK",
+            paranoid::TRADE_RISK,
+            SettingsError::InvalidTradeRisk,
+        )?;
+        if trade_risk < 0 {
+            return Err(SettingsError::InvalidTradeRisk(trade_risk.to_string()));
+        }
         Ok(Self {
             bind_addr,
             port,
             log_dir,
             log_keep_days,
             search_threads,
+            trade_risk,
         })
     }
 

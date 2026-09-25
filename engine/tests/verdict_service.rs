@@ -419,3 +419,40 @@ fn a_melee_decided_over_two_threads_is_the_same_decision() {
     assert_eq!(two.principal_score, one.principal_score);
     assert_eq!(two.search_depth, 3);
 }
+
+#[test]
+fn a_service_with_no_trade_risk_takes_the_head_to_head_the_default_declines() {
+    // The sparring opponent the local bench has been missing. Both headings
+    // that keep us alive enter a cell an equal-length rival can take; with the
+    // price on, the engine picks the one it can least afford to lose, and with
+    // the price off it picks purely on position. The two must differ, or the
+    // opponent is no different from us and measures nothing.
+    let clock = Arc::new(ManualClock::at_micros(ARRIVAL));
+    let request = request_from_bodies(
+        &[
+            &[(5, 5), (5, 4), (5, 3)],
+            &[(7, 5), (8, 5), (9, 5)],
+            &[(0, 0), (0, 1), (0, 2)],
+        ],
+        &[90, 90, 90],
+        0,
+        &[(6, 5)],
+    );
+
+    let careful = service(&clock, 4).decide(&request, arrival());
+    let reckless = service(&clock, 4)
+        .with_trade_risk(0)
+        .decide(&request, arrival());
+
+    assert_eq!(careful.engine_path, EnginePath::MeleeSearch);
+    assert_eq!(reckless.engine_path, EnginePath::MeleeSearch);
+    assert_eq!(
+        reckless.selected_move,
+        Direction::Right,
+        "with no price it walks onto the contested pellet"
+    );
+    assert_ne!(
+        careful.selected_move, reckless.selected_move,
+        "and with the price it does not"
+    );
+}

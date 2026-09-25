@@ -4,6 +4,7 @@ use std::path::PathBuf;
 
 use proptest::prelude::*;
 use tiger_engine::gateway::settings::{Settings, SettingsError};
+use tiger_engine::lookahead::paranoid::TRADE_RISK;
 
 fn lookup<'a>(vars: &'a [(&'a str, &'a str)]) -> impl Fn(&str) -> Option<String> + 'a {
     let map: HashMap<&str, &str> = vars.iter().copied().collect();
@@ -186,6 +187,30 @@ fn the_search_threads_default_to_one_and_must_be_one_to_sixty_four() {
             Settings::from_lookup(|name| (name == "SEARCH_THREADS").then(|| bad.to_owned()));
         assert!(
             matches!(result, Err(SettingsError::InvalidSearchThreads(_))),
+            "{bad}: {result:?}"
+        );
+    }
+}
+
+#[test]
+fn the_trade_risk_defaults_to_the_engine_constant_and_can_be_set() {
+    // A sparring opponent that never declines a head-to-head is the only way to
+    // measure what that price is worth: Shapeshifter and the two Floods do not
+    // trade heads, so the local bench has never charged for it (2026-09-25).
+    // The same binary serves as that opponent with TRADE_RISK=0.
+    let none = Settings::from_lookup(|_| None).unwrap();
+    let zero =
+        Settings::from_lookup(|name| (name == "TRADE_RISK").then(|| "0".to_owned())).unwrap();
+    let raised =
+        Settings::from_lookup(|name| (name == "TRADE_RISK").then(|| "40000".to_owned())).unwrap();
+
+    assert_eq!(none.trade_risk, TRADE_RISK);
+    assert_eq!(zero.trade_risk, 0);
+    assert_eq!(raised.trade_risk, 40_000);
+    for bad in ["-1", "lots", "1.5"] {
+        let result = Settings::from_lookup(|name| (name == "TRADE_RISK").then(|| bad.to_owned()));
+        assert!(
+            matches!(result, Err(SettingsError::InvalidTradeRisk(_))),
             "{bad}: {result:?}"
         );
     }

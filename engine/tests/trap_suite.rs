@@ -1448,3 +1448,72 @@ fn measure_how_often_the_search_ties() {
         );
     }
 }
+
+/// Sweeps the weight of head danger: what it takes for the engine to see a
+/// corridor of forced contact before it is inside one.
+///
+/// The trade risk is a root penalty on one ply. By the time it applies, every
+/// heading is often contested and the penalty is a constant that separates
+/// nothing. HeadDanger is the term that could steer away a turn earlier -- if
+/// it were loud enough to be heard.
+#[test]
+#[ignore = "driven by hand: TRAP_SUITE_HARVEST=<positions> plus the suite sample"]
+fn sweep_the_head_danger_weight() {
+    let cases = read_harvest(&suite_path("TRAP_SUITE_HARVEST", "positions.json"));
+    let traps = read_harvest(&suite_path("TRAP_SUITE_SUITE", "positions.json"));
+    let weights: Vec<i32> = std::env::var("TRAP_SUITE_HEAD_SWEEP")
+        .unwrap_or_else(|_| "300,800,1500,3000,6000".to_owned())
+        .split(',')
+        .filter_map(|t| t.trim().parse().ok())
+        .collect();
+
+    let mut references = Vec::new();
+    for position in &traps {
+        let Some(board) = board_of(&position.request) else {
+            continue;
+        };
+        let reference = Heading::ALL.map(|h| rollout_survival(&board, h, ROLLOUT_SEED));
+        let top = reference.iter().copied().fold(f64::MIN, f64::max);
+        let low = reference.iter().copied().fold(f64::MAX, f64::min);
+        if top - low >= 3.0 {
+            references.push((board, reference, top));
+        }
+    }
+
+    println!(
+        "{:<10}{:>16}{:>16}   moves on the cases",
+        "head", "life kept", "best step"
+    );
+    for weight in weights {
+        let profile = MeleeWeights {
+            head_danger: weight,
+            ..DEFAULT_MELEE_PROFILE
+        };
+        let valuation = MeleeValuation::with_profiles(&profile, &DEFAULT_PROFILE);
+        let (mut kept, mut available, mut best) = (0.0f64, 0.0f64, 0usize);
+        for (board, reference, top) in &references {
+            available += top;
+            if let Some(chosen) = choice_with(board, &valuation) {
+                kept += reference[chosen.index()];
+                best += usize::from(reference[chosen.index()] >= top - 1.0);
+            }
+        }
+        let moves: Vec<String> = cases
+            .iter()
+            .filter_map(|p| board_of(&p.request).map(|b| (p.turn, b)))
+            .map(|(turn, b)| {
+                format!(
+                    "t{turn}:{}",
+                    choice_with(&b, &valuation).map_or("-".to_owned(), heading_name_owned)
+                )
+            })
+            .collect();
+        println!(
+            "{weight:<10}{:>15.1}%{:>11} of {:<4}   {}",
+            100.0 * kept / available,
+            best,
+            references.len(),
+            moves.join(" ")
+        );
+    }
+}
