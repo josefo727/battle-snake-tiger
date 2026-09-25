@@ -1366,3 +1366,85 @@ fn explain_through_the_service() {
         );
     }
 }
+
+/// How often the search cannot tell its best two headings apart, and what the
+/// rollouts say about those.
+///
+/// The move then falls to the fixed heading order, which is north first and has
+/// nothing to do with the position. On 2026-09-25 that walked Sansón up a wall
+/// into a rival coming down it, and the game was over at turn 6.
+#[test]
+#[ignore = "driven by scripts/run-trapsuite; needs a cross-section sample"]
+fn measure_how_often_the_search_ties() {
+    let sample = read_harvest(&suite_path("TRAP_SUITE_SAMPLE", "sample.json"));
+    let valuation = MeleeValuation::standard();
+    let finish = MeleeFinish::new(&DEFAULT_MELEE_PROFILE);
+    let depth =
+        u16::try_from(env_number::<u64>("TRAP_SUITE_PLAY_DEPTH", 4)).expect("a depth fits in u16");
+    let margin: f64 = env_number("TRAP_SUITE_NOISE", 2.0);
+
+    let (mut read, mut tied, mut differed, mut beyond_noise) = (0usize, 0usize, 0usize, 0usize);
+    let (mut order_life, mut rollout_life) = (0.0f64, 0.0f64);
+    for position in &sample {
+        let Some(board) = board_of(&position.request) else {
+            continue;
+        };
+        read += 1;
+        // The exact value of every heading, with the root's own tie-break off.
+        let values: Vec<(Heading, i32)> = Heading::ALL
+            .into_iter()
+            .filter_map(|heading| {
+                let mut searcher = MeleeSearcher::new(&valuation, finish);
+                searcher
+                    .root_value(&board, heading, depth, &mut NeverStop)
+                    .map(|value| (heading, value))
+            })
+            .collect();
+        let Some(&(_, top)) = values.iter().max_by_key(|(_, v)| *v) else {
+            continue;
+        };
+        let best: Vec<Heading> = values
+            .iter()
+            .filter(|(_, v)| *v == top)
+            .map(|(h, _)| *h)
+            .collect();
+        if best.len() < 2 {
+            continue;
+        }
+        tied += 1;
+        // The fixed order picks the first; the rollouts pick the longest lived.
+        let by_order = best[0];
+        let by_rollout = best
+            .iter()
+            .copied()
+            .max_by(|a, b| {
+                rollout_survival(&board, *a, ROLLOUT_SEED).total_cmp(&rollout_survival(
+                    &board,
+                    *b,
+                    ROLLOUT_SEED,
+                ))
+            })
+            .expect("at least two");
+        let a = rollout_survival(&board, by_order, ROLLOUT_SEED);
+        let b = rollout_survival(&board, by_rollout, ROLLOUT_SEED);
+        order_life += a;
+        rollout_life += b;
+        differed += usize::from(by_order != by_rollout);
+        beyond_noise += usize::from(b - a > margin);
+    }
+
+    println!("over {read} sampled positions");
+    println!(
+        "  the search cannot separate its best two: {tied} ({:.0}%)",
+        100.0 * tied as f64 / read as f64
+    );
+    if tied > 0 {
+        println!("  of those, the rollouts would pick another: {differed}");
+        println!("    and by more than {margin} turns of life: {beyond_noise}");
+        println!(
+            "  mean rollout life -- heading order {:.2}, rollouts {:.2}",
+            order_life / tied as f64,
+            rollout_life / tied as f64
+        );
+    }
+}
