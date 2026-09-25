@@ -22,7 +22,23 @@ use crate::valuation::melee::finish::MeleeFinish;
 /// not trade heads (growth iteration 4); the platform's population sometimes
 /// does, so with a free alternative of similar value the root avoids the coin
 /// flip, and with a clearly worse alternative it still takes the cell.
-pub const TRADE_RISK: i32 = 8_000;
+///
+/// Read as a price, 8,000 against a million-point death was a bet that a rival
+/// trades about eight times in a thousand. The ladder analysis of 2026-09-22
+/// found 22 of 49 losses were equal-length head trades, so the bet was far too
+/// long, and iteration 19 made it worse: with a segment worth 3,000 a contested
+/// pellet outbid the old dial by 2,170 points and Sansón took the trade at turn
+/// 10 of a live game on 2026-09-25, dying with the rival over the food. Twelve
+/// thousand is the measured point where that position turns the other way;
+/// sixteen clears it by a third rather than sitting on the edge of one case.
+///
+/// Swept from 8,000 to 40,000 over 250 trap positions, 21 positions where an
+/// equal-length rival shares a cell we can enter, and 91 where a meal was on
+/// offer: the life kept, the best steps, the contested cells taken and the
+/// meals taken do not move at all. The two contested cells taken throughout are
+/// ones where every alternative is death, which no price can change. The dial
+/// buys the fatal case and costs nothing measurable anywhere else.
+pub const TRADE_RISK: i32 = 16_000;
 
 pub struct MeleeSearcher<'valuation, O = LearnedOrder> {
     valuation: &'valuation MeleeValuation,

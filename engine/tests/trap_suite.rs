@@ -28,7 +28,7 @@ use tiger_engine::arena::ingest::ingest_melee;
 use tiger_engine::arena::melee::{MAX_SEATS, MeleeBoard, MeleeOutcome, Seat};
 use tiger_engine::arena::serpent::Serpent;
 use tiger_engine::lookahead::allowance::NeverStop;
-use tiger_engine::lookahead::paranoid::MeleeSearcher;
+use tiger_engine::lookahead::paranoid::{MeleeSearcher, TRADE_RISK, contested_by_equal};
 use tiger_engine::rules_core::{SnakeState, TurnRequestDto, to_turn_state};
 use tiger_engine::valuation::Assessor;
 use tiger_engine::valuation::melee::appetite::Appetite;
@@ -579,10 +579,15 @@ fn production_choice(board: &MeleeBoard) -> Option<Heading> {
 /// The same with a valuation of our choosing, so a weight can be swept without
 /// rebuilding the engine once per value.
 fn choice_with(board: &MeleeBoard, valuation: &MeleeValuation) -> Option<Heading> {
+    choice_at_risk(board, valuation, TRADE_RISK)
+}
+
+/// The same with the root's trade risk set by hand, for sweeping that dial.
+fn choice_at_risk(board: &MeleeBoard, valuation: &MeleeValuation, risk: i32) -> Option<Heading> {
     let finish = MeleeFinish::new(&DEFAULT_MELEE_PROFILE);
     let depth =
         u16::try_from(env_number::<u64>("TRAP_SUITE_PLAY_DEPTH", 4)).expect("a depth fits in u16");
-    let mut searcher = MeleeSearcher::new(valuation, finish);
+    let mut searcher = MeleeSearcher::new(valuation, finish).with_trade_risk(risk);
     searcher.search_fixed(board, depth).best
 }
 
@@ -945,4 +950,248 @@ fn meals_on_offer(board: &MeleeBoard) -> [bool; 4] {
         moves[Seat::US.index()] = heading;
         matches!(board.advance(&moves), MeleeOutcome::Continues(_))
     })
+}
+
+/// Explains one position heading by heading: what the production valuation is
+/// worth, what it is worth with the trade risk switched off, whether an
+/// equal-length rival can take the same cell, and what the rollouts say.
+///
+/// For reading a single decision from a real game, which a mean over a suite
+/// cannot do.
+#[test]
+#[ignore = "driven by hand: TRAP_SUITE_HARVEST=<one-position file>"]
+fn explain_the_positions() {
+    let positions = read_harvest(&suite_path("TRAP_SUITE_HARVEST", "positions.json"));
+    let depth =
+        u16::try_from(env_number::<u64>("TRAP_SUITE_PLAY_DEPTH", 4)).expect("a depth fits in u16");
+    let valuation = MeleeValuation::standard();
+    let finish = MeleeFinish::new(&DEFAULT_MELEE_PROFILE);
+
+    for position in &positions {
+        let Some(board) = board_of(&position.request) else {
+            continue;
+        };
+        println!(
+            "seed {} turn {} played {} at depth {depth}",
+            position.seed,
+            position.turn,
+            heading_name(position.played)
+        );
+        println!(
+            "{:<8}{:>14}{:>14}{:>10}{:>14}",
+            "heading", "value", "no trade risk", "contested", "rollout life"
+        );
+        for heading in Heading::ALL {
+            let mut with = MeleeSearcher::new(&valuation, finish);
+            let mut without = MeleeSearcher::new(&valuation, finish).with_trade_risk(0);
+            let target = heading.step(board.serpent(Seat::US).head());
+            let contested = target.is_some_and(|cell| contested_by_equal(&board, cell));
+            let a = with.root_value(&board, heading, depth, &mut NeverStop);
+            let b = without.root_value(&board, heading, depth, &mut NeverStop);
+            println!(
+                "{:<8}{:>14}{:>14}{:>10}{:>14.2}",
+                heading_name(heading),
+                a.map_or("-".to_owned(), |v| v.to_string()),
+                b.map_or("-".to_owned(), |v| v.to_string()),
+                if contested { "yes" } else { "no" },
+                rollout_survival(&board, heading, ROLLOUT_SEED)
+            );
+        }
+        println!(
+            "  chosen by this engine: {}",
+            production_choice(&board).map_or("-".to_owned(), heading_name_owned)
+        );
+        println!("  what the weights that matter would have chosen:");
+        for (label, profile) in [
+            ("iteration 19 (standing 3000)", DEFAULT_MELEE_PROFILE),
+            (
+                "before it (standing 1000)",
+                MeleeWeights {
+                    standing_segment: 1_000,
+                    ..DEFAULT_MELEE_PROFILE
+                },
+            ),
+            (
+                "and with no melee enclosure",
+                MeleeWeights {
+                    standing_segment: 1_000,
+                    enclosure_turn: 0,
+                    ..DEFAULT_MELEE_PROFILE
+                },
+            ),
+        ] {
+            let v = MeleeValuation::with_profiles(&profile, &DEFAULT_PROFILE);
+            println!(
+                "    {label:<32} {}",
+                choice_with(&board, &v).map_or("-".to_owned(), heading_name_owned)
+            );
+        }
+    }
+}
+
+fn heading_name_owned(heading: Heading) -> String {
+    heading_name(heading).to_owned()
+}
+
+/// How often a weight sheet walks into a cell an equal-length rival can take.
+///
+/// The trap suite was harvested from games that ended walled in, so it holds no
+/// head-trade positions at all and said survival was flat while iteration 19
+/// raised the rate of exactly that. A suite measures what it was built from;
+/// this counts the other thing directly, over ordinary play.
+#[test]
+#[ignore = "driven by scripts/run-trapsuite; needs a cross-section sample"]
+fn measure_how_often_we_take_a_contested_cell() {
+    let sample = read_harvest(&suite_path("TRAP_SUITE_SAMPLE", "sample.json"));
+    let mut offered = Vec::new();
+    for position in &sample {
+        let Some(board) = board_of(&position.request) else {
+            continue;
+        };
+        let head = board.serpent(Seat::US).head();
+        let contested = Heading::ALL.map(|h| {
+            h.step(head)
+                .is_some_and(|cell| contested_by_equal(&board, cell))
+        });
+        if contested.iter().any(|c| *c) {
+            offered.push((board, contested));
+        }
+    }
+
+    println!(
+        "{} sampled positions where an equal-length rival shares a cell we can enter",
+        offered.len()
+    );
+    println!("{:<34}{:>14}", "weights", "we take it");
+    for (label, profile) in [
+        ("iteration 19 (standing 3000)", DEFAULT_MELEE_PROFILE),
+        (
+            "standing 2000",
+            MeleeWeights {
+                standing_segment: 2_000,
+                ..DEFAULT_MELEE_PROFILE
+            },
+        ),
+        (
+            "standing 1000 (before)",
+            MeleeWeights {
+                standing_segment: 1_000,
+                ..DEFAULT_MELEE_PROFILE
+            },
+        ),
+    ] {
+        let valuation = MeleeValuation::with_profiles(&profile, &DEFAULT_PROFILE);
+        let taken = offered
+            .iter()
+            .filter(|(board, contested)| {
+                choice_with(board, &valuation).is_some_and(|h| contested[h.index()])
+            })
+            .count();
+        println!("{label:<34}{:>9} of {:<4}", taken, offered.len());
+    }
+}
+
+/// What trade risk it takes to turn a position down again.
+#[test]
+#[ignore = "driven by hand alongside explain_the_positions"]
+fn sweep_the_trade_risk() {
+    let positions = read_harvest(&suite_path("TRAP_SUITE_HARVEST", "positions.json"));
+    let depth =
+        u16::try_from(env_number::<u64>("TRAP_SUITE_PLAY_DEPTH", 4)).expect("a depth fits in u16");
+    let valuation = MeleeValuation::standard();
+    let finish = MeleeFinish::new(&DEFAULT_MELEE_PROFILE);
+    for position in &positions {
+        let Some(board) = board_of(&position.request) else {
+            continue;
+        };
+        println!("turn {} at depth {depth}", position.turn);
+        for risk in [0, 8_000, 10_000, 12_000, 16_000, 24_000] {
+            let mut searcher = MeleeSearcher::new(&valuation, finish).with_trade_risk(risk);
+            let chosen = searcher.search_fixed(&board, depth).best;
+            println!(
+                "  trade risk {risk:<8} -> {}",
+                chosen.map_or("-".to_owned(), heading_name_owned)
+            );
+        }
+    }
+}
+
+/// What raising the trade risk buys and what it costs, on the same positions.
+#[test]
+#[ignore = "driven by scripts/run-trapsuite; needs a harvest and a sample"]
+fn sweep_the_trade_risk_over_the_suite() {
+    let traps = read_harvest(&suite_path("TRAP_SUITE_HARVEST", "positions.json"));
+    let sample = read_harvest(&suite_path("TRAP_SUITE_SAMPLE", "sample.json"));
+    let valuation = MeleeValuation::standard();
+
+    let mut references = Vec::new();
+    for position in &traps {
+        let Some(board) = board_of(&position.request) else {
+            continue;
+        };
+        let reference = Heading::ALL.map(|h| rollout_survival(&board, h, ROLLOUT_SEED));
+        let top = reference.iter().copied().fold(f64::MIN, f64::max);
+        let low = reference.iter().copied().fold(f64::MAX, f64::min);
+        if top - low >= 3.0 {
+            references.push((board, reference, top));
+        }
+    }
+    let mut contested_positions = Vec::new();
+    let mut meal_positions = Vec::new();
+    for position in &sample {
+        let Some(board) = board_of(&position.request) else {
+            continue;
+        };
+        let head = board.serpent(Seat::US).head();
+        let contested = Heading::ALL.map(|h| {
+            h.step(head)
+                .is_some_and(|cell| contested_by_equal(&board, cell))
+        });
+        if contested.iter().any(|c| *c) {
+            contested_positions.push((board, contested));
+        }
+        let offered = meals_on_offer(&board);
+        if offered.iter().any(|m| *m) {
+            meal_positions.push((board, offered));
+        }
+    }
+
+    println!(
+        "{} trap positions, {} with a contested cell, {} with a meal on offer",
+        references.len(),
+        contested_positions.len(),
+        meal_positions.len()
+    );
+    println!(
+        "{:<12}{:>14}{:>16}{:>18}{:>16}",
+        "trade risk", "life kept", "best step", "contested taken", "meals taken"
+    );
+    for risk in [8_000, 10_000, 12_000, 16_000, 24_000, 40_000] {
+        let (mut kept, mut available, mut best) = (0.0f64, 0.0f64, 0usize);
+        for (board, reference, top) in &references {
+            available += top;
+            if let Some(chosen) = choice_at_risk(board, &valuation, risk) {
+                kept += reference[chosen.index()];
+                best += usize::from(reference[chosen.index()] >= top - 1.0);
+            }
+        }
+        let taken = contested_positions
+            .iter()
+            .filter(|(b, c)| choice_at_risk(b, &valuation, risk).is_some_and(|h| c[h.index()]))
+            .count();
+        let meals = meal_positions
+            .iter()
+            .filter(|(b, m)| choice_at_risk(b, &valuation, risk).is_some_and(|h| m[h.index()]))
+            .count();
+        println!(
+            "{risk:<12}{:>13.1}%{:>11} of {:<4}{:>13} of {:<4}{:>11} of {:<4}",
+            100.0 * kept / available,
+            best,
+            references.len(),
+            taken,
+            contested_positions.len(),
+            meals,
+            meal_positions.len()
+        );
+    }
 }
