@@ -20,6 +20,7 @@ mod support;
 
 use std::fs;
 use std::path::PathBuf;
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use serde_json::{Value, json};
@@ -44,6 +45,7 @@ use tiger_engine::valuation::melee::territory::Territory;
 use tiger_engine::valuation::melee::weights::{DEFAULT_MELEE_PROFILE, MeleeWeights};
 use tiger_engine::valuation::melee::{MeleeValuation, Surveyed};
 use tiger_engine::valuation::weights::{DEFAULT_PROFILE, WeightSheet};
+use tiger_engine::verdict::service::VerdictService;
 
 use support::{env_number, turn_state_from_bodies};
 
@@ -1330,5 +1332,37 @@ fn measure_the_rescue_on_lost_positions() {
             rescue_life / lost as f64
         );
         println!("  headings worth nothing at all -- search {search_zero}, rollouts {rescue_zero}");
+    }
+}
+
+/// Does the rescue actually get a turn? The deepening fix hands the search the
+/// whole budget, and an allowance that has expired stays expired, so the two
+/// changes could cancel each other out. This runs the real decision path on a
+/// real clock and reports what the service says it did.
+#[test]
+#[ignore = "driven by hand: TRAP_SUITE_HARVEST=<positions>"]
+fn explain_through_the_service() {
+    let positions = read_harvest(&suite_path("TRAP_SUITE_HARVEST", "positions.json"));
+    let clock = Arc::new(SystemClock::new());
+    let service = VerdictService::new(clock.clone());
+
+    println!(
+        "{:<8}{:>8}{:>10}{:>8}{:>32}",
+        "turn", "depth", "ms", "move", "why"
+    );
+    for position in &positions {
+        let Ok(dto) = serde_json::from_value::<TurnRequestDto>(position.request.clone()) else {
+            continue;
+        };
+        let started = Instant::now();
+        let report = service.decide(&dto, clock.now());
+        println!(
+            "{:<8}{:>8}{:>10.1}{:>8}{:>32}",
+            position.turn,
+            report.search_depth,
+            started.elapsed().as_secs_f64() * 1000.0,
+            format!("{:?}", report.selected_move),
+            format!("{:?}", report.selection_reason)
+        );
     }
 }
