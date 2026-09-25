@@ -129,11 +129,21 @@ pub fn drive(
         let Some(completed) = searcher.search_until(depth, allowance) else {
             break;
         };
-        let decisive = completed
+        // A proven win stops the deepening: nothing deeper can better it. A
+        // proven loss does not. The verdict is only as good as the opponent
+        // model behind it, and that model has every rival play the worst line
+        // for us every time; on the ladder on 2026-09-25 it called a melee lost
+        // from turn 105 and the driver answered the next four turns in 45, 1.4,
+        // 0.4 and 0.1 ms of a 500 ms budget, leaving the move to the fixed
+        // heading order among headings it had declared equally lost. The
+        // rollout reference put ten turns of life between the best of them and
+        // the worst. Searching on costs time we would otherwise throw away, and
+        // deeper plies at least prefer the line that dies latest.
+        let proven_win = completed
             .principal_score
-            .is_some_and(|s| searcher.is_decisive(s));
+            .is_some_and(|score| score > 0 && searcher.is_decisive(score));
         deepest = Some(completed);
-        if decisive {
+        if proven_win {
             break;
         }
     }

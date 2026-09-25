@@ -110,6 +110,8 @@ fn a_proven_win_is_reported_as_a_terminal_win_at_the_depth_that_proves_it() {
 
     assert_eq!(report.engine_path, EnginePath::DuelSearch);
     assert_eq!(report.selection_reason, SelectionReason::SearchTerminalWin);
+    // A win still stops the deepening at the depth that proves it: nothing
+    // deeper can better a forced win.
     assert_eq!(report.search_depth, 1);
     assert_eq!(
         report.principal_score,
@@ -128,7 +130,11 @@ fn a_proven_loss_is_still_a_completed_search_not_a_win() {
         report.selection_reason,
         SelectionReason::SearchCompletedDepth
     );
-    assert_eq!(report.search_depth, 1);
+    // The loss is proven at the first ply and stays proven at every depth after
+    // it, but the driver no longer stops there: a verdict against us is only as
+    // good as the opponent model behind it, so the budget goes on looking for
+    // the line that lasts longest (iteration 20).
+    assert_eq!(report.search_depth, 6);
     assert_eq!(
         report.principal_score,
         Some(-(DEFAULT_PROFILE.win_score - DEFAULT_PROFILE.ply_penalty))

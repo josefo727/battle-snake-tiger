@@ -58,6 +58,14 @@ fn decided(report: &LookaheadReport) -> bool {
         .is_some_and(|s| s.abs() >= finish().finite_limit())
 }
 
+/// A decided position that is decided *our* way. Only these stop the driver:
+/// a loss is a verdict about an opponent model, not about the rules.
+fn won(report: &LookaheadReport) -> bool {
+    report
+        .principal_score
+        .is_some_and(|s| s > 0 && s >= finish().finite_limit())
+}
+
 const SEARCH_DEADLINE: u64 = 1_000_000;
 
 // ---- the driver -------------------------------------------------------------
@@ -109,6 +117,44 @@ fn a_decided_position_stops_deepening_at_the_depth_that_decides_it() {
         Some(DEFAULT_PROFILE.win_score - DEFAULT_PROFILE.ply_penalty)
     );
     assert_eq!(clock.reads(), 1);
+}
+
+#[test]
+fn a_lost_position_goes_on_deepening_instead_of_giving_up() {
+    // The other side of the coin, and the expensive one. We have one health
+    // left, so we starve this turn whatever either of us does: every depth
+    // says the same thing and the driver used to stop at the first one that
+    // did. On the ladder on 2026-09-25 that meant a melee answered in 0.1 ms
+    // of a 500 ms budget, with the move settled by the fixed heading order
+    // among four headings the search had declared equally lost.
+    //
+    // A proven win is worth stopping for: nothing deeper can beat it. A proven
+    // loss is a claim about an opponent that plays the worst line for us every
+    // time, and the opponent frequently does not, so the time is better spent
+    // looking for the line that lasts longest.
+    let us: &[(i32, i32)] = &[(5, 5), (5, 4), (5, 3)];
+    let them: &[(i32, i32)] = &[(2, 2), (2, 1), (2, 0)];
+    let board = ingest(&turn_state_from_bodies(&[us, them], &[1, 90], 0, &[])).expect("a duel");
+    let pipeline = ValuationPipeline::standard();
+    let clock = ManualClock::at_micros(0);
+    let mut allowance = allowance_ending_at(&clock, 10_000_000_000);
+
+    let report = deepen(
+        &mut Searcher::new(&pipeline, finish()),
+        &board,
+        &mut allowance,
+        6,
+    );
+
+    assert!(decided(&report), "the position really is decided");
+    assert!(
+        report.principal_score.is_some_and(|score| score < 0),
+        "and decided against us"
+    );
+    assert_eq!(
+        report.completed_depth, 6,
+        "a loss does not stop the deepening"
+    );
 }
 
 #[test]
@@ -280,10 +326,10 @@ proptest! {
 
         let report = deepen(&mut Searcher::new(&pipeline, finish()), &board, &mut allowance, limit);
 
-        // The driver stops at the first depth whose answer is already decided.
+        // The driver stops at the first depth whose answer is already a win.
         let mut expected_depth = limit;
         for depth in 1..=limit {
-            if decided(&fixed(&pipeline, &board, depth)) {
+            if won(&fixed(&pipeline, &board, depth)) {
                 expected_depth = depth;
                 break;
             }
@@ -429,8 +475,10 @@ fn a_melee_iteration_cut_short_is_dropped_and_the_previous_depth_stands() {
 }
 
 #[test]
-fn a_decided_melee_stops_at_the_depth_that_decides_it() {
-    // We starve this turn whatever we do.
+fn a_lost_melee_goes_on_deepening_too() {
+    // We starve this turn whatever we do: the melee twin of
+    // `a_lost_position_goes_on_deepening_instead_of_giving_up`, and the path
+    // that actually plays the ladder.
     let us: &[(i32, i32)] = &[(5, 5), (5, 4), (5, 3)];
     let east: &[(i32, i32)] = &[(9, 9), (9, 8), (9, 7)];
     let west: &[(i32, i32)] = &[(1, 9), (1, 8), (1, 7)];
@@ -452,13 +500,16 @@ fn a_decided_melee_stops_at_the_depth_that_decides_it() {
         6,
     );
 
-    assert_eq!(report.completed_depth, 1);
     assert!(
         report
             .principal_score
-            .is_some_and(|s| s < -melee_finish().finite_limit())
+            .is_some_and(|s| s < -melee_finish().finite_limit()),
+        "the melee really is lost"
     );
-    assert_eq!(clock.reads(), 1);
+    assert_eq!(
+        report.completed_depth, 6,
+        "and a lost melee keeps looking for the line that lasts longest"
+    );
 }
 
 #[test]

@@ -5,3 +5,4 @@
 # It is recommended to check this file in to source control so that
 # everyone who runs the test benefits from these saved cases.
 cc 73413fbf61c67f10bdb7ac9e09cdd9d0a04358bd1d29eed95bcfa7952294ee86 # shrinks to spec = StateSpec { ours: SnakeSpec { start: 0, turns: [], tail_stack: 0, health: 1 }, theirs: SnakeSpec { start: 0, turns: [], tail_stack: 0, health: 1 }, food: [], you_second: false }, limit = 1
+cc 745dc791664838daf680b5dbfd2c18c605d18181a1cfceda4bd1b0fc104b2cf8 # shrinks to spec = StateSpec { ours: SnakeSpec { start: 62, turns: [2, 3, 3, 0, 2, 1, 0, 0, 2, 0, 1, 1, 1, 0, 2, 1, 0, 0], tail_stack: 0, health: 1 }, theirs: SnakeSpec { start: 0, turns: [], tail_stack: 0, health: 2 }, food: [], you_second: false }, limit = 2

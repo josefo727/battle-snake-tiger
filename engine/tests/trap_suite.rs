@@ -20,6 +20,7 @@ mod support;
 
 use std::fs;
 use std::path::PathBuf;
+use std::time::{Duration, Instant};
 
 use serde_json::{Value, json};
 use tiger_engine::arena::cellset::{Cell, CellSet};
@@ -27,9 +28,11 @@ use tiger_engine::arena::heading::Heading;
 use tiger_engine::arena::ingest::ingest_melee;
 use tiger_engine::arena::melee::{MAX_SEATS, MeleeBoard, MeleeOutcome, Seat};
 use tiger_engine::arena::serpent::Serpent;
-use tiger_engine::lookahead::allowance::NeverStop;
+use tiger_engine::gateway::clock::SystemClock;
+use tiger_engine::lookahead::allowance::{NeverStop, SearchAllowance};
+use tiger_engine::lookahead::deepening::{DEPTH_CEILING, deepen_melee};
 use tiger_engine::lookahead::paranoid::{MeleeSearcher, TRADE_RISK, contested_by_equal};
-use tiger_engine::rules_core::{SnakeState, TurnRequestDto, to_turn_state};
+use tiger_engine::rules_core::{Clock, RequestTiming, SnakeState, TurnRequestDto, to_turn_state};
 use tiger_engine::valuation::Assessor;
 use tiger_engine::valuation::melee::appetite::Appetite;
 use tiger_engine::valuation::melee::enclosure::MeleeEnclosure;
@@ -1192,6 +1195,51 @@ fn sweep_the_trade_risk_over_the_suite() {
             contested_positions.len(),
             meals,
             meal_positions.len()
+        );
+    }
+}
+
+/// Runs the production path -- iterative deepening under the real allowance --
+/// over a file of positions, and says what depth it reached and how long it
+/// took. The early stop this measures lived in the driver, not in the search,
+/// so a fixed-depth reading cannot see it.
+#[test]
+#[ignore = "driven by hand: TRAP_SUITE_HARVEST=<positions>"]
+fn explain_under_the_clock() {
+    let positions = read_harvest(&suite_path("TRAP_SUITE_HARVEST", "positions.json"));
+    let budget = env_number::<u64>("TRAP_SUITE_BUDGET_MS", 500);
+    let valuation = MeleeValuation::standard();
+    let finish = MeleeFinish::new(&DEFAULT_MELEE_PROFILE);
+    let clock = SystemClock::new();
+
+    println!(
+        "{:<8}{:>8}{:>10}{:>14}{:>8}",
+        "turn", "depth", "ms", "score", "move"
+    );
+    for position in &positions {
+        let Some(board) = board_of(&position.request) else {
+            continue;
+        };
+        let started = Instant::now();
+        let mut allowance = SearchAllowance::from_request(
+            &clock,
+            RequestTiming {
+                arrived_at: clock.now(),
+            },
+            Duration::from_millis(budget),
+        )
+        .expect("the budget must be above the reserve");
+        let mut searcher = MeleeSearcher::new(&valuation, finish);
+        let report = deepen_melee(&mut searcher, &board, &mut allowance, DEPTH_CEILING);
+        println!(
+            "{:<8}{:>8}{:>10.1}{:>14}{:>8}",
+            position.turn,
+            report.completed_depth,
+            started.elapsed().as_secs_f64() * 1000.0,
+            report
+                .principal_score
+                .map_or("-".to_owned(), |s| s.to_string()),
+            report.best.map_or("-".to_owned(), heading_name_owned)
         );
     }
 }
