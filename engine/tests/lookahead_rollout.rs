@@ -103,3 +103,41 @@ fn the_stop_signal_is_obeyed_and_nothing_partial_comes_back() {
     };
     assert_eq!(best_heading(&board, &mut midway), None);
 }
+
+#[test]
+fn a_rival_that_can_take_our_head_for_free_takes_it() {
+    // The flaw that cost a ladder game on 2026-09-25. Our head is one step from
+    // a cell a rival four segments longer can also enter. Moving there is
+    // certain death: the rival wins the head-to-head and loses nothing. A rival
+    // that steps at random only takes it now and then, so the reading came back
+    // worth fifteen turns of life and the rescue walked into it.
+    //
+    // Rivals decline nothing that is free, so the rollout does not either.
+    let us: &[(i32, i32)] = &[(1, 8), (1, 9), (1, 10), (2, 10), (3, 10), (3, 9)];
+    let bigger: &[(i32, i32)] = &[
+        (2, 7),
+        (3, 7),
+        (3, 8),
+        (4, 8),
+        (5, 8),
+        (5, 7),
+        (5, 6),
+        (4, 6),
+        (3, 6),
+        (2, 6),
+    ];
+    let far: &[(i32, i32)] = &[(5, 4), (5, 3), (4, 3), (3, 3), (2, 3), (1, 3)];
+    let board = melee(&[us, bigger, far], &[90, 90, 90], &[(0, 10)]);
+
+    // East is (2,8), which the longer rival's head at (2,7) reaches as well.
+    let into_the_jaws = survival(&board, Heading::East, &mut NeverStop).expect("no stop");
+    assert_eq!(
+        into_the_jaws, 0,
+        "a cell a longer rival can take is worth no turns at all"
+    );
+    assert_ne!(
+        best_heading(&board, &mut NeverStop),
+        Some(Heading::East),
+        "and the rescue does not choose it"
+    );
+}

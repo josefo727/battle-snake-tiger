@@ -9,19 +9,24 @@
 //!
 //! Rivals do not in fact play that line, so when the verdict is a loss this
 //! asks a different question, the one a rollout can answer and a search cannot:
-//! from each heading, play the position out many times with every serpent --
-//! ourselves included -- stepping evenly among the steps that do not kill it on
-//! the spot, and count how long we last. A random walker dies in a corridor a
-//! careful serpent would survive, so this reads open ground as worth more than
-//! it is; the bias falls the same way on every heading of a position, and it is
-//! the only reading available that sees as far as the mistake.
+//! from each heading, play the position out many times and count how long we
+//! last. Every serpent steps evenly among the steps that do not kill it on the
+//! spot, with one exception: a rival at least as long as us that can reach the
+//! cell our head is entering takes it. That kill is free and no rival declines
+//! it, and leaving it to chance is what made the first version of this reading
+//! wrong (see [`rival_step`]).
+//!
+//! A random walker still dies in a corridor a careful serpent would survive, so
+//! this reads open ground as worth more than it is; the bias falls the same way
+//! on every heading of a position, and it is the only reading available that
+//! sees as far as the mistake.
 //!
 //! Everything here is integer and seeded, so the same position gives the same
 //! answer every time: a decision the engine cannot reproduce is one nobody can
 //! argue with afterwards.
 
 use super::allowance::StopSignal;
-use crate::arena::cellset::CellSet;
+use crate::arena::cellset::{Cell, CellSet};
 use crate::arena::heading::Heading;
 use crate::arena::melee::{MAX_SEATS, MeleeBoard, MeleeOutcome, Seat};
 
@@ -71,12 +76,15 @@ fn one_rollout(board: &MeleeBoard, heading: Heading, rng: &mut Xorshift) -> u16 
     for turn in 0..HORIZON {
         let mut moves = [Heading::ALL[0]; MAX_SEATS];
         let enterable = enterable_cells(&current);
-        for seat in current.seats() {
-            moves[seat.index()] = if seat == Seat::US && first.is_some() {
-                first.take().unwrap_or(heading)
-            } else {
-                safe_random_step(&current, seat, enterable, rng)
-            };
+        // Our own step is settled first, because what the rivals do about it
+        // depends on where it goes.
+        let ours = first
+            .take()
+            .unwrap_or_else(|| safe_random_step(&current, Seat::US, enterable, rng));
+        moves[Seat::US.index()] = ours;
+        let our_target = ours.step(current.serpent(Seat::US).head());
+        for seat in current.seats().filter(|seat| *seat != Seat::US) {
+            moves[seat.index()] = rival_step(&current, seat, enterable, our_target, rng);
         }
         match current.advance(&moves) {
             MeleeOutcome::Continues(next) => current = next,
@@ -85,6 +93,34 @@ fn one_rollout(board: &MeleeBoard, heading: Heading, rng: &mut Xorshift) -> u16 
         }
     }
     HORIZON
+}
+
+/// A rival's step: the head-to-head it wins, when one is on offer, and
+/// otherwise a safe step at random.
+///
+/// A serpent at least as long as us that can reach the cell our head is
+/// entering kills us there and loses nothing, so it never declines. Leaving
+/// that to chance is what made this reading wrong: on the ladder on 2026-09-25
+/// a rival four segments longer took the shared cell in only a fraction of the
+/// rollouts, the heading came back worth fifteen turns of life, and it was
+/// worth none.
+fn rival_step(
+    board: &MeleeBoard,
+    seat: Seat,
+    enterable: CellSet,
+    our_target: Option<Cell>,
+    rng: &mut Xorshift,
+) -> Heading {
+    let head = board.serpent(seat).head();
+    if board.serpent(seat).length() >= board.serpent(Seat::US).length()
+        && let Some(target) = our_target
+        && let Some(kill) = Heading::ALL
+            .into_iter()
+            .find(|h| h.step(head) == Some(target) && enterable.contains(target))
+    {
+        return kill;
+    }
+    safe_random_step(board, seat, enterable, rng)
 }
 
 /// A step for `seat` drawn evenly from those that do not kill it on the spot;
